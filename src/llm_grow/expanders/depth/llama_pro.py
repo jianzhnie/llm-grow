@@ -3,6 +3,7 @@
 核心思路：在均匀间隔处插入恒等块（o_proj & down_proj 置零），
 扩增后模型与原始模型函数完全一致（function-preserving）。
 """
+
 from __future__ import annotations
 
 import copy
@@ -85,6 +86,7 @@ class LlamaProExpander(AbstractExpander):
 # helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_identity_block(
     source_block: nn.Module,
     attn_proj_names: list[str],
@@ -95,12 +97,10 @@ def _make_identity_block(
     return block
 
 
-def _compute_insert_positions(
-    num_orig: int, num_new: int, strategy: str
-) -> list[int]:
+def _compute_insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
     if strategy == "uniform":
         step = num_orig / (num_new + 1)
-        return sorted(set(int(round(step * (i + 1))) - 1 for i in range(num_new)))
+        return sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
     if strategy == "front":
         return list(range(num_new))
     if strategy == "rear":

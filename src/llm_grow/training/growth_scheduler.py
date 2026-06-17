@@ -1,4 +1,5 @@
 """Growth scheduler for MSG-style progressive mask unlocking."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -53,11 +54,12 @@ class GrowthScheduler:
             return min(progress, 1.0)
         if cfg.strategy == "cosine":
             import math
+
             return 0.5 * (1 - math.cos(math.pi * min(progress, 1.0)))
         if cfg.strategy == "step":
             thresholds = [0.25, 0.5, 0.75, 1.0]
             values = [0.25, 0.5, 0.75, 1.0]
-            for t, v in zip(thresholds, values):
+            for t, v in zip(thresholds, values, strict=False):
                 if progress < t:
                     return v - 0.25
             return 1.0
@@ -69,7 +71,7 @@ class GrowthScheduler:
         简化实现：unlock_ratio < 1 时对新增参数施加梯度缩放，
         完整实现应维护二进制掩码矩阵。
         """
-        for name, param in model.named_parameters():
+        for _name, param in model.named_parameters():
             if getattr(param, "_is_new_growth", False):
                 param.requires_grad_(unlock_ratio > 0)
                 if hasattr(param, "_growth_scale"):

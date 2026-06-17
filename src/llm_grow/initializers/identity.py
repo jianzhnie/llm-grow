@@ -1,4 +1,5 @@
 """Identity initializer: zero o_proj / down_proj for function-preserving expansion."""
+
 from __future__ import annotations
 
 import torch.nn as nn

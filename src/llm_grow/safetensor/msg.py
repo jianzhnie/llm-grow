@@ -9,14 +9,14 @@ hidden_size / attention-head expansion is NOT implemented here because it
 requires touching every linear projection + embedding, making the recipe
 much more complex; use the in-memory MSGExpander for that case.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.llama_pro import LlamaProSafetensorConfig, _insert_positions
+from llm_grow.safetensor.llama_pro import _insert_positions
 from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
-
 
 # Suffixes whose output dimension (rows) expands with intermediate_size
 _FFN_OUT_SUFFIXES = frozenset({"mlp.gate_proj.weight", "mlp.up_proj.weight"})
@@ -74,7 +74,9 @@ class MSGSafetensorExpander(SafetensorExpanderBase):
 
         # ── depth: build layer sequence ──────────────────────────────────────
         if cfg.depth_expansion > 0:
-            positions = set(_insert_positions(num_orig, cfg.depth_expansion, cfg.insert_strategy))
+            positions = set(
+                _insert_positions(num_orig, cfg.depth_expansion, cfg.insert_strategy)
+            )
         else:
             positions = set()
 
@@ -87,8 +89,12 @@ class MSGSafetensorExpander(SafetensorExpanderBase):
         plan = ExpansionPlan(
             new_num_hidden_layers=len(sequence),
             config_patches=(
-                {"intermediate_size": _get_intermediate_size(src_index) + cfg.ffn_size_expansion}
-                if cfg.ffn_size_expansion > 0 else {}
+                {
+                    "intermediate_size": _get_intermediate_size(src_index)
+                    + cfg.ffn_size_expansion
+                }
+                if cfg.ffn_size_expansion > 0
+                else {}
             ),
         )
 
@@ -110,13 +116,16 @@ class MSGSafetensorExpander(SafetensorExpanderBase):
                     elif suf in _FFN_IN_SUFFIXES:
                         pad_c = cfg.ffn_size_expansion
 
-                plan.add(new_key, TensorRecipe(
-                    src_shard=wmap[src_key],
-                    src_key=src_key,
-                    zero_out=zero,
-                    pad_rows=pad_r,
-                    pad_cols=pad_c,
-                ))
+                plan.add(
+                    new_key,
+                    TensorRecipe(
+                        src_shard=wmap[src_key],
+                        src_key=src_key,
+                        zero_out=zero,
+                        pad_rows=pad_r,
+                        pad_cols=pad_c,
+                    ),
+                )
 
         # ── non-layer tensors pass through ───────────────────────────────────
         for key, shard in wmap.items():
@@ -133,6 +142,7 @@ def _get_intermediate_size(src_index: ShardIndex) -> int:
             # We need to peek at the tensor shape without loading full model
             # Use safe_open mmap for a single tensor
             from safetensors import safe_open
+
             shard = src_index.model_dir / src_index.weight_map[key]
             with safe_open(str(shard), framework="pt", device="cpu") as f:
                 return f.get_tensor(key).shape[0]

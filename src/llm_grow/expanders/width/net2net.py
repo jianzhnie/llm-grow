@@ -6,6 +6,7 @@
 
 在 LLM 时代主要作为 MSG 的理论基础；独立使用时复制神经元存在对称性问题。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -3,6 +3,7 @@
 No model loading required.  Operates entirely on .safetensors files.
 Function-preserving: new blocks have o_proj & down_proj zeroed → Block(x) = 0.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -61,19 +62,20 @@ class LlamaProSafetensorExpander(SafetensorExpanderBase):
         for i in range(num_orig):
             sequence.append((i, False))
             if i in pos_set:
-                sequence.append((i, True))   # identity copy of layer i
+                sequence.append((i, True))  # identity copy of layer i
 
         return self._build_layer_plan(src_index, layer_sequence=sequence)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+
 def _insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
     if num_new == 0:
         return []
     if strategy == "uniform":
         step = num_orig / (num_new + 1)
-        return sorted(set(int(round(step * (i + 1))) - 1 for i in range(num_new)))
+        return sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
     if strategy == "front":
         return list(range(num_new))
     if strategy == "rear":

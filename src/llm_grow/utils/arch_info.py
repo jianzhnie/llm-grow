@@ -1,4 +1,5 @@
 """Architecture info parser and parameter counter utilities."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,9 +46,7 @@ def parse_arch_info(model: nn.Module) -> ArchInfo:
 def count_params(model: nn.Module, trainable_only: bool = False) -> int:
     """统计模型参数量（默认统计全部参数）。"""
     return sum(
-        p.numel()
-        for p in model.parameters()
-        if not trainable_only or p.requires_grad
+        p.numel() for p in model.parameters() if not trainable_only or p.requires_grad
     )
 
 
@@ -66,9 +65,9 @@ def param_diff_report(
     print("\n" + "=" * 55)
     print("  Parameter Expansion Report")
     print("=" * 55)
-    print(f"  Original  total  : {orig_total:>15,}  ({orig_total/1e9:.2f}B)")
-    print(f"  Expanded  total  : {exp_total:>15,}  ({exp_total/1e9:.2f}B)")
-    print(f"  Expanded trainable: {exp_trainable:>14,}  ({exp_trainable/1e9:.2f}B)")
+    print(f"  Original  total  : {orig_total:>15,}  ({orig_total / 1e9:.2f}B)")
+    print(f"  Expanded  total  : {exp_total:>15,}  ({exp_total / 1e9:.2f}B)")
+    print(f"  Expanded trainable: {exp_trainable:>14,}  ({exp_trainable / 1e9:.2f}B)")
     print(f"  Expansion ratio  : {exp_total / orig_total:.3f}x")
     if orig_info.num_hidden_layers and exp_info.num_hidden_layers:
         print(f"  Layers: {orig_info.num_hidden_layers} → {exp_info.num_hidden_layers}")

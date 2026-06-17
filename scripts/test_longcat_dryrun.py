@@ -5,9 +5,8 @@ Tests both:
   1. Expert Upcycling  (512 -> 1024 experts)
   2. Depth Expansion   (28  -> 32  layers)
 """
+
 import sys
-import json
-from pathlib import Path
 
 MODEL_DIR = "/Users/robin/hfhub/models/meituan-longcat/LongCat-Flash-Chat"
 
@@ -32,15 +31,17 @@ def check_expert_upcycling():
     # Verify expert tensors doubled
     orig_experts = expander._count_experts_per_layer(wmap)
     new_expert_keys = [k for k in plan.recipes if "mlp.experts." in k]
-    experts_in_plan = len(set(
-        int(__import__("re").search(r"experts\.(\d+)", k).group(1))
-        for k in new_expert_keys
-        if k.startswith("model.layers.0.")
-    ))
+    experts_in_plan = len(
+        {
+            int(__import__("re").search(r"experts\.(\d+)", k).group(1))
+            for k in new_expert_keys
+            if k.startswith("model.layers.0.")
+        }
+    )
     print(f"\n  [Check] Original experts/layer : {orig_experts}")
     print(f"  [Check] Plan experts/layer     : {experts_in_plan}")
     assert experts_in_plan == orig_experts * 2, "Expert count mismatch!"
-    print(f"  [OK] Expert count doubled correctly")
+    print("  [OK] Expert count doubled correctly")
 
     # Verify router keys present and modified
     router_cls_keys = [k for k in plan.recipes if "mlp.router.classifier.weight" in k]
@@ -49,13 +50,13 @@ def check_expert_upcycling():
     print(f"  [Check] Router bias keys       : {len(router_bias_keys)} (dup_rows)")
     for k in router_cls_keys[:1]:
         assert plan.recipes[k].dup_rows, "Classifier should have dup_rows=True"
-    print(f"  [OK] Router classifier dup_rows=True")
+    print("  [OK] Router classifier dup_rows=True")
 
     # Verify config patches
     assert plan.config_patches.get("n_routed_experts") == 1024
     assert plan.config_patches.get("zero_expert_num") == 512
     assert plan.config_patches.get("moe_topk") == 24
-    print(f"  [OK] Config: n_routed_experts=1024, zero_expert_num=512, moe_topk=24")
+    print("  [OK] Config: n_routed_experts=1024, zero_expert_num=512, moe_topk=24")
 
     total_new = len([k for k in plan.recipes if k not in wmap])
     print(f"\n  Total new tensors added : {total_new}")
@@ -76,16 +77,20 @@ def check_depth_expansion():
 
     src_index = ShardIndex.load(MODEL_DIR)
 
-    assert plan.new_num_hidden_layers == 32, f"Expected 32, got {plan.new_num_hidden_layers}"
+    assert plan.new_num_hidden_layers == 32, (
+        f"Expected 32, got {plan.new_num_hidden_layers}"
+    )
     print(f"  [OK] new_num_hidden_layers = {plan.new_num_hidden_layers}")
 
     zero_recipes = [k for k, r in plan.recipes.items() if r.zero_out]
     zero_per_layer = {
-        "o_proj":   sum(1 for k in zero_recipes if "o_proj" in k),
-        "expert_dp": sum(1 for k in zero_recipes if "mlp.experts" in k and "down_proj" in k),
+        "o_proj": sum(1 for k in zero_recipes if "o_proj" in k),
+        "expert_dp": sum(
+            1 for k in zero_recipes if "mlp.experts" in k and "down_proj" in k
+        ),
         "dense_dp": sum(1 for k in zero_recipes if "mlps." in k and "down_proj" in k),
     }
-    print(f"  Zero tensors breakdown:")
+    print("  Zero tensors breakdown:")
     for cat, cnt in zero_per_layer.items():
         print(f"    {cat}: {cnt}")
 
@@ -100,28 +105,36 @@ def check_depth_expansion():
     assert len(zero_recipes) == expected_total_zero, (
         f"Zero count mismatch: {len(zero_recipes)} != {expected_total_zero}"
     )
-    print(f"  [OK] Zero tensor count correct")
+    print("  [OK] Zero tensor count correct")
 
     # Non-layer tensors (mtp, embed, etc.) must all pass through
-    non_layer_orig = sum(1 for k in src_index.weight_map if k.split(".")[0] != "model"
-                         or k.split(".")[1] not in ("layers",))
-    non_layer_plan = sum(1 for k in plan.recipes
-                         if not k.startswith("model.layers."))
-    print(f"  [Check] Non-layer tensors: {non_layer_orig} (src) -> {non_layer_plan} (plan)")
+    non_layer_orig = sum(
+        1
+        for k in src_index.weight_map
+        if k.split(".")[0] != "model" or k.split(".")[1] not in ("layers",)
+    )
+    non_layer_plan = sum(1 for k in plan.recipes if not k.startswith("model.layers."))
+    print(
+        f"  [Check] Non-layer tensors: {non_layer_orig} (src) -> {non_layer_plan} (plan)"
+    )
     assert non_layer_orig == non_layer_plan, "Non-layer tensor count changed!"
-    print(f"  [OK] All non-layer tensors (embed, norm, mtp) pass through")
+    print("  [OK] All non-layer tensors (embed, norm, mtp) pass through")
     return True
 
 
 def main():
     results = {}
-    for name, fn in [("expert_upcycling", check_expert_upcycling),
-                     ("depth_expansion",  check_depth_expansion)]:
+    for name, fn in [
+        ("expert_upcycling", check_expert_upcycling),
+        ("depth_expansion", check_depth_expansion),
+    ]:
         try:
             results[name] = fn()
         except Exception as e:
             print(f"\n  [FAIL] {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+
+            traceback.print_exc()
             results[name] = False
 
     print("\n" + "=" * 60)

@@ -1,9 +1,9 @@
 """Tests for identity initializer and function-preserving verification."""
+
 from __future__ import annotations
 
 import copy
 
-import pytest
 import torch
 import torch.nn as nn
 
@@ -50,8 +50,9 @@ class TestIdentityInitializer:
 
         x = torch.randn(2, 16, 32)
         out = block(x)
-        assert torch.allclose(out, x, atol=1e-5), \
+        assert torch.allclose(out, x, atol=1e-5), (
             f"Expected identity output, got max diff {(out - x).abs().max():.4e}"
+        )
 
     def test_is_identity_block_detection(self):
         block = SimpleBlock(d=32)

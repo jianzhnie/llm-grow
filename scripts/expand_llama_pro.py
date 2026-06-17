@@ -8,6 +8,7 @@
         --output-dir ./expanded_llama_pro \
         --verify
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,13 +24,17 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="LLaMA-Pro block expansion")
     p.add_argument("--model", required=True, help="原始模型路径或 HuggingFace model id")
     p.add_argument("--num-new-blocks", type=int, default=8, help="插入的恒等块数量")
-    p.add_argument("--insert-strategy", default="uniform",
-                   choices=["uniform", "front", "rear"])
+    p.add_argument(
+        "--insert-strategy", default="uniform", choices=["uniform", "front", "rear"]
+    )
     p.add_argument("--no-freeze", action="store_true", help="不冻结原始层")
     p.add_argument("--output-dir", default="./expanded_llama_pro")
-    p.add_argument("--verify", action="store_true", help="扩增后验证 function-preserving")
-    p.add_argument("--dtype", default="bfloat16",
-                   choices=["float32", "float16", "bfloat16"])
+    p.add_argument(
+        "--verify", action="store_true", help="扩增后验证 function-preserving"
+    )
+    p.add_argument(
+        "--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"]
+    )
     return p.parse_args()
 
 
@@ -43,6 +48,7 @@ def main() -> None:
 
     if args.verify:
         import copy
+
         original_for_verify = copy.deepcopy(model)
 
     config = LlamaProConfig(

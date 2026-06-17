@@ -1,4 +1,5 @@
 """Model IO utilities: load, save, and merge expanded models."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,7 +14,7 @@ def load_model(
     device_map: str = "auto",
 ) -> nn.Module:
     """加载 HuggingFace 因果语言模型。"""
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoModelForCausalLM
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name_or_path,
@@ -25,6 +26,7 @@ def load_model(
 
 def load_tokenizer(model_name_or_path: str):
     from transformers import AutoTokenizer
+
     return AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
 
 

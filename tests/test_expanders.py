@@ -1,25 +1,25 @@
 """Tests for LlamaProExpander and SolarDUSExpander."""
+
 from __future__ import annotations
 
 import copy
 
-import pytest
 import torch
 import torch.nn as nn
 
 from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
 from llm_grow.expanders.depth.solar_dus import SolarDUSConfig, SolarDUSExpander
 
-
 # ---------------------------------------------------------------------------
 # Minimal Transformer-like model for unit testing
 # ---------------------------------------------------------------------------
+
 
 class FakeMLP(nn.Module):
     def __init__(self, d=32, mid=64):
         super().__init__()
         self.gate_proj = nn.Linear(d, mid, bias=False)
-        self.up_proj   = nn.Linear(d, mid, bias=False)
+        self.up_proj = nn.Linear(d, mid, bias=False)
         self.down_proj = nn.Linear(mid, d, bias=False)
 
     def forward(self, x):
@@ -78,6 +78,7 @@ class FakeModel(nn.Module):
 # LLaMA-Pro tests
 # ---------------------------------------------------------------------------
 
+
 class TestLlamaProExpander:
     def _make_model(self, num_layers=8):
         return FakeModel(num_layers=num_layers, d=32)
@@ -91,8 +92,9 @@ class TestLlamaProExpander:
     def test_function_preserving(self):
         model = self._make_model(8)
         original = copy.deepcopy(model)
-        config = LlamaProConfig(num_new_blocks=4, insert_strategy="uniform",
-                                freeze_original=False)
+        config = LlamaProConfig(
+            num_new_blocks=4, insert_strategy="uniform", freeze_original=False
+        )
         expanded = LlamaProExpander().expand(model, config)
 
         input_ids = torch.randint(0, 256, (2, 16))
@@ -100,7 +102,7 @@ class TestLlamaProExpander:
         expanded.eval()
         with torch.no_grad():
             out_orig = original(input_ids).logits
-            out_exp  = expanded(input_ids).logits
+            out_exp = expanded(input_ids).logits
 
         max_err = (out_orig - out_exp).abs().max().item()
         assert max_err < 1e-4, f"FP check failed: max_err={max_err:.4e}"
@@ -112,8 +114,9 @@ class TestLlamaProExpander:
 
     def test_freeze_original_works(self):
         model = self._make_model(8)
-        LlamaProExpander().expand(model, LlamaProConfig(num_new_blocks=2,
-                                                         freeze_original=True))
+        LlamaProExpander().expand(
+            model, LlamaProConfig(num_new_blocks=2, freeze_original=True)
+        )
         trainable = [p for p in model.parameters() if p.requires_grad]
         frozen = [p for p in model.parameters() if not p.requires_grad]
         assert len(trainable) > 0
@@ -123,6 +126,7 @@ class TestLlamaProExpander:
 # ---------------------------------------------------------------------------
 # SOLAR DUS tests
 # ---------------------------------------------------------------------------
+
 
 class TestSolarDUSExpander:
     def test_layer_count(self):

@@ -8,17 +8,15 @@
 
 Function-preserving：✓（所有新维度初始为零，不影响前向输出）。
 """
+
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass, field
-from typing import Any
 
 import torch
 import torch.nn as nn
 
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
-from llm_grow.initializers.identity import zero_output_projections
 
 
 @dataclass
@@ -76,6 +74,7 @@ class MSGExpander(AbstractExpander):
 # width expansion
 # ---------------------------------------------------------------------------
 
+
 def _expand_width(model: nn.Module, config: MSGConfig) -> nn.Module:
     """对所有线性层做零填充宽度扩展。"""
     dh = config.hidden_size_expansion
@@ -101,9 +100,7 @@ def _expand_width(model: nn.Module, config: MSGConfig) -> nn.Module:
     return model
 
 
-def _pad_linear(
-    module: nn.Linear, in_delta: int, out_delta: int
-) -> None:
+def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
     """在行（out）和列（in）方向零填充权重矩阵，保持 function-preserving。"""
     old_w = module.weight.data
     old_out, old_in = old_w.shape
@@ -137,6 +134,7 @@ def _classify_linear(name: str) -> str:
 # depth expansion
 # ---------------------------------------------------------------------------
 
+
 def _expand_depth(model: nn.Module, config: MSGConfig) -> nn.Module:
     from llm_grow.expanders.depth.llama_pro import (
         LlamaProConfig,
@@ -156,6 +154,7 @@ def _expand_depth(model: nn.Module, config: MSGConfig) -> nn.Module:
 # ---------------------------------------------------------------------------
 # freeze helpers
 # ---------------------------------------------------------------------------
+
 
 def _freeze_original_params(model: nn.Module) -> None:
     """冻结所有被标记为原始参数的层（未被 zero_output_projections 触碰的层）。"""

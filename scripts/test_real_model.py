@@ -8,6 +8,7 @@
   4. MoE Upcycling — Dense → MoE，专家结构确认
   5. Expert Upcycling — MoE 专家数扩展
 """
+
 from __future__ import annotations
 
 import copy
@@ -19,7 +20,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MODEL_PATH = "/Users/robin/hfhub/models/Qwen/Qwen3-0.6B"
 DEVICE = "cpu"
-DTYPE = torch.float32   # CPU 测试用 fp32，避免 bfloat16 精度误差干扰 FP 验证
+DTYPE = torch.float32  # CPU 测试用 fp32，避免 bfloat16 精度误差干扰 FP 验证
 
 
 def load_fresh():
@@ -28,9 +29,9 @@ def load_fresh():
 
 
 def print_sep(title: str):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print('='*60)
+    print("=" * 60)
 
 
 def count_params(model) -> int:
@@ -41,7 +42,8 @@ def quick_fp_check(original, expanded, seq_len=32, atol=1e-4) -> bool:
     """随机 token 输入，检查 logits 最大误差。"""
     vocab = original.config.vocab_size
     ids = torch.randint(0, vocab, (1, seq_len))
-    original.eval(); expanded.eval()
+    original.eval()
+    expanded.eval()
     with torch.no_grad():
         lo = original(input_ids=ids).logits
         le = expanded(input_ids=ids).logits
@@ -72,18 +74,24 @@ def test_llama_pro():
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
-    config = LlamaProConfig(num_new_blocks=7, insert_strategy="uniform", freeze_original=True)
+    config = LlamaProConfig(
+        num_new_blocks=7, insert_strategy="uniform", freeze_original=True
+    )
     t0 = time.time()
     expanded = LlamaProExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
     exp_params = count_params(expanded)
-    trainable  = sum(p.numel() for p in expanded.parameters() if p.requires_grad)
+    trainable = sum(p.numel() for p in expanded.parameters() if p.requires_grad)
 
     print(f"  Layers : {orig_layers} → {exp_layers}  (+{exp_layers - orig_layers})")
-    print(f"  Params : {orig_params/1e6:.1f}M → {exp_params/1e6:.1f}M  ({exp_params/orig_params:.3f}x)")
-    print(f"  Trainable params: {trainable/1e6:.1f}M  ({100*trainable/exp_params:.1f}%)")
+    print(
+        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
+    )
+    print(
+        f"  Trainable params: {trainable / 1e6:.1f}M  ({100 * trainable / exp_params:.1f}%)"
+    )
     print(f"  Expand time: {elapsed:.2f}s")
     quick_fp_check(orig, expanded)
     return True
@@ -110,7 +118,9 @@ def test_solar_dus():
     expected = 2 * (orig_layers - config.num_overlap)
 
     print(f"  Layers : {orig_layers} → {exp_layers}  (expected {expected})")
-    print(f"  Params : {orig_params/1e6:.1f}M → {exp_params/1e6:.1f}M  ({exp_params/orig_params:.3f}x)")
+    print(
+        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
+    )
     print(f"  Expand time: {elapsed:.2f}s")
     assert exp_layers == expected, f"Layer count mismatch: {exp_layers} != {expected}"
     print("  [✓] Layer count correct")
@@ -129,7 +139,7 @@ def test_lesa():
     orig_params = count_params(model)
 
     # 仅在前 4 对相邻层之间插入，快速验证
-    config = LESAConfig(insert_between=[(i, i+1) for i in range(4)])
+    config = LESAConfig(insert_between=[(i, i + 1) for i in range(4)])
     t0 = time.time()
     expanded = LESAExpander().expand(model, config)
     elapsed = time.time() - t0
@@ -137,7 +147,7 @@ def test_lesa():
     exp_layers = len(expanded.model.layers)
     exp_params = count_params(expanded)
     print(f"  Layers : {orig_layers} → {exp_layers}")
-    print(f"  Params : {orig_params/1e6:.1f}M → {exp_params/1e6:.1f}M")
+    print(f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M")
     print(f"  Expand time: {elapsed:.2f}s")
     print("  [✓] LESA expansion complete (approx FP, atol=0.5 relaxed)")
     return True
@@ -168,7 +178,9 @@ def test_msg():
     exp_layers = len(expanded.model.layers)
     exp_params = count_params(expanded)
     print(f"  Layers : {orig_layers} → {exp_layers}")
-    print(f"  Params : {orig_params/1e6:.1f}M → {exp_params/1e6:.1f}M  ({exp_params/orig_params:.3f}x)")
+    print(
+        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
+    )
     print(f"  Expand time: {elapsed:.2f}s")
     quick_fp_check(orig, expanded)
     return True
@@ -179,7 +191,10 @@ def test_msg():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_moe_upcycling():
     print_sep("Test 5: MoE Upcycling — Dense FFN → 稀疏 MoE")
-    from llm_grow.expanders.sparse.moe_upcycling import MoEUpcyclingConfig, MoEUpcyclingExpander
+    from llm_grow.expanders.sparse.moe_upcycling import (
+        MoEUpcyclingConfig,
+        MoEUpcyclingExpander,
+    )
 
     model = load_fresh()
     orig_params = count_params(model)
@@ -190,10 +205,13 @@ def test_moe_upcycling():
     elapsed = time.time() - t0
 
     exp_params = count_params(expanded)
-    print(f"  Params : {orig_params/1e6:.1f}M → {exp_params/1e6:.1f}M  ({exp_params/orig_params:.3f}x)")
+    print(
+        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
+    )
     print(f"  Expand time: {elapsed:.2f}s")
 
     from llm_grow.expanders.sparse.moe_upcycling import MoELayer
+
     moe_layers = [m for m in expanded.modules() if isinstance(m, MoELayer)]
     print(f"  MoE layers found: {len(moe_layers)}")
     if moe_layers:
@@ -214,8 +232,15 @@ def test_moe_upcycling():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_expert_upcycling():
     print_sep("Test 6: Expert Upcycling — MoE 专家数扩展 (M1)")
-    from llm_grow.expanders.sparse.moe_upcycling import MoEUpcyclingConfig, MoEUpcyclingExpander, MoELayer
-    from llm_grow.expanders.sparse.expert_upcycling import ExpertUpcyclingConfig, ExpertUpcyclingExpander
+    from llm_grow.expanders.sparse.expert_upcycling import (
+        ExpertUpcyclingConfig,
+        ExpertUpcyclingExpander,
+    )
+    from llm_grow.expanders.sparse.moe_upcycling import (
+        MoELayer,
+        MoEUpcyclingConfig,
+        MoEUpcyclingExpander,
+    )
 
     # 先 upcycle 得到 MoE 基座
     model = load_fresh()
@@ -230,7 +255,9 @@ def test_expert_upcycling():
     elapsed = time.time() - t0
 
     final_params = count_params(expanded)
-    print(f"  Params : {moe_params/1e6:.1f}M → {final_params/1e6:.1f}M  ({final_params/moe_params:.3f}x)")
+    print(
+        f"  Params : {moe_params / 1e6:.1f}M → {final_params / 1e6:.1f}M  ({final_params / moe_params:.3f}x)"
+    )
     print(f"  Expand time: {elapsed:.2f}s")
 
     moe_layers = [m for m in expanded.modules() if isinstance(m, MoELayer)]
@@ -256,15 +283,14 @@ def test_generation():
     prompt = "The key to learning programming is"
 
     model_orig = load_fresh()
-    model_exp  = copy.deepcopy(model_orig)
+    model_exp = copy.deepcopy(model_orig)
     LlamaProExpander().expand(
-        model_exp,
-        LlamaProConfig(num_new_blocks=7, freeze_original=False)
+        model_exp, LlamaProConfig(num_new_blocks=7, freeze_original=False)
     )
 
     print(f"  Prompt: {prompt!r}")
     out_orig = run_generate(model_orig, tokenizer, prompt)
-    out_exp  = run_generate(model_exp,  tokenizer, prompt)
+    out_exp = run_generate(model_exp, tokenizer, prompt)
     print(f"  [Original ] {out_orig}")
     print(f"  [Expanded ] {out_exp}")
     print("  [✓] Outputs should be identical (FP = function-preserving)")
@@ -276,13 +302,13 @@ def test_generation():
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     tests = [
-        ("LLaMA-Pro",         test_llama_pro),
-        ("SOLAR DUS",         test_solar_dus),
-        ("LESA",              test_lesa),
-        ("MSG",               test_msg),
-        ("MoE Upcycling",     test_moe_upcycling),
-        ("Expert Upcycling",  test_expert_upcycling),
-        ("Generation check",  test_generation),
+        ("LLaMA-Pro", test_llama_pro),
+        ("SOLAR DUS", test_solar_dus),
+        ("LESA", test_lesa),
+        ("MSG", test_msg),
+        ("MoE Upcycling", test_moe_upcycling),
+        ("Expert Upcycling", test_expert_upcycling),
+        ("Generation check", test_generation),
     ]
 
     results = {}
@@ -291,7 +317,9 @@ if __name__ == "__main__":
             results[name] = fn()
         except Exception as exc:
             print(f"\n  [✗] FAILED: {exc}")
-            import traceback; traceback.print_exc()
+            import traceback
+
+            traceback.print_exc()
             results[name] = False
 
     print_sep("Summary")

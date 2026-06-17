@@ -23,16 +23,16 @@ MoE-longcat:
   longcat_flash                       dual-attn + dual-MLP + 512 experts +
                                       mlp.router.classifier.weight
 """
+
 from __future__ import annotations
 
 import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-
 
 # ── data class ────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class ModelProfile:
@@ -40,27 +40,27 @@ class ModelProfile:
 
     # ── basic ─────────────────────────────────────────────────────────────────
     src_dir: Path
-    model_type: str           # value of config.json "model_type"
-    arch_class: str           # config.json "architectures"[0]
+    model_type: str  # value of config.json "model_type"
+    arch_class: str  # config.json "architectures"[0]
     num_hidden_layers: int
 
     # ── MoE topology ─────────────────────────────────────────────────────────
     is_moe: bool = False
-    experts_per_moe_layer: int = 0    # 0 for dense
-    has_shared_expert: bool = False   # mlp.shared_experts.*
+    experts_per_moe_layer: int = 0  # 0 for dense
+    has_shared_expert: bool = False  # mlp.shared_experts.*
     dense_only_layers: list[int] = field(default_factory=list)
     """Layer indices that carry NO expert tensors (e.g. layer 0 in KimiK2)."""
 
     # ── router ────────────────────────────────────────────────────────────────
     router_weight_suffix: str = "mlp.gate.weight"
-    router_bias_suffix: Optional[str] = None
+    router_bias_suffix: str | None = None
     expert_count_config_key: str = "num_experts"
     topk_config_key: str = "num_experts_per_tok"
 
     # ── special architecture features ─────────────────────────────────────────
-    has_fp8: bool = False             # weight_scale_inv tensors present
-    has_mla_attn: bool = False        # DeepSeek/Kimi-K2 MLA (q_a_proj, kv_a_proj)
-    has_dual_attn: bool = False       # LongCat self_attn.0 / self_attn.1
+    has_fp8: bool = False  # weight_scale_inv tensors present
+    has_mla_attn: bool = False  # DeepSeek/Kimi-K2 MLA (q_a_proj, kv_a_proj)
+    has_dual_attn: bool = False  # LongCat self_attn.0 / self_attn.1
     has_dual_dense_mlp: bool = False  # LongCat mlps.0 / mlps.1
 
     # ── identity-block zero suffixes ─────────────────────────────────────────
@@ -91,7 +91,7 @@ class ModelProfile:
         ]
         if self.is_moe:
             lines += [
-                f"  is_moe          : True",
+                "  is_moe          : True",
                 f"  experts/layer   : {self.experts_per_moe_layer}",
                 f"  shared_expert   : {self.has_shared_expert}",
                 f"  dense_layers    : {self.dense_only_layers}",
@@ -101,7 +101,7 @@ class ModelProfile:
                 f"  topk_cfg_key    : {self.topk_config_key}",
             ]
         else:
-            lines.append(f"  is_moe          : False (dense)")
+            lines.append("  is_moe          : False (dense)")
         lines += [
             f"  has_fp8         : {self.has_fp8}",
             f"  has_mla_attn    : {self.has_mla_attn}",
@@ -113,6 +113,7 @@ class ModelProfile:
 
 
 # ── detection entry point ─────────────────────────────────────────────────────
+
 
 def detect_model(src_dir: str | Path) -> ModelProfile:
     """Detect model architecture from config.json + safetensors index.
@@ -130,17 +131,17 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
     cfg = _load_config(src_dir)
     wmap = _load_weight_map(src_dir)
 
-    arch_class  = (cfg.get("architectures") or ["Unknown"])[0]
-    model_type  = cfg.get("model_type", "")
-    num_layers  = (cfg.get("num_hidden_layers") or cfg.get("num_layers") or 0)
+    arch_class = (cfg.get("architectures") or ["Unknown"])[0]
+    model_type = cfg.get("model_type", "")
+    num_layers = cfg.get("num_hidden_layers") or cfg.get("num_layers") or 0
 
     # ── structural probes ────────────────────────────────────────────────────
-    has_experts     = any(_EXPERT_RE.search(k) for k in wmap)
-    has_fp8         = any(k.endswith("weight_scale_inv") for k in wmap)
-    has_mla         = any("q_a_proj" in k or "kv_a_proj" in k for k in wmap)
-    has_dual_attn   = any("self_attn.0." in k for k in wmap)
-    has_dual_mlp    = any("mlps.0." in k for k in wmap)
-    has_shared      = any("shared_experts" in k for k in wmap)
+    has_experts = any(_EXPERT_RE.search(k) for k in wmap)
+    has_fp8 = any(k.endswith("weight_scale_inv") for k in wmap)
+    has_mla = any("q_a_proj" in k or "kv_a_proj" in k for k in wmap)
+    has_dual_attn = any("self_attn.0." in k for k in wmap)
+    has_dual_mlp = any("mlps.0." in k for k in wmap)
+    has_shared = any("shared_experts" in k for k in wmap)
 
     # ── router keys ──────────────────────────────────────────────────────────
     router_w_suf, router_b_suf = _detect_router(wmap)
@@ -198,8 +199,9 @@ def _load_weight_map(src_dir: Path) -> dict[str, str]:
         return json.load(open(index_path))["weight_map"]
     if single_path.exists():
         from safetensors import safe_open
+
         with safe_open(str(single_path), framework="pt", device="cpu") as f:
-            return {k: "model.safetensors" for k in f.keys()}
+            return dict.fromkeys(f.keys(), "model.safetensors")
     raise FileNotFoundError(f"No safetensor files in {src_dir}")
 
 
@@ -230,9 +232,7 @@ def _detect_router(wmap: dict) -> tuple[str, str | None]:
     return found_w or "mlp.gate.weight", found_b
 
 
-def _count_experts(
-    wmap: dict, num_layers: int
-) -> tuple[int, list[int]]:
+def _count_experts(wmap: dict, num_layers: int) -> tuple[int, list[int]]:
     """Return (max_experts_per_moe_layer, dense_only_layer_indices)."""
     max_experts = 0
     dense_layers: list[int] = []
@@ -242,7 +242,8 @@ def _count_experts(
             int(m.group(1))
             for k in wmap
             if k.startswith(prefix)
-            for m in [_EXPERT_RE.search(k)] if m
+            for m in [_EXPERT_RE.search(k)]
+            if m
         }
         if idxs:
             max_experts = max(max_experts, len(idxs))
@@ -256,13 +257,19 @@ def _count_experts(
 def _detect_config_keys(cfg: dict) -> tuple[str, str]:
     """Return (expert_count_key, topk_key) that actually exist in config."""
     expert_key = next(
-        (k for k in ("num_experts", "n_routed_experts", "num_routed_experts")
-         if k in cfg),
+        (
+            k
+            for k in ("num_experts", "n_routed_experts", "num_routed_experts")
+            if k in cfg
+        ),
         "num_experts",
     )
     topk_key = next(
-        (k for k in ("num_experts_per_tok", "moe_topk", "num_experts_per_token")
-         if k in cfg),
+        (
+            k
+            for k in ("num_experts_per_tok", "moe_topk", "num_experts_per_token")
+            if k in cfg
+        ),
         "num_experts_per_tok",
     )
     return expert_key, topk_key

@@ -9,13 +9,17 @@
         --noise-std 0.01 \
         --output-dir ./expanded_moe
 """
+
 from __future__ import annotations
 
 import argparse
 
 import torch
 
-from llm_grow.expanders.sparse.moe_upcycling import MoEUpcyclingConfig, MoEUpcyclingExpander
+from llm_grow.expanders.sparse.moe_upcycling import (
+    MoEUpcyclingConfig,
+    MoEUpcyclingExpander,
+)
 from llm_grow.utils.arch_info import param_diff_report
 from llm_grow.utils.model_io import load_model, load_tokenizer, save_model
 
@@ -26,11 +30,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-experts", type=int, default=8)
     p.add_argument("--top-k", type=int, default=2)
     p.add_argument("--noise-std", type=float, default=0.01)
-    p.add_argument("--ffn-pattern", default="mlp",
-                   help="用于定位 FFN 模块的名称模式")
+    p.add_argument("--ffn-pattern", default="mlp", help="用于定位 FFN 模块的名称模式")
     p.add_argument("--output-dir", default="./expanded_moe")
-    p.add_argument("--dtype", default="bfloat16",
-                   choices=["float32", "float16", "bfloat16"])
+    p.add_argument(
+        "--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"]
+    )
     return p.parse_args()
 
 
@@ -50,6 +54,7 @@ def main() -> None:
     )
 
     import copy
+
     original_ref = copy.deepcopy(model)
 
     expander = MoEUpcyclingExpander()

@@ -1,4 +1,5 @@
 """ShardIndex and tensor key utilities for safetensor-level expansion."""
+
 from __future__ import annotations
 
 import json
@@ -6,7 +7,6 @@ import re
 import shutil
 from pathlib import Path
 
-import torch
 from safetensors import safe_open
 
 # ── tensor key helpers ──────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ def layer_suffix(key: str) -> str | None:
 
 
 # ── ShardIndex ───────────────────────────────────────────────────────────────
+
 
 class ShardIndex:
     """Abstracts single-file and multi-shard safetensor models.
@@ -64,7 +65,7 @@ class ShardIndex:
 
         if single_path.exists():
             with safe_open(str(single_path), framework="pt", device="cpu") as f:
-                weight_map = {k: cls.SINGLE_FILENAME for k in f.keys()}
+                weight_map = dict.fromkeys(f.keys(), cls.SINGLE_FILENAME)
             return cls(model_dir, weight_map)
 
         raise FileNotFoundError(
@@ -85,8 +86,7 @@ class ShardIndex:
     @property
     def is_single_shard(self) -> bool:
         return (
-            len(self.shard_files) == 1
-            and self.shard_files[0] == self.SINGLE_FILENAME
+            len(self.shard_files) == 1 and self.shard_files[0] == self.SINGLE_FILENAME
         )
 
     def total_size_bytes(self) -> int:
@@ -112,7 +112,11 @@ class ShardIndex:
 
     def num_hidden_layers(self) -> int:
         """Infer num_hidden_layers from tensor keys."""
-        indices = {parse_layer_idx(k) for k in self.weight_map if parse_layer_idx(k) is not None}
+        indices = {
+            parse_layer_idx(k)
+            for k in self.weight_map
+            if parse_layer_idx(k) is not None
+        }
         return max(indices) + 1 if indices else 0
 
     # ── write helpers ────────────────────────────────────────────────────────

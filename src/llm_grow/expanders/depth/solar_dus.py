@@ -3,6 +3,7 @@
 核心思路：将原模型复制两份，取上段前 N 层与下段后 N 层拼接，
 中间重叠区保证拼接点分布平滑。非 function-preserving，需要 100B+ CPT。
 """
+
 from __future__ import annotations
 
 import copy
@@ -22,7 +23,7 @@ from llm_grow.expanders.depth.llama_pro import (
 class SolarDUSConfig(ExpansionConfig):
     num_overlap: int = 8
     """重叠层数。上段保留前 (L - num_overlap) 层；下段从第 num_overlap 层开始。
-    拼接后总层数 = 2 * L - 2 * num_overlap + 2 * num_overlap = 2L - num_overlap * 0... 
+    拼接后总层数 = 2 * L - 2 * num_overlap + 2 * num_overlap = 2L - num_overlap * 0...
     实际: len(upper) + len(lower) = (L - num_overlap) + (L - num_overlap) = 2*(L-num_overlap)
     """
 
@@ -56,5 +57,7 @@ class SolarDUSExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print("[FP verify] SOLAR DUS is NOT function-preserving — skipping output check.")
+        print(
+            "[FP verify] SOLAR DUS is NOT function-preserving — skipping output check."
+        )
         return False

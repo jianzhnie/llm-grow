@@ -21,6 +21,7 @@ python scripts/verify_safetensor.py \\
     --dst /path/to/expanded \\
     --fp
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,19 +30,21 @@ import sys
 from pathlib import Path
 
 import torch
-from safetensors import safe_open
 
-from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx, layer_suffix
-
+from llm_grow.safetensor.utils import ShardIndex
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Verify expanded safetensor model")
     p.add_argument("--src", required=True, help="Original model directory")
     p.add_argument("--dst", required=True, help="Expanded model directory")
-    p.add_argument("--fp", action="store_true",
-                   help="Load both models and run function-preserving logit check")
+    p.add_argument(
+        "--fp",
+        action="store_true",
+        help="Load both models and run function-preserving logit check",
+    )
     p.add_argument("--fp-seq-len", type=int, default=32)
     p.add_argument("--fp-samples", type=int, default=4)
     p.add_argument("--fp-atol", type=float, default=1e-4)
@@ -49,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 # ── structural checks ─────────────────────────────────────────────────────────
+
 
 def check_config(src_dir: Path, dst_dir: Path) -> bool:
     src_cfg = _load_config(src_dir)
@@ -69,8 +73,12 @@ def check_config(src_dir: Path, dst_dir: Path) -> bool:
 
 def check_tensor_counts(src_idx: ShardIndex, dst_idx: ShardIndex) -> bool:
     print("\n[Tensor counts]")
-    print(f"  src: {len(src_idx.all_keys)} tensors across {len(src_idx.shard_files)} shard(s)")
-    print(f"  dst: {len(dst_idx.all_keys)} tensors across {len(dst_idx.shard_files)} shard(s)")
+    print(
+        f"  src: {len(src_idx.all_keys)} tensors across {len(src_idx.shard_files)} shard(s)"
+    )
+    print(
+        f"  dst: {len(dst_idx.all_keys)} tensors across {len(dst_idx.shard_files)} shard(s)"
+    )
     src_layers = src_idx.num_hidden_layers()
     dst_layers = dst_idx.num_hidden_layers()
     per_layer = len(src_idx.layer_suffixes())
@@ -123,12 +131,16 @@ def check_original_weights_preserved(
 
         if best_idx == -1:
             # Width expansion changed shapes — just report the nearest candidate
-            print(f"  [~] layer {orig_idx}: all dst shapes differ (width expansion applied)")
+            print(
+                f"  [~] layer {orig_idx}: all dst shapes differ (width expansion applied)"
+            )
         else:
             ok = best_diff < 1e-6
             icon = "✓" if ok else "✗"
-            print(f"  [{icon}] orig layer {orig_idx} → dst layer {best_idx}  "
-                  f"max|Δ|={best_diff:.2e}")
+            print(
+                f"  [{icon}] orig layer {orig_idx} → dst layer {best_idx}  "
+                f"max|Δ|={best_diff:.2e}"
+            )
             all_ok = all_ok and ok
     return all_ok
 
@@ -155,14 +167,19 @@ def check_identity_blocks_zeroed(dst_idx: ShardIndex) -> bool:
     if total_zero == 0:
         print("  [~] No zeroed projections found (non-FP method or no identity blocks)")
     else:
-        print(f"  [✓] Found {total_zero} zeroed projection(s), "
-              f"{total_nonzero} non-zero (original layers)")
+        print(
+            f"  [✓] Found {total_zero} zeroed projection(s), "
+            f"{total_nonzero} non-zero (original layers)"
+        )
     return True
 
 
 # ── FP check ───────────────────────────────────────────────────────────────────
 
-def check_fp(src_dir: Path, dst_dir: Path, seq_len: int, samples: int, atol: float) -> bool:
+
+def check_fp(
+    src_dir: Path, dst_dir: Path, seq_len: int, samples: int, atol: float
+) -> bool:
     print("\n[Function-Preserving logit check]")
     from transformers import AutoModelForCausalLM
 
@@ -175,7 +192,8 @@ def check_fp(src_dir: Path, dst_dir: Path, seq_len: int, samples: int, atol: flo
         print(f"  [✗] Cannot load expanded model: {e}")
         return False
 
-    orig.eval(); exp.eval()
+    orig.eval()
+    exp.eval()
 
     vocab = orig.config.vocab_size
     ids = torch.randint(0, vocab, (samples, seq_len))
@@ -196,6 +214,7 @@ def check_fp(src_dir: Path, dst_dir: Path, seq_len: int, samples: int, atol: flo
 
 # ── main ───────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     args = build_parser().parse_args()
     src_dir, dst_dir = Path(args.src), Path(args.dst)
@@ -207,18 +226,22 @@ def main() -> None:
     dst_idx = ShardIndex.load(dst_dir)
 
     results: dict[str, bool] = {}
-    results["config"]           = check_config(src_dir, dst_dir)
-    results["tensor_counts"]    = check_tensor_counts(src_idx, dst_idx)
-    results["weights_preserved"]= check_original_weights_preserved(src_idx, dst_idx)
-    results["identity_zeroed"]  = check_identity_blocks_zeroed(dst_idx)
+    results["config"] = check_config(src_dir, dst_dir)
+    results["tensor_counts"] = check_tensor_counts(src_idx, dst_idx)
+    results["weights_preserved"] = check_original_weights_preserved(src_idx, dst_idx)
+    results["identity_zeroed"] = check_identity_blocks_zeroed(dst_idx)
 
     if args.fp:
         results["fp_logit_check"] = check_fp(
-            src_dir, dst_dir, args.fp_seq_len, args.fp_samples, args.fp_atol,
+            src_dir,
+            dst_dir,
+            args.fp_seq_len,
+            args.fp_samples,
+            args.fp_atol,
         )
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("Summary")
-    print("="*50)
+    print("=" * 50)
     all_ok = True
     for name, ok in results.items():
         icon = "✓" if ok else "✗"

@@ -1,4 +1,5 @@
 """SVD interpolation initializer for LESA-style layer prediction."""
+
 from __future__ import annotations
 
 import torch
@@ -20,9 +21,9 @@ def svd_features(
     """
     w = weight.float()
     try:
-        U, S, Vh = torch.linalg.svd(w, full_matrices=False)
+        _U, S, Vh = torch.linalg.svd(w, full_matrices=False)
     except RuntimeError:
-        U, S, Vh = torch.svd(w)
+        _U, S, Vh = torch.svd(w)
         Vh = Vh.T
 
     k = min(rank, S.shape[0])

@@ -39,6 +39,7 @@ python scripts/safetensor_expand.py moe_expert \\
     --dst  ./outputs/qwen3_30b_2x \\
     --expand-factor 2
 """
+
 from __future__ import annotations
 
 import argparse
@@ -63,46 +64,70 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--src", required=True, help="Source model directory")
     p.add_argument("--dst", required=True, help="Output directory")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Build plan without writing files")
+    p.add_argument(
+        "--dry-run", action="store_true", help="Build plan without writing files"
+    )
     p.add_argument("--target-shard-gb", type=float, default=4.0)
     p.add_argument("--quiet", action="store_true")
 
     # auto params
-    p.add_argument("--method", default="depth",
-                   choices=["depth", "expert", "width"],
-                   help="[auto] Expansion axis")
+    p.add_argument(
+        "--method",
+        default="depth",
+        choices=["depth", "expert", "width"],
+        help="[auto] Expansion axis",
+    )
 
     # depth / LLaMA-Pro / MSG
-    p.add_argument("--num-new-layers", "--num-new-blocks", type=int, default=4,
-                   help="[auto depth / llama_pro / msg] layers / blocks to insert")
-    p.add_argument("--insert-strategy", default="uniform",
-                   choices=["uniform", "front", "rear"])
+    p.add_argument(
+        "--num-new-layers",
+        "--num-new-blocks",
+        type=int,
+        default=4,
+        help="[auto depth / llama_pro / msg] layers / blocks to insert",
+    )
+    p.add_argument(
+        "--insert-strategy", default="uniform", choices=["uniform", "front", "rear"]
+    )
 
     # SOLAR DUS
-    p.add_argument("--num-overlap", type=int, default=8,
-                   help="[solar_dus] overlapping layers")
+    p.add_argument(
+        "--num-overlap", type=int, default=8, help="[solar_dus] overlapping layers"
+    )
 
     # MSG width
-    p.add_argument("--ffn-size-expansion", type=int, default=0,
-                   help="[msg / auto width] intermediate_size increment")
+    p.add_argument(
+        "--ffn-size-expansion",
+        type=int,
+        default=0,
+        help="[msg / auto width] intermediate_size increment",
+    )
 
     # expert
-    p.add_argument("--expand-factor", type=int, default=2,
-                   help="[auto expert / moe_expert] expert count multiplier")
-    p.add_argument("--noise-scale", type=float, default=1e-6,
-                   help="[auto expert / moe_expert] router noise scale")
+    p.add_argument(
+        "--expand-factor",
+        type=int,
+        default=2,
+        help="[auto expert / moe_expert] expert count multiplier",
+    )
+    p.add_argument(
+        "--noise-scale",
+        type=float,
+        default=1e-6,
+        help="[auto expert / moe_expert] router noise scale",
+    )
     return p
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    target_bytes = int(args.target_shard_gb * 1024 ** 3)
+    target_bytes = int(args.target_shard_gb * 1024**3)
     verbose = not args.quiet
 
     # ── auto mode: detect + dispatch ─────────────────────────────────────────
     if args.expander == "auto":
         from llm_grow.safetensor.auto import auto_expand
+
         auto_expand(
             src_dir=args.src,
             dst_dir=args.dst,
@@ -121,31 +146,41 @@ def main() -> None:
     # ── explicit expanders ────────────────────────────────────────────────────
     if args.expander == "llama_pro":
         from llm_grow.safetensor.llama_pro import (
-            LlamaProSafetensorConfig, LlamaProSafetensorExpander,
+            LlamaProSafetensorConfig,
+            LlamaProSafetensorExpander,
         )
-        expander = LlamaProSafetensorExpander(LlamaProSafetensorConfig(
-            num_new_blocks=args.num_new_layers,
-            insert_strategy=args.insert_strategy,
-        ))
+
+        expander = LlamaProSafetensorExpander(
+            LlamaProSafetensorConfig(
+                num_new_blocks=args.num_new_layers,
+                insert_strategy=args.insert_strategy,
+            )
+        )
 
     elif args.expander == "solar_dus":
         from llm_grow.safetensor.solar_dus import (
-            SolarDUSSafetensorConfig, SolarDUSSafetensorExpander,
+            SolarDUSSafetensorConfig,
+            SolarDUSSafetensorExpander,
         )
+
         expander = SolarDUSSafetensorExpander(
             SolarDUSSafetensorConfig(num_overlap=args.num_overlap)
         )
 
     elif args.expander == "msg":
         from llm_grow.safetensor.msg import MSGSafetensorConfig, MSGSafetensorExpander
-        expander = MSGSafetensorExpander(MSGSafetensorConfig(
-            depth_expansion=args.num_new_layers,
-            insert_strategy=args.insert_strategy,
-            ffn_size_expansion=args.ffn_size_expansion,
-        ))
+
+        expander = MSGSafetensorExpander(
+            MSGSafetensorConfig(
+                depth_expansion=args.num_new_layers,
+                insert_strategy=args.insert_strategy,
+                ffn_size_expansion=args.ffn_size_expansion,
+            )
+        )
 
     elif args.expander == "moe_expert":
         from llm_grow.safetensor.auto import auto_expand
+
         auto_expand(
             src_dir=args.src,
             dst_dir=args.dst,

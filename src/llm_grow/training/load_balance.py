@@ -1,4 +1,5 @@
 """Load balancing loss for MoE training."""
+
 from __future__ import annotations
 
 import torch
@@ -31,7 +32,7 @@ def load_balance_loss(
     probs = F.softmax(router_logits, dim=-1)
     _, indices = torch.topk(router_logits, top_k, dim=-1)
 
-    num_tokens = router_logits.shape[0]
+    router_logits.shape[0]
     dispatch_mask = torch.zeros_like(probs)
     dispatch_mask.scatter_(1, indices, 1.0)
 
@@ -49,7 +50,7 @@ def z_loss(router_logits: torch.Tensor, coeff: float = 1e-3) -> torch.Tensor:
     L_z = coeff * mean(log(sum_j(exp(logit_j)))^2)
     """
     log_z = torch.logsumexp(router_logits, dim=-1)
-    return coeff * (log_z ** 2).mean()
+    return coeff * (log_z**2).mean()
 
 
 def combined_moe_loss(

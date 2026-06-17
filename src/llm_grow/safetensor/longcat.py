@@ -22,6 +22,7 @@ LongCat-Flash architecture specifics
 - MTP (Multi-Token Prediction) module at ``model.mtp.*`` — always passed through.
 - config keys:  ``n_routed_experts``, ``zero_expert_num``, ``moe_topk``
 """
+
 from __future__ import annotations
 
 import re
@@ -51,6 +52,7 @@ def _expert_key_offset(key: str, offset: int) -> str:
 
 
 # ── Expert Upcycling ──────────────────────────────────────────────────────────
+
 
 @dataclass
 class LongcatExpertUpcyclingConfig:
@@ -95,7 +97,7 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
         wmap = src_index.weight_map
 
         orig_n_experts = self._count_experts_per_layer(wmap)
-        new_n_experts  = orig_n_experts * cfg.expand_factor
+        new_n_experts = orig_n_experts * cfg.expand_factor
 
         # Config patches
         patches: dict = {"n_routed_experts": new_n_experts}
@@ -122,12 +124,15 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
 
             elif key.endswith("mlp.router.classifier.weight"):
                 # Duplicate rows: [N, H] → [N*factor, H] (with noise on copies)
-                plan.add(key, TensorRecipe(
-                    src_shard=shard,
-                    src_key=key,
-                    dup_rows=True,
-                    dup_rows_noise_scale=cfg.noise_scale,
-                ))
+                plan.add(
+                    key,
+                    TensorRecipe(
+                        src_shard=shard,
+                        src_key=key,
+                        dup_rows=True,
+                        dup_rows_noise_scale=cfg.noise_scale,
+                    ),
+                )
                 # Note: dup_rows doubles once; for factor>2 we'd need to chain.
                 # factor > 2 requires custom handling — flag it.
                 if cfg.expand_factor > 2:
@@ -138,12 +143,15 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
 
             elif key.endswith("mlp.router.e_score_correction_bias"):
                 # Bias: [N] → [N*factor] (exact copy, no noise)
-                plan.add(key, TensorRecipe(
-                    src_shard=shard,
-                    src_key=key,
-                    dup_rows=True,
-                    dup_rows_noise_scale=0.0,
-                ))
+                plan.add(
+                    key,
+                    TensorRecipe(
+                        src_shard=shard,
+                        src_key=key,
+                        dup_rows=True,
+                        dup_rows_noise_scale=0.0,
+                    ),
+                )
 
             else:
                 plan.passthrough(key, shard)
@@ -165,6 +173,7 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
     @staticmethod
     def _peek_config(model_dir) -> dict:
         import json
+
         cfg_path = model_dir / "config.json"
         if cfg_path.exists():
             with open(cfg_path) as f:
@@ -173,6 +182,7 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
 
 
 # ── Depth Expansion ───────────────────────────────────────────────────────────
+
 
 @dataclass
 class LongcatDepthConfig:
@@ -204,14 +214,18 @@ class LongcatDepthExpander(SafetensorExpanderBase):
     """
 
     # Exact-suffix matches for non-expert identity zeroing
-    _ATTN_ZERO = frozenset({
-        "self_attn.0.o_proj.weight",
-        "self_attn.1.o_proj.weight",
-    })
-    _DENSE_MLP_ZERO = frozenset({
-        "mlps.0.down_proj.weight",
-        "mlps.1.down_proj.weight",
-    })
+    _ATTN_ZERO = frozenset(
+        {
+            "self_attn.0.o_proj.weight",
+            "self_attn.1.o_proj.weight",
+        }
+    )
+    _DENSE_MLP_ZERO = frozenset(
+        {
+            "mlps.0.down_proj.weight",
+            "mlps.1.down_proj.weight",
+        }
+    )
 
     def __init__(self, config: LongcatDepthConfig | None = None) -> None:
         self.config = config or LongcatDepthConfig()
@@ -221,9 +235,7 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         if suf in self._ATTN_ZERO or suf in self._DENSE_MLP_ZERO:
             return True
         # Zero ALL expert down_proj weights
-        if suf.endswith(".down_proj.weight") and "mlp.experts." in suf:
-            return True
-        return False
+        return bool(suf.endswith(".down_proj.weight") and "mlp.experts." in suf)
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         from llm_grow.safetensor.llama_pro import _insert_positions
@@ -233,7 +245,9 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         wmap = src_index.weight_map
         suffixes = src_index.layer_suffixes()
 
-        positions = set(_insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy))
+        positions = set(
+            _insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
+        )
         sequence: list[tuple[int, bool]] = []
         for i in range(num_orig):
             sequence.append((i, False))
@@ -248,11 +262,14 @@ class LongcatDepthExpander(SafetensorExpanderBase):
                 if src_key not in wmap:
                     continue
                 new_key = f"model.layers.{new_idx}.{suf}"
-                plan.add(new_key, TensorRecipe(
-                    src_shard=wmap[src_key],
-                    src_key=src_key,
-                    zero_out=is_identity and self._should_zero(suf),
-                ))
+                plan.add(
+                    new_key,
+                    TensorRecipe(
+                        src_shard=wmap[src_key],
+                        src_key=src_key,
+                        zero_out=is_identity and self._should_zero(suf),
+                    ),
+                )
 
         # Non-layer tensors (embed, norm, mtp.*) pass through unchanged
         for key, shard in wmap.items():

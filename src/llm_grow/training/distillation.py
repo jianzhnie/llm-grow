@@ -1,4 +1,5 @@
 """Knowledge distillation loss for expand + distill pipeline."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -63,7 +64,7 @@ class DistillationLoss(nn.Module):
             F.log_softmax(flat_student[mask] / cfg.temperature, dim=-1),
             F.softmax(flat_teacher[mask] / cfg.temperature, dim=-1),
             reduction=cfg.reduction,
-        ) * (cfg.temperature ** 2)
+        ) * (cfg.temperature**2)
 
         return cfg.alpha * ce_loss + (1.0 - cfg.alpha) * kl_loss
 
@@ -81,8 +82,10 @@ def run_teacher_inference(
     teacher.eval()
     all_logits = []
     for i in range(0, input_ids.shape[0], batch_size):
-        batch_ids = input_ids[i: i + batch_size]
-        batch_mask = attention_mask[i: i + batch_size] if attention_mask is not None else None
+        batch_ids = input_ids[i : i + batch_size]
+        batch_mask = (
+            attention_mask[i : i + batch_size] if attention_mask is not None else None
+        )
         with torch.no_grad():
             out = teacher(input_ids=batch_ids, attention_mask=batch_mask)
         all_logits.append(out.logits.cpu())

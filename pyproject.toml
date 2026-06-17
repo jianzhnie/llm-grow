@@ -22,12 +22,6 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 authors = [{ name = "jianzhnie", email = "jianzhnie@gmail.com" }]
-
-[project.urls]
-Homepage = "https://github.com/jianzhnie/llm-grow"
-Repository = "https://github.com/jianzhnie/llm-grow"
-Issues = "https://github.com/jianzhnie/llm-grow/issues"
-
 dependencies = [
     "torch>=2.2.0",
     "transformers>=4.40.0",
@@ -37,6 +31,11 @@ dependencies = [
     "tqdm>=4.66",
     "numpy>=1.26",
 ]
+
+[project.urls]
+Homepage = "https://github.com/jianzhnie/llm-grow"
+Repository = "https://github.com/jianzhnie/llm-grow"
+Issues = "https://github.com/jianzhnie/llm-grow/issues"
 
 [project.optional-dependencies]
 train = [
@@ -79,15 +78,21 @@ line-ending = "lf"
 
 [tool.ruff.lint]
 select = [
-    "F",     # Pyflakes
-    "E",     # Pycodestyle errors
-    "W",     # Pycodestyle warnings
-    "I",     # Isort
-    "B",     # Flake8-bugbear
-    "C4",    # Flake8-comprehensions
-    "SIM",   # Flake8-simplify
-    "UP",    # Pyupgrade
-    "RUF",   # Ruff-specific rules
+    "F",    # Pyflakes
+    "E",    # Pycodestyle errors
+    "W",    # Pycodestyle warnings
+    "I",    # Isort
+    "B",    # Flake8-bugbear
+    "C4",   # Flake8-comprehensions
+    "SIM",  # Flake8-simplify
+    "UP",   # Pyupgrade
+    "RUF",  # Ruff-specific rules
+]
+ignore = [
+    "RUF001",  # Ambiguous unicode in string — intentional CJK punctuation
+    "RUF002",  # Ambiguous unicode in docstring — intentional CJK text
+    "RUF003",  # Ambiguous unicode in comment — intentional CJK text
+    "E501",    # Line too long — handled by formatter
 ]
 
 [tool.pytest.ini_options]

@@ -4,11 +4,11 @@
 新增 Router（随机初始化）；每个 token 通过 Top-K 路由激活 K 个专家。
 推理激活参数量 ≈ 原 Dense 模型（top-1 时几乎不变）。
 """
+
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -105,8 +105,10 @@ class MoEUpcyclingExpander(AbstractExpander):
             _replace_submodule(model, name, moe_layer)
             replaced += 1
 
-        print(f"[MoEUpcycling] Replaced {replaced} FFN layers with MoE layers "
-              f"({config.num_experts} experts, top-{config.top_k}).")
+        print(
+            f"[MoEUpcycling] Replaced {replaced} FFN layers with MoE layers "
+            f"({config.num_experts} experts, top-{config.top_k})."
+        )
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
@@ -117,6 +119,7 @@ class MoEUpcyclingExpander(AbstractExpander):
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_ffn_module(module: nn.Module) -> bool:
     """判断是否是叶子 FFN 模块（含 gate_proj / up_proj 的 SwiGLU MLP）。"""

@@ -44,15 +44,15 @@ If the wrong expander is used (e.g. LlamaProSafetensor on a MoE model),
 the identity block is incomplete: expert outputs are non-zero → function changes.
 This module prevents that mistake via auto-detection.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from llm_grow.safetensor.detect import ModelProfile, detect_model
 
-
 # ── public API ────────────────────────────────────────────────────────────────
+
 
 def auto_expand(
     src_dir: str | Path,
@@ -94,8 +94,15 @@ def auto_expand(
         print(profile.summary())
         print()
 
-    expander = _build_expander(method, profile, num_new_layers, insert_strategy,
-                               expand_factor, noise_scale, ffn_size_expansion)
+    expander = _build_expander(
+        method,
+        profile,
+        num_new_layers,
+        insert_strategy,
+        expand_factor,
+        noise_scale,
+        ffn_size_expansion,
+    )
 
     if dry_run:
         expander.dry_run(src_dir)
@@ -103,7 +110,7 @@ def auto_expand(
         expander.expand(
             src_dir=src_dir,
             dst_dir=dst_dir,
-            target_shard_bytes=int(target_shard_gb * 1024 ** 3),
+            target_shard_bytes=int(target_shard_gb * 1024**3),
             verbose=verbose,
         )
 
@@ -139,10 +146,13 @@ def _build_expander(
                 "Use method='expert' to increase expert count instead."
             )
         from llm_grow.safetensor.msg import MSGSafetensorConfig, MSGSafetensorExpander
+
         cfg = MSGSafetensorConfig(ffn_size_expansion=ffn_size_expansion)
         return MSGSafetensorExpander(cfg)
 
-    raise ValueError(f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'.")
+    raise ValueError(
+        f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'."
+    )
 
 
 def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: str):
@@ -151,56 +161,81 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
     if profile.has_dual_attn:
         # LongCat-Flash: dual attention + dual MLP + 512 experts
         from llm_grow.safetensor.longcat import LongcatDepthConfig, LongcatDepthExpander
-        return LongcatDepthExpander(LongcatDepthConfig(
-            num_new_layers=num_new_layers,
-            insert_strategy=strategy,
-        ))
+
+        return LongcatDepthExpander(
+            LongcatDepthConfig(
+                num_new_layers=num_new_layers,
+                insert_strategy=strategy,
+            )
+        )
 
     if profile.is_moe:
         # Standard MoE or DeepSeek-style MoE
-        from llm_grow.safetensor.moe_generic import GenericMoEDepthConfig, GenericMoEDepthExpander
-        return GenericMoEDepthExpander(GenericMoEDepthConfig(
-            num_new_layers=num_new_layers,
-            insert_strategy=strategy,
-            extra_attn_zero_suffixes=profile.attn_zero_suffixes,
-            dense_mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
-            zero_shared_expert_down=profile.has_shared_expert,
-        ))
+        from llm_grow.safetensor.moe_generic import (
+            GenericMoEDepthConfig,
+            GenericMoEDepthExpander,
+        )
+
+        return GenericMoEDepthExpander(
+            GenericMoEDepthConfig(
+                num_new_layers=num_new_layers,
+                insert_strategy=strategy,
+                extra_attn_zero_suffixes=profile.attn_zero_suffixes,
+                dense_mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
+                zero_shared_expert_down=profile.has_shared_expert,
+            )
+        )
 
     # Pure dense model
-    from llm_grow.safetensor.llama_pro import LlamaProSafetensorConfig, LlamaProSafetensorExpander
-    return LlamaProSafetensorExpander(LlamaProSafetensorConfig(
-        num_new_blocks=num_new_layers,
-        insert_strategy=strategy,
-        attn_zero_suffixes=profile.attn_zero_suffixes,
-        mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
-    ))
+    from llm_grow.safetensor.llama_pro import (
+        LlamaProSafetensorConfig,
+        LlamaProSafetensorExpander,
+    )
+
+    return LlamaProSafetensorExpander(
+        LlamaProSafetensorConfig(
+            num_new_blocks=num_new_layers,
+            insert_strategy=strategy,
+            attn_zero_suffixes=profile.attn_zero_suffixes,
+            mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
+        )
+    )
 
 
-def _build_expert_expander(profile: ModelProfile, expand_factor: int, noise_scale: float):
+def _build_expert_expander(
+    profile: ModelProfile, expand_factor: int, noise_scale: float
+):
     """Select and configure the correct expert upcycling expander."""
 
     if profile.has_dual_attn:
         # LongCat-Flash (special router structure)
         from llm_grow.safetensor.longcat import (
-            LongcatExpertUpcyclingConfig, LongcatExpertUpcyclingExpander,
+            LongcatExpertUpcyclingConfig,
+            LongcatExpertUpcyclingExpander,
         )
-        return LongcatExpertUpcyclingExpander(LongcatExpertUpcyclingConfig(
-            expand_factor=expand_factor,
-            noise_scale=noise_scale,
-        ))
+
+        return LongcatExpertUpcyclingExpander(
+            LongcatExpertUpcyclingConfig(
+                expand_factor=expand_factor,
+                noise_scale=noise_scale,
+            )
+        )
 
     # Generic: Qwen3MoE, DeepSeek-V2/V3, KimiK2, Mixtral, …
     from llm_grow.safetensor.moe_generic import (
-        GenericMoEUpcyclingConfig, GenericMoEExpertUpcyclingExpander,
+        GenericMoEExpertUpcyclingExpander,
+        GenericMoEUpcyclingConfig,
     )
-    return GenericMoEExpertUpcyclingExpander(GenericMoEUpcyclingConfig(
-        expand_factor=expand_factor,
-        noise_scale=noise_scale,
-        router_weight_suffixes=[profile.router_weight_suffix],
-        router_bias_suffixes=(
-            [profile.router_bias_suffix] if profile.router_bias_suffix else []
-        ),
-        config_expert_count_key=profile.expert_count_config_key,
-        config_topk_key=profile.topk_config_key,
-    ))
+
+    return GenericMoEExpertUpcyclingExpander(
+        GenericMoEUpcyclingConfig(
+            expand_factor=expand_factor,
+            noise_scale=noise_scale,
+            router_weight_suffixes=[profile.router_weight_suffix],
+            router_bias_suffixes=(
+                [profile.router_bias_suffix] if profile.router_bias_suffix else []
+            ),
+            config_expert_count_key=profile.expert_count_config_key,
+            config_topk_key=profile.topk_config_key,
+        )
+    )

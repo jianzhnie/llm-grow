@@ -4,6 +4,7 @@
 新层从"有意义"的初始化出发，收敛速度优于 DUS。
 即时精度约 80-90%（非严格 FP），CPT 需求量约为 DUS 的 50%。
 """
+
 from __future__ import annotations
 
 import copy
@@ -49,18 +50,14 @@ class LESAExpander(AbstractExpander):
         layers = _get_decoder_layers(model)
         num_layers = len(layers)
 
-        pairs = config.insert_between or [
-            (i, i + 1) for i in range(num_layers - 1)
-        ]
+        pairs = config.insert_between or [(i, i + 1) for i in range(num_layers - 1)]
         insert_after = sorted({p[0] for p in pairs})
 
         new_layers: list[nn.Module] = []
         for i, layer in enumerate(layers):
             new_layers.append(layer)
             if i in insert_after and i + 1 < num_layers:
-                interpolated = _interpolate_layers(
-                    layers[i], layers[i + 1], config
-                )
+                interpolated = _interpolate_layers(layers[i], layers[i + 1], config)
                 new_layers.append(interpolated)
 
         layer_list = nn.ModuleList(new_layers)
@@ -69,13 +66,16 @@ class LESAExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print("[FP verify] LESA is approximately FP (~80-90%) — running output diff check.")
+        print(
+            "[FP verify] LESA is approximately FP (~80-90%) — running output diff check."
+        )
         return super().verify(original, expanded, atol=0.5, **kwargs)
 
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _interpolate_layers(
     layer_a: nn.Module,

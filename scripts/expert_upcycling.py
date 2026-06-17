@@ -9,6 +9,7 @@
         --symmetry-break noise \
         --output-dir ./expanded_experts
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,15 +30,18 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="MoE Expert Upcycling (M1)")
     p.add_argument("--model", required=True)
     p.add_argument("--expand-factor", type=int, default=2)
-    p.add_argument("--selection-strategy", default="uniform",
-                   choices=["uniform", "utility", "random_subset"])
-    p.add_argument("--symmetry-break", default="noise",
-                   choices=["noise", "drop"])
+    p.add_argument(
+        "--selection-strategy",
+        default="uniform",
+        choices=["uniform", "utility", "random_subset"],
+    )
+    p.add_argument("--symmetry-break", default="noise", choices=["noise", "drop"])
     p.add_argument("--noise-std", type=float, default=0.01)
     p.add_argument("--drop-ratio", type=float, default=0.1)
     p.add_argument("--output-dir", default="./expanded_experts")
-    p.add_argument("--dtype", default="bfloat16",
-                   choices=["float32", "float16", "bfloat16"])
+    p.add_argument(
+        "--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"]
+    )
     return p.parse_args()
 
 

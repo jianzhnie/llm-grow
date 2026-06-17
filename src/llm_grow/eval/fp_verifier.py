@@ -1,4 +1,5 @@
 """Function-preserving verifier: check output consistency after expansion."""
+
 from __future__ import annotations
 
 import torch
@@ -72,6 +73,7 @@ def verify_fp(
 
 def _load_model(path: str) -> nn.Module:
     from transformers import AutoModelForCausalLM
+
     return AutoModelForCausalLM.from_pretrained(path, torch_dtype="auto")
 
 

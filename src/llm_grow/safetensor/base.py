@@ -14,6 +14,7 @@ Memory profile
 - Active output shard: ≤ ``target_shard_bytes`` in RAM (default 4 GB).
 - Total peak: ~one output shard + metadata.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,21 +26,21 @@ from typing import Any
 import torch
 from safetensors.torch import save_file
 
-from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx, rename_layer_idx
-
+from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
 
 # ── data classes ─────────────────────────────────────────────────────────────
+
 
 @dataclass
 class TensorRecipe:
     """Describes how to produce one output tensor from a source tensor."""
 
-    src_shard: str      # source shard filename (basename)
-    src_key: str        # source tensor name
-    zero_out: bool = False       # replace with all-zeros (identity block trick)
-    pad_rows: int = 0            # zero-pad output dimension (rows / out_features)
-    pad_cols: int = 0            # zero-pad input  dimension (cols / in_features)
-    dup_rows: bool = False       # duplicate existing rows → [original; copy + noise]
+    src_shard: str  # source shard filename (basename)
+    src_key: str  # source tensor name
+    zero_out: bool = False  # replace with all-zeros (identity block trick)
+    pad_rows: int = 0  # zero-pad output dimension (rows / out_features)
+    pad_cols: int = 0  # zero-pad input  dimension (cols / in_features)
+    dup_rows: bool = False  # duplicate existing rows → [original; copy + noise]
     dup_rows_noise_scale: float = 1e-6  # noise std relative to tensor std
 
 
@@ -61,6 +62,7 @@ class ExpansionPlan:
 
 # ── base expander ─────────────────────────────────────────────────────────────
 
+
 class SafetensorExpanderBase(ABC):
     """Expand a HuggingFace safetensor model without loading it fully into RAM.
 
@@ -69,13 +71,15 @@ class SafetensorExpanderBase(ABC):
     """
 
     #: Tensor suffixes zeroed in function-preserving identity blocks
-    IDENTITY_ZERO_SUFFIXES: frozenset[str] = frozenset({
-        "self_attn.o_proj.weight",
-        "mlp.down_proj.weight",
-    })
+    IDENTITY_ZERO_SUFFIXES: frozenset[str] = frozenset(
+        {
+            "self_attn.o_proj.weight",
+            "mlp.down_proj.weight",
+        }
+    )
 
     #: Default output shard size (4 GB); override per-instance if needed
-    DEFAULT_TARGET_SHARD_BYTES: int = 4 * 1024 ** 3
+    DEFAULT_TARGET_SHARD_BYTES: int = 4 * 1024**3
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -96,15 +100,19 @@ class SafetensorExpanderBase(ABC):
 
         if verbose:
             _log(f"{type(self).__name__}  {src_dir} → {dst_dir}")
-            _log(f"  source: {len(src_index.shard_files)} shard(s), "
-                 f"{src_index.total_size_bytes()/1e9:.2f} GB, "
-                 f"{len(src_index.all_keys)} tensors")
+            _log(
+                f"  source: {len(src_index.shard_files)} shard(s), "
+                f"{src_index.total_size_bytes() / 1e9:.2f} GB, "
+                f"{len(src_index.all_keys)} tensors"
+            )
 
         plan = self._build_plan(src_index)
 
         if verbose:
-            _log(f"  plan: {len(plan.recipes)} output tensors, "
-                 f"new num_hidden_layers={plan.new_num_hidden_layers}")
+            _log(
+                f"  plan: {len(plan.recipes)} output tensors, "
+                f"new num_hidden_layers={plan.new_num_hidden_layers}"
+            )
 
         self._write_shards(src_index, dst_dir, plan, target, verbose)
         self._write_config(src_dir, dst_dir, plan)
@@ -126,17 +134,24 @@ class SafetensorExpanderBase(ABC):
         plan = self._build_plan(src_index)
 
         _log(f"[dry_run] {type(self).__name__}  src={src_dir}")
-        _log(f"  source:  {len(src_index.all_keys)} tensors, "
-             f"{len(src_index.shard_files)} shard(s)")
-        _log(f"  output:  {len(plan.recipes)} tensors, "
-             f"num_hidden_layers → {plan.new_num_hidden_layers}")
+        _log(
+            f"  source:  {len(src_index.all_keys)} tensors, "
+            f"{len(src_index.shard_files)} shard(s)"
+        )
+        _log(
+            f"  output:  {len(plan.recipes)} tensors, "
+            f"num_hidden_layers → {plan.new_num_hidden_layers}"
+        )
         _log(f"  config patches: {plan.config_patches}")
 
-        zero_keys    = [k for k, r in plan.recipes.items() if r.zero_out]
-        dup_keys     = [k for k, r in plan.recipes.items() if r.dup_rows]
-        padded_keys  = [k for k, r in plan.recipes.items()
-                        if (r.pad_rows or r.pad_cols) and not r.zero_out]
-        new_keys     = [k for k in plan.recipes if k not in src_index.weight_map]
+        zero_keys = [k for k, r in plan.recipes.items() if r.zero_out]
+        dup_keys = [k for k, r in plan.recipes.items() if r.dup_rows]
+        padded_keys = [
+            k
+            for k, r in plan.recipes.items()
+            if (r.pad_rows or r.pad_cols) and not r.zero_out
+        ]
+        new_keys = [k for k in plan.recipes if k not in src_index.weight_map]
 
         _log(f"  zero-out tensors : {len(zero_keys)}")
         _log(f"  dup-rows tensors : {len(dup_keys)}")
@@ -161,7 +176,7 @@ class SafetensorExpanderBase(ABC):
         # Accumulate tensors for current output shard
         buf: dict[str, torch.Tensor] = {}
         buf_bytes = 0
-        tmp_shards: list[tuple[Path, list[str]]] = []   # (path, keys)
+        tmp_shards: list[tuple[Path, list[str]]] = []  # (path, keys)
         weight_map: dict[str, str] = {}
 
         def _flush(final: bool = False) -> None:
@@ -190,7 +205,7 @@ class SafetensorExpanderBase(ABC):
             final_name = (
                 "model.safetensors"
                 if n == 1
-                else f"model-{i+1:05d}-of-{n:05d}.safetensors"
+                else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
             )
             tmp_path.rename(dst_dir / final_name)
             for k in keys:
@@ -239,14 +254,17 @@ class SafetensorExpanderBase(ABC):
             for suf in suffixes:
                 src_key = f"model.layers.{src_idx}.{suf}"
                 if src_key not in wmap:
-                    continue   # suffix absent for this layer (mixed-arch models)
+                    continue  # suffix absent for this layer (mixed-arch models)
                 new_key = f"model.layers.{new_idx}.{suf}"
                 zero = is_identity and suf in self.IDENTITY_ZERO_SUFFIXES
-                plan.add(new_key, TensorRecipe(
-                    src_shard=wmap[src_key],
-                    src_key=src_key,
-                    zero_out=zero,
-                ))
+                plan.add(
+                    new_key,
+                    TensorRecipe(
+                        src_shard=wmap[src_key],
+                        src_key=src_key,
+                        zero_out=zero,
+                    ),
+                )
 
         # Non-layer tensors pass through unchanged
         for key, shard in wmap.items():
@@ -261,16 +279,17 @@ class SafetensorExpanderBase(ABC):
         if num_new == 0:
             return []
         step = num_orig / (num_new + 1)
-        return sorted(set(int(round(step * (i + 1))) - 1 for i in range(num_new)))
+        return sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
 
 
 # ── tensor transform ──────────────────────────────────────────────────────────
+
 
 def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
     # ── dup_rows: [A] → [A ; A+noise]  (used for router classifier)
     if recipe.dup_rows:
         noise = torch.randn_like(src) * recipe.dup_rows_noise_scale * src.float().std()
-        dup = (src + noise.to(src.dtype))
+        dup = src + noise.to(src.dtype)
         return torch.cat([src.clone(), dup], dim=0)
 
     # ── pad then optionally zero ──────────────────────────────────────────────

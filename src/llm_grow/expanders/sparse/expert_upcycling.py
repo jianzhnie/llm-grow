@@ -4,10 +4,11 @@
 保持 Top-K 路由不变，推理激活参数量不变，总参数量线性增长。
 关键：必须打破对称性，否则副本无法专业化。
 """
+
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
 import torch
@@ -60,29 +61,35 @@ class ExpertUpcyclingExpander(AbstractExpander):
 
     def expand(self, model: nn.Module, config: ExpertUpcyclingConfig) -> nn.Module:
         expanded_count = 0
-        for name, module in model.named_modules():
-            if type(module).__name__ != config.moe_layer_cls_name:
-                if not hasattr(module, "experts") or not hasattr(module, "router"):
-                    continue
+        for _name, module in model.named_modules():
+            if type(module).__name__ != config.moe_layer_cls_name and (
+                not hasattr(module, "experts") or not hasattr(module, "router")
+            ):
+                continue
 
             new_experts, new_router_weight = _expand_experts(module, config)
             module.experts = new_experts
             _update_router(module, new_router_weight)
             expanded_count += 1
 
-        print(f"[ExpertUpcycling] Expanded {expanded_count} MoE layers, "
-              f"factor={config.expand_factor}x, strategy={config.selection_strategy}.")
+        print(
+            f"[ExpertUpcycling] Expanded {expanded_count} MoE layers, "
+            f"factor={config.expand_factor}x, strategy={config.selection_strategy}."
+        )
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print("[FP verify] Expert Upcycling requires symmetry breaking — "
-              "output will differ; skipping strict FP check.")
+        print(
+            "[FP verify] Expert Upcycling requires symmetry breaking — "
+            "output will differ; skipping strict FP check."
+        )
         return False
 
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _expand_experts(
     moe_module: nn.Module,
@@ -127,18 +134,20 @@ def _expand_router_weight(
     为每个副本新增行（从源专家行初始化 + 小噪声）。"""
     new_rows = []
     for src_idx in src_indices:
-        row = router_w[src_idx, :].clone()          # (hidden_size,)
+        row = router_w[src_idx, :].clone()  # (hidden_size,)
         row += torch.randn_like(row) * noise_std
-        new_rows.append(row.unsqueeze(0))           # (1, hidden_size)
-    return torch.cat([router_w] + new_rows, dim=0)  # (num_new_experts, hidden_size)
+        new_rows.append(row.unsqueeze(0))  # (1, hidden_size)
+    return torch.cat([router_w, *new_rows], dim=0)  # (num_new_experts, hidden_size)
 
 
 def _update_router(moe_module: nn.Module, new_weight: torch.Tensor) -> None:
     """new_weight: (num_new_experts, hidden_size)"""
     old_router = moe_module.router
     num_new_experts, hidden_size = new_weight.shape
-    new_router = nn.Linear(hidden_size, num_new_experts, bias=old_router.bias is not None)
-    new_router.weight = nn.Parameter(new_weight)   # shape 已对齐，无需转置
+    new_router = nn.Linear(
+        hidden_size, num_new_experts, bias=old_router.bias is not None
+    )
+    new_router.weight = nn.Parameter(new_weight)  # shape 已对齐，无需转置
     moe_module.router = new_router
 
 
