@@ -110,6 +110,7 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
 
         # Config patches
         orig_model_cfg = self._peek_config(src_index.model_dir)
+        zero_expert_num: int = orig_model_cfg.get("zero_expert_num") or 0
         patches: dict[str, Any] = {}
         if cfg.config_expert_count_key:
             patches[cfg.config_expert_count_key] = orig_n * cfg.expand_factor
@@ -120,6 +121,9 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
             new_num_hidden_layers=src_index.num_hidden_layers(),
             config_patches=patches,
         )
+
+        # router_split: real experts end at orig_n; zero experts follow
+        router_split = orig_n if zero_expert_num > 0 else 0
 
         router_w_set = set(cfg.router_weight_suffixes)
         router_b_set = set(cfg.router_bias_suffixes)
@@ -142,6 +146,7 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
                         src_key=key,
                         dup_rows=True,
                         dup_rows_noise_scale=cfg.noise_scale,
+                        router_split=router_split,
                     ),
                 )
 
@@ -153,6 +158,7 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
                         src_key=key,
                         dup_rows=True,
                         dup_rows_noise_scale=0.0,
+                        router_split=router_split,
                     ),
                 )
 

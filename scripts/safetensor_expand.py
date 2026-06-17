@@ -65,7 +65,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--src", required=True, help="Source model directory")
     p.add_argument("--dst", required=True, help="Output directory")
     p.add_argument("--dry-run", action="store_true", help="Build plan without writing files")
-    p.add_argument("--target-shard-gb", type=float, default=4.0)
+    p.add_argument(
+        "--target-shard-gb",
+        type=float,
+        default=None,
+        help="Output shard size in GB (default: auto-detect from source)",
+    )
+    p.add_argument("--workers", type=int, default=1, help="Parallel writer processes (0=CPU count, 1=serial)")
     p.add_argument("--quiet", action="store_true")
 
     # auto params
@@ -131,9 +137,10 @@ def main() -> None:
             expand_factor=args.expand_factor,
             noise_scale=args.noise_scale,
             ffn_size_expansion=args.ffn_size_expansion,
-            target_shard_gb=args.target_shard_gb,
+            target_shard_gb=args.target_shard_gb or 4.0,
             verbose=verbose,
             dry_run=args.dry_run,
+            workers=args.workers,
         )
         return
 

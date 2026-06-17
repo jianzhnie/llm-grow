@@ -9,6 +9,26 @@ from pathlib import Path
 
 from safetensors import safe_open
 
+# ── dtype → bytes per element (mirrors safetensors dtype strings) ─────────────
+DTYPE_SIZES: dict[str, int] = {
+    "F64": 8,
+    "I64": 8,
+    "F32": 4,
+    "I32": 4,
+    "F16": 2,
+    "BF16": 2,
+    "I16": 2,
+    "F8_E4M3": 1,
+    "F8_E5M2": 1,
+    "F8_E4M3FN": 1,
+    "F8_E5M2FN": 1,
+    "F8_E4M3FNUZ": 1,
+    "F8_E5M2FNUZ": 1,
+    "I8": 1,
+    "U8": 1,
+    "BOOL": 1,
+}
+
 # ── tensor key helpers ──────────────────────────────────────────────────────
 
 _LAYER_RE = re.compile(r"^(model\.layers\.)(\d+)(\..*)")
@@ -136,3 +156,44 @@ class ShardIndex:
             dst_file = dst_dir / src_file.name
             if not dst_file.exists():
                 shutil.copy2(src_file, dst_file)
+
+
+# ── header-only safetensors utilities ────────────────────────────────────────
+
+
+def read_safetensors_header(path: Path) -> dict[str, tuple[str, list[int]]]:
+    """Read only the JSON header of a safetensors file — no tensor data loaded.
+
+    Safetensors layout:
+      [8-byte little-endian header_size][header_size bytes of JSON][tensor data]
+
+    Returns:
+        {tensor_name: (dtype_string, shape_list)} for every tensor in the file.
+    """
+    with open(path, "rb") as f:
+        header_len = int.from_bytes(f.read(8), "little")
+        header = json.loads(f.read(header_len))
+    return {k: (v["dtype"], v["shape"]) for k, v in header.items() if k != "__metadata__"}
+
+
+def nbytes_from_header(dtype: str, shape: list[int]) -> int:
+    """Compute tensor byte size from safetensors metadata (no tensor load needed)."""
+    elem = DTYPE_SIZES.get(dtype, 4)
+    numel = 1
+    for d in shape:
+        numel *= d
+    return elem * numel
+
+
+def auto_detect_shard_size(model_dir: Path, shard_files: list[str]) -> int:
+    """Infer target shard size from existing files (arithmetic mean).
+
+    Falls back to 4 GB if no shard files are present on disk.
+    """
+    sizes = [(model_dir / sf).stat().st_size for sf in shard_files if (model_dir / sf).exists()]
+    if sizes:
+        avg = int(sum(sizes) / len(sizes))
+        print(f"[ShardIndex] auto shard size: {avg / 1e9:.2f} GB (mean of {len(sizes)} shards)")
+        return avg
+    print("[ShardIndex] no shard files found on disk — using 4 GB default")
+    return 4 * 1024**3

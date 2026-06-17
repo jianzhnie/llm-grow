@@ -71,6 +71,7 @@ def auto_expand(
     target_shard_gb: float = 4.0,
     verbose: bool = True,
     dry_run: bool = False,
+    workers: int = 1,
 ) -> None:
     """Detect model type and run the appropriate safetensor expander.
 
@@ -111,6 +112,7 @@ def auto_expand(
             src_dir=src_dir,
             dst_dir=dst_dir,
             target_shard_bytes=int(target_shard_gb * 1024**3),
+            workers=workers,
             verbose=verbose,
         )
 

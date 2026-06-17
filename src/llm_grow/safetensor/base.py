@@ -43,6 +43,13 @@ class TensorRecipe:
     dup_rows: bool = False  # duplicate existing rows → [original; copy + noise]
     dup_rows_noise_scale: float = 1e-6  # noise std relative to tensor std
 
+    # ── router-aware expansion ────────────────────────────────────────────────
+    # When router_split > 0 and dup_rows=True:
+    #   rows [0 : router_split]       → real experts  → duplicate WITH noise
+    #   rows [router_split : end]     → zero experts  → duplicate WITHOUT noise
+    # This preserves the identity-block semantics of zero experts.
+    router_split: int = 0  # row index separating real from zero experts (0 = disabled)
+
 
 @dataclass
 class ExpansionPlan:
@@ -89,14 +96,25 @@ class SafetensorExpanderBase(ABC):
         dst_dir: str | Path,
         *,
         target_shard_bytes: int | None = None,
+        workers: int = 1,
         verbose: bool = True,
     ) -> None:
-        """Expand model at ``src_dir``, write results to ``dst_dir``."""
+        """Expand model at ``src_dir``, write results to ``dst_dir``.
+
+        Args:
+            target_shard_bytes: Maximum bytes per output shard.  Defaults to
+                ``auto_detect_shard_size`` (mean of input shards, or 4 GB).
+            workers: Number of parallel writer processes (1 = serial).
+        """
         src_dir, dst_dir = Path(src_dir), Path(dst_dir)
         dst_dir.mkdir(parents=True, exist_ok=True)
-        target = target_shard_bytes or self.DEFAULT_TARGET_SHARD_BYTES
 
         src_index = ShardIndex.load(src_dir)
+
+        if target_shard_bytes is None:
+            from llm_grow.safetensor.utils import auto_detect_shard_size
+
+            target_shard_bytes = auto_detect_shard_size(src_dir, src_index.shard_files)
 
         if verbose:
             _log(f"{type(self).__name__}  {src_dir} → {dst_dir}")
@@ -114,7 +132,7 @@ class SafetensorExpanderBase(ABC):
                 f"new num_hidden_layers={plan.new_num_hidden_layers}"
             )
 
-        self._write_shards(src_index, dst_dir, plan, target, verbose)
+        self._write_shards(src_index, dst_dir, plan, target_shard_bytes, verbose, workers)
         self._write_config(src_dir, dst_dir, plan)
         src_index.copy_non_weight_files(dst_dir)
 
@@ -158,52 +176,122 @@ class SafetensorExpanderBase(ABC):
         plan: ExpansionPlan,
         target_bytes: int,
         verbose: bool,
+        workers: int = 1,
     ) -> None:
-        """Stream output tensors into shards of ≤ target_bytes each."""
-        src_handles = src_index.open_all_shards()
+        """Two-pass shard writer.
+
+        Pass 1  Read only the binary JSON headers of each source shard
+                (O(header size), no tensor data touched) to compute exact
+                output tensor sizes and assign tensors to output shards.
+
+        Pass 2  For each output shard, open only the needed source shards
+                (via mmap), apply recipes, and write directly to the final
+                shard name — no temporary files, no renaming.
+        """
+        from llm_grow.safetensor.utils import read_safetensors_header
+
+        # ── Pass 1: header scan → shard assignment ────────────────────────────
+        src_headers: dict[str, dict[str, tuple[str, list[int]]]] = {
+            sf: read_safetensors_header(src_index.model_dir / sf) for sf in src_index.shard_files
+        }
+
         sorted_keys = sorted(plan.recipes.keys())
-
-        # Accumulate tensors for current output shard
-        buf: dict[str, torch.Tensor] = {}
-        buf_bytes = 0
-        tmp_shards: list[tuple[Path, list[str]]] = []  # (path, keys)
-        weight_map: dict[str, str] = {}
-
-        def _flush(final: bool = False) -> None:
-            if not buf:
-                return
-            tmp_path = dst_dir / f"_tmp_shard_{len(tmp_shards)}.safetensors"
-            save_file(buf, str(tmp_path))
-            tmp_shards.append((tmp_path, list(buf.keys())))
-            buf.clear()
-
+        shard_groups: list[list[str]] = [[]]
+        current_bytes = 0
         for new_key in sorted_keys:
             recipe = plan.recipes[new_key]
-            src_t = src_handles[recipe.src_shard].get_tensor(recipe.src_key)
-            out_t = _apply_recipe(src_t, recipe)
-            buf[new_key] = out_t
-            buf_bytes += out_t.nbytes
-            if buf_bytes >= target_bytes:
-                _flush()
-                buf_bytes = 0
+            src_meta = src_headers[recipe.src_shard].get(recipe.src_key)
+            if src_meta is None:
+                continue
+            out_bytes = _predict_recipe_bytes(src_meta, recipe)
+            if current_bytes + out_bytes > target_bytes and current_bytes > 0:
+                shard_groups.append([])
+                current_bytes = 0
+            shard_groups[-1].append(new_key)
+            current_bytes += out_bytes
 
-        _flush()  # write remaining
+        n = len(shard_groups)
+        weight_map: dict[str, str] = {}
 
-        # Rename temp files to final shard names
-        n = len(tmp_shards)
-        for i, (tmp_path, keys) in enumerate(tmp_shards):
-            final_name = "model.safetensors" if n == 1 else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
-            tmp_path.rename(dst_dir / final_name)
-            for k in keys:
-                weight_map[k] = final_name
-            size_mb = (dst_dir / final_name).stat().st_size / 1e6
-            if verbose:
-                _log(f"  wrote {final_name}  ({len(keys)} tensors, {size_mb:.0f} MB)")
+        if verbose:
+            _log(f"  Pass 1 done: {n} output shard(s) planned")
 
-        # Write index for multi-shard output
+        # ── Pass 2: write output shards ───────────────────────────────────────
+        if workers > 1:
+            self._write_shards_parallel(src_index, dst_dir, plan, shard_groups, weight_map, verbose, workers)
+        else:
+            src_handles = src_index.open_all_shards()
+            for i, group_keys in enumerate(shard_groups):
+                shard_name = "model.safetensors" if n == 1 else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
+                tensors: dict[str, torch.Tensor] = {}
+                for new_key in group_keys:
+                    recipe = plan.recipes[new_key]
+                    src_t = src_handles[recipe.src_shard].get_tensor(recipe.src_key)
+                    tensors[new_key] = _apply_recipe(src_t, recipe)
+                    weight_map[new_key] = shard_name
+                save_file(tensors, str(dst_dir / shard_name))
+                if verbose:
+                    size_mb = (dst_dir / shard_name).stat().st_size / 1e6
+                    _log(f"  wrote {shard_name}  ({len(tensors)} tensors, {size_mb:.0f} MB)")
+
         dst_index = ShardIndex(dst_dir, weight_map)
         if n > 1:
             dst_index.write_index_json(dst_dir)
+
+    def _write_shards_parallel(
+        self,
+        src_index: ShardIndex,
+        dst_dir: Path,
+        plan: ExpansionPlan,
+        shard_groups: list[list[str]],
+        weight_map: dict[str, str],
+        verbose: bool,
+        workers: int,
+    ) -> None:
+        """Write output shards in parallel using ProcessPoolExecutor."""
+        from concurrent.futures import ProcessPoolExecutor
+
+        from tqdm import tqdm
+
+        n = len(shard_groups)
+        tasks = []
+        for i, group_keys in enumerate(shard_groups):
+            shard_name = "model.safetensors" if n == 1 else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
+            # Gather (src_shard_path, src_key, out_key, recipe_tuple) per group
+            items = []
+            for new_key in group_keys:
+                r = plan.recipes[new_key]
+                items.append(
+                    (
+                        str(src_index.model_dir / r.src_shard),
+                        r.src_key,
+                        new_key,
+                        (
+                            r.zero_out,
+                            r.pad_rows,
+                            r.pad_cols,
+                            r.dup_rows,
+                            r.dup_rows_noise_scale,
+                            r.router_split,
+                        ),
+                    )
+                )
+            tasks.append((str(dst_dir / shard_name), items))
+
+        chunksize = max(1, len(tasks) // workers)
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            results = list(
+                tqdm(
+                    executor.map(_worker_write_shard, tasks, chunksize=chunksize),
+                    total=len(tasks),
+                    desc="Writing shards",
+                    disable=not verbose,
+                )
+            )
+
+        for shard_name, tensor_names in results:
+            for name in tensor_names:
+                weight_map[name] = shard_name
 
     def _write_config(self, src_dir: Path, dst_dir: Path, plan: ExpansionPlan) -> None:
         cfg_path = src_dir / "config.json"
@@ -272,7 +360,17 @@ class SafetensorExpanderBase(ABC):
 
 
 def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
-    # ── dup_rows: [A] → [A ; A+noise]  (used for router classifier)
+    # ── dup_rows with router_split: handle real/zero expert rows separately ────
+    # rows [0 : router_split]   → real experts → duplicate WITH noise
+    # rows [router_split : end] → zero experts → duplicate WITHOUT noise
+    if recipe.dup_rows and recipe.router_split > 0:
+        real = src[: recipe.router_split]
+        zeros = src[recipe.router_split :]
+        noise = torch.randn_like(real) * recipe.dup_rows_noise_scale * real.float().std()
+        real_dup = real + noise.to(real.dtype)
+        return torch.cat([real, real_dup, zeros, zeros.clone()], dim=0)
+
+    # ── dup_rows without split: duplicate all rows uniformly ──────────────────
     if recipe.dup_rows:
         noise = torch.randn_like(src) * recipe.dup_rows_noise_scale * src.float().std()
         dup = src + noise.to(src.dtype)
@@ -299,6 +397,87 @@ def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
         return torch.zeros_like(t)
 
     return t
+
+
+def _predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe) -> int:
+    """Predict output tensor byte size from header metadata (no tensor load).
+
+    Used in Pass 1 of ``_write_shards`` to plan shard assignments purely from
+    the binary JSON header — no mmap or tensor data needed.
+    """
+    from llm_grow.safetensor.utils import DTYPE_SIZES, nbytes_from_header
+
+    dtype, shape = src_meta
+    elem = DTYPE_SIZES.get(dtype, 4)
+    src_bytes = nbytes_from_header(dtype, shape)
+
+    if recipe.zero_out:
+        return src_bytes  # same shape, just zeroed
+    if recipe.dup_rows:
+        return src_bytes * 2  # always doubles row count (expand_factor=2)
+    if recipe.pad_rows > 0 or recipe.pad_cols > 0:
+        ndim = len(shape)
+        if ndim == 2:
+            return elem * (shape[0] + recipe.pad_rows) * (shape[1] + recipe.pad_cols)
+        if ndim == 1:
+            return elem * (shape[0] + recipe.pad_rows)
+    return src_bytes
+
+
+# ── module-level worker for ProcessPoolExecutor (must be picklable) ───────────
+
+
+def _worker_write_shard(
+    args: tuple[str, list[tuple[str, str, str, tuple]]],
+) -> tuple[str, list[str]]:
+    """Write one output shard in a worker process.
+
+    Args:
+        args: (output_path_str, items) where each item is
+              (src_shard_path_str, src_key, out_key, recipe_fields_tuple).
+
+    Returns:
+        (shard_basename, list_of_output_tensor_names)
+    """
+    from collections import defaultdict
+
+    from safetensors import safe_open
+    from safetensors.torch import save_file
+
+    out_path_str, items = args
+    out_path = Path(out_path_str)
+
+    # Group by source shard path to open each file only once
+    by_src: dict[str, list[tuple[str, str, tuple]]] = defaultdict(list)
+    for src_path, src_key, out_key, recipe_fields in items:
+        by_src[src_path].append((src_key, out_key, recipe_fields))
+
+    tensors: dict[str, torch.Tensor] = {}
+    for src_path, triples in by_src.items():
+        with safe_open(src_path, framework="pt", device="cpu") as sf:
+            for src_key, out_key, (
+                zero_out,
+                pad_rows,
+                pad_cols,
+                dup_rows,
+                noise_scale,
+                router_split,
+            ) in triples:
+                t = sf.get_tensor(src_key)
+                recipe = TensorRecipe(
+                    src_shard="",
+                    src_key=src_key,
+                    zero_out=zero_out,
+                    pad_rows=pad_rows,
+                    pad_cols=pad_cols,
+                    dup_rows=dup_rows,
+                    dup_rows_noise_scale=noise_scale,
+                    router_split=router_split,
+                )
+                tensors[out_key] = _apply_recipe(t, recipe)
+
+    save_file(tensors, out_path_str)
+    return (out_path.name, list(tensors.keys()))
 
 
 def _log(msg: str) -> None:

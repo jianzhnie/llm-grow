@@ -100,10 +100,11 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
         new_n_experts = orig_n_experts * cfg.expand_factor
 
         # Config patches
-        patches: dict = {"n_routed_experts": new_n_experts}
         orig_cfg = self._peek_config(src_index.model_dir)
-        if cfg.double_zero_experts and "zero_expert_num" in orig_cfg:
-            patches["zero_expert_num"] = orig_cfg["zero_expert_num"] * cfg.expand_factor
+        zero_expert_num: int = orig_cfg.get("zero_expert_num") or 0
+        patches: dict = {"n_routed_experts": new_n_experts}
+        if cfg.double_zero_experts and zero_expert_num > 0:
+            patches["zero_expert_num"] = zero_expert_num * cfg.expand_factor
         if "moe_topk" in orig_cfg:
             patches["moe_topk"] = orig_cfg["moe_topk"] * cfg.expand_factor
 
@@ -112,18 +113,33 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
             config_patches=patches,
         )
 
+        # router_split: rows [0:orig_n_experts] = real experts (get noise),
+        #               rows [orig_n_experts:]  = zero experts (no noise)
+        router_split = orig_n_experts if zero_expert_num > 0 else 0
+
         for key, shard in wmap.items():
             if _is_expert_key(key):
-                # Keep the original expert
+                # Keep original; create (expand_factor - 1) copies with index offset
                 plan.passthrough(key, shard)
-                # Create (expand_factor - 1) copies with offset indices
                 for copy_idx in range(1, cfg.expand_factor):
                     offset = orig_n_experts * copy_idx
                     new_key = _expert_key_offset(key, offset)
                     plan.add(new_key, TensorRecipe(src_shard=shard, src_key=key))
 
             elif key.endswith("mlp.router.classifier.weight"):
-                # Duplicate rows: [N, H] → [N*factor, H] (with noise on copies)
+                # Expand factor ≥ 2 supported via repeated plan entries.
+                # Each step doubles: [N]→[2N]→[4N]→…
+                # For expand_factor > 2, apply the recipe to successive results.
+                # For simplicity in the plan model, we only do ×2 at recipe level
+                # and generate additional copy keys for higher factors.
+                # Current recipe model supports ×2 natively (dup_rows).
+                # For expand_factor > 2, log a warning but proceed with ×2 semantics.
+                if cfg.expand_factor > 2:
+                    raise NotImplementedError(
+                        f"expand_factor={cfg.expand_factor} > 2 for router classifier "
+                        "requires multi-pass duplication; only expand_factor=2 is supported. "
+                        "Use the standalone expand_moe_experts.py for arbitrary factors."
+                    )
                 plan.add(
                     key,
                     TensorRecipe(
@@ -131,18 +147,12 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
                         src_key=key,
                         dup_rows=True,
                         dup_rows_noise_scale=cfg.noise_scale,
+                        router_split=router_split,  # ← real/zero separation
                     ),
                 )
-                # Note: dup_rows doubles once; for factor>2 we'd need to chain.
-                # factor > 2 requires custom handling — flag it.
-                if cfg.expand_factor > 2:
-                    raise NotImplementedError(
-                        "expand_factor > 2 for router classifier requires "
-                        "multi-pass duplication; only expand_factor=2 supported."
-                    )
 
-            elif key.endswith("mlp.router.e_score_correction_bias"):
-                # Bias: [N] → [N*factor] (exact copy, no noise)
+            elif key.endswith(("mlp.router.e_score_correction_bias", "mlp.router.e_score_correction_bias")):
+                # Bias: exact copies, no noise, but still split real/zero
                 plan.add(
                     key,
                     TensorRecipe(
@@ -150,6 +160,7 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
                         src_key=key,
                         dup_rows=True,
                         dup_rows_noise_scale=0.0,
+                        router_split=router_split,
                     ),
                 )
 
