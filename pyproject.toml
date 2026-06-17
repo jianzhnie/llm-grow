@@ -10,6 +10,23 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 keywords = ["llm", "model-expansion", "moe", "upcycling", "llama-pro", "msg"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+authors = [{ name = "jianzhnie", email = "jianzhnie@gmail.com" }]
+
+[project.urls]
+Homepage = "https://github.com/jianzhnie/llm-grow"
+Repository = "https://github.com/jianzhnie/llm-grow"
+Issues = "https://github.com/jianzhnie/llm-grow/issues"
 
 dependencies = [
     "torch>=2.2.0",
@@ -44,11 +61,34 @@ llm-grow = "llm_grow.cli:main"
 where = ["src"]
 
 [tool.ruff]
-line-length = 100
+line-length = 88
 target-version = "py310"
+extend-exclude = [
+    ".git",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    "*.ipynb",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = [
+    "F",     # Pyflakes
+    "E",     # Pycodestyle errors
+    "W",     # Pycodestyle warnings
+    "I",     # Isort
+    "B",     # Flake8-bugbear
+    "C4",    # Flake8-comprehensions
+    "SIM",   # Flake8-simplify
+    "UP",    # Pyupgrade
+    "RUF",   # Ruff-specific rules
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
