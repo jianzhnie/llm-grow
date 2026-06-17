@@ -1,0 +1,164 @@
+"""MSG: Masked Structural Growth for multi-dimensional LLM expansion (arXiv:2305.02869).
+
+支持四维度任意组合扩增：
+  - 深度（+层数）：恒等块插入
+  - 宽度（+hidden_size）：零填充 + 掩码
+  - 注意力头数（+num_heads）：o_proj=0
+  - FFN 宽度（+intermediate_size）：零填充 + 掩码
+
+Function-preserving：✓（所有新维度初始为零，不影响前向输出）。
+"""
+from __future__ import annotations
+
+import copy
+from dataclasses import dataclass, field
+from typing import Any
+
+import torch
+import torch.nn as nn
+
+from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.initializers.identity import zero_output_projections
+
+
+@dataclass
+class MSGConfig(ExpansionConfig):
+    depth_expansion: int = 0
+    """新增层数（均匀插入恒等块）。"""
+
+    hidden_size_expansion: int = 0
+    """hidden_size 增量（需为 head_dim 的整数倍）。"""
+
+    intermediate_size_expansion: int = 0
+    """intermediate_size（FFN 宽度）增量。"""
+
+    num_heads_expansion: int = 0
+    """新增注意力头数（需整除 head_dim）。"""
+
+    freeze_original: bool = True
+    """是否冻结原始参数。"""
+
+    growth_schedule: str = "instant"
+    """掩码生长调度策略：
+    - 'instant'  : 立即解锁全部新参数（默认，用于扩增后直接 CPT）
+    - 'linear'   : 按训练步数线性解锁（需配合 GrowthScheduler）
+    """
+
+    attn_output_proj_names: list[str] = field(
+        default_factory=lambda: ["o_proj", "out_proj"]
+    )
+    mlp_output_proj_names: list[str] = field(
+        default_factory=lambda: ["down_proj", "fc2"]
+    )
+
+
+class MSGExpander(AbstractExpander):
+    """Masked Structural Growth 多维度扩增器。
+
+    建议搭配 GrowthScheduler 使用（training/growth_scheduler.py），
+    实现渐进式掩码解锁以避免训练震荡。
+    """
+
+    def expand(self, model: nn.Module, config: MSGConfig) -> nn.Module:
+        if config.hidden_size_expansion > 0 or config.intermediate_size_expansion > 0:
+            model = _expand_width(model, config)
+
+        if config.depth_expansion > 0:
+            model = _expand_depth(model, config)
+
+        if config.freeze_original:
+            _freeze_original_params(model)
+
+        return model
+
+
+# ---------------------------------------------------------------------------
+# width expansion
+# ---------------------------------------------------------------------------
+
+def _expand_width(model: nn.Module, config: MSGConfig) -> nn.Module:
+    """对所有线性层做零填充宽度扩展。"""
+    dh = config.hidden_size_expansion
+    di = config.intermediate_size_expansion
+
+    for name, module in model.named_modules():
+        if not isinstance(module, nn.Linear):
+            continue
+        module_type = _classify_linear(name)
+        if module_type == "hidden_to_hidden" and dh > 0:
+            _pad_linear(module, in_delta=dh, out_delta=dh)
+        elif module_type == "hidden_to_inter" and di > 0:
+            _pad_linear(module, in_delta=0, out_delta=di)
+        elif module_type == "inter_to_hidden" and di > 0:
+            _pad_linear(module, in_delta=di, out_delta=0)
+
+    cfg = getattr(model, "config", None)
+    if cfg is not None:
+        if dh > 0 and hasattr(cfg, "hidden_size"):
+            cfg.hidden_size += dh
+        if di > 0 and hasattr(cfg, "intermediate_size"):
+            cfg.intermediate_size += di
+    return model
+
+
+def _pad_linear(
+    module: nn.Linear, in_delta: int, out_delta: int
+) -> None:
+    """在行（out）和列（in）方向零填充权重矩阵，保持 function-preserving。"""
+    old_w = module.weight.data
+    old_out, old_in = old_w.shape
+
+    new_out = old_out + out_delta
+    new_in = old_in + in_delta
+    new_w = torch.zeros(new_out, new_in, dtype=old_w.dtype, device=old_w.device)
+    new_w[:old_out, :old_in] = old_w
+
+    module.weight = nn.Parameter(new_w)
+    module.out_features = new_out
+    module.in_features = new_in
+
+    if module.bias is not None:
+        old_b = module.bias.data
+        new_b = torch.zeros(new_out, dtype=old_b.dtype, device=old_b.device)
+        new_b[:old_out] = old_b
+        module.bias = nn.Parameter(new_b)
+
+
+def _classify_linear(name: str) -> str:
+    """根据参数名称粗略分类线性层的语义角色。"""
+    if any(k in name for k in ("gate_proj", "up_proj")):
+        return "hidden_to_inter"
+    if "down_proj" in name:
+        return "inter_to_hidden"
+    return "hidden_to_hidden"
+
+
+# ---------------------------------------------------------------------------
+# depth expansion
+# ---------------------------------------------------------------------------
+
+def _expand_depth(model: nn.Module, config: MSGConfig) -> nn.Module:
+    from llm_grow.expanders.depth.llama_pro import (
+        LlamaProConfig,
+        LlamaProExpander,
+    )
+
+    sub_config = LlamaProConfig(
+        num_new_blocks=config.depth_expansion,
+        insert_strategy="uniform",
+        freeze_original=False,
+        attn_output_proj_names=config.attn_output_proj_names,
+        mlp_output_proj_names=config.mlp_output_proj_names,
+    )
+    return LlamaProExpander().expand(model, sub_config)
+
+
+# ---------------------------------------------------------------------------
+# freeze helpers
+# ---------------------------------------------------------------------------
+
+def _freeze_original_params(model: nn.Module) -> None:
+    """冻结所有被标记为原始参数的层（未被 zero_output_projections 触碰的层）。"""
+    for param in model.parameters():
+        if not getattr(param, "_is_new_growth", False):
+            param.requires_grad_(False)

@@ -1,0 +1,29 @@
+model_name_or_path: Qwen/Qwen3-8B
+output_dir: ./outputs/qwen3_8b_moe
+
+expansion:
+  method: moe_upcycling
+  num_experts: 8
+  top_k: 2
+  noise_std: 0.01
+  ffn_module_pattern: mlp
+
+training:
+  max_tokens: 80_000_000_000   # 80B tokens
+  learning_rate: 1.0e-4
+  warmup_steps: 5000
+  lr_scheduler: cosine
+  per_device_batch_size: 1
+  gradient_accumulation_steps: 16
+
+  moe_loss:
+    balance_coeff: 1.0e-2      # Switch Transformer load balance loss 系数
+    z_coeff: 1.0e-3            # z-loss 系数
+
+data:
+  pretrain_data_path: null
+  instruction_data_ratio: 0.05
+
+inference:
+  framework: vllm              # vllm | deepspeed-moe | megatron
+  note: "推理需要支持 MoE 的框架；激活参数量与原 Dense 近似持平（top-2 时约 1.8x）"

@@ -1,0 +1,38 @@
+model_name_or_path: Qwen/Qwen3-8B
+output_dir: ./outputs/qwen3_8b_llama_pro_16b
+
+expansion:
+  method: llama_pro
+  num_new_blocks: 36          # 36 原始层 + 36 恒等块 = 72 层，~16B 参数
+  insert_strategy: uniform    # 均匀插入（论文推荐）
+  freeze_original: true       # Phase-1 仅训练新块
+
+verify_fp: true               # 扩增后验证 function-preserving
+
+training:
+  phase1:
+    description: "冻结原始块，仅训练新增块"
+    max_tokens: 10_000_000_000   # 10B tokens
+    learning_rate: 2.0e-4
+    warmup_steps: 500
+    lr_scheduler: cosine
+    per_device_batch_size: 2
+    gradient_accumulation_steps: 8
+
+  phase2:
+    description: "解冻全部参数，全量微调"
+    max_tokens: 5_000_000_000    # 5B tokens
+    learning_rate: 1.0e-5
+    warmup_steps: 200
+    lr_scheduler: cosine
+    per_device_batch_size: 2
+    gradient_accumulation_steps: 8
+
+data:
+  pretrain_data_path: null      # 填写预训练语料路径
+  domain_data_path: null        # 填写目标领域数据路径
+  instruction_data_ratio: 0.05  # 5% 指令数据防遗忘
+
+eval:
+  benchmarks: [mmlu, gsm8k, humaneval, arc_challenge]
+  eval_every_n_tokens: 2_000_000_000  # 每 2B tokens 评估一次
