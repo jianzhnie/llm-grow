@@ -1,0 +1,81 @@
+"""LLaMA-Pro safetensor expander: identity block insertion (arXiv:2401.02415).
+
+No model loading required.  Operates entirely on .safetensors files.
+Function-preserving: new blocks have o_proj & down_proj zeroed → Block(x) = 0.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase
+from llm_grow.safetensor.utils import ShardIndex
+
+
+@dataclass
+class LlamaProSafetensorConfig:
+    num_new_blocks: int = 8
+    """Number of identity blocks to insert."""
+
+    insert_strategy: str = "uniform"
+    """'uniform' | 'front' | 'rear'"""
+
+    attn_zero_suffixes: list[str] = field(
+        default_factory=lambda: ["self_attn.o_proj.weight"]
+    )
+    mlp_zero_suffixes: list[str] = field(
+        default_factory=lambda: ["mlp.down_proj.weight"]
+    )
+
+
+class LlamaProSafetensorExpander(SafetensorExpanderBase):
+    """Insert identity blocks directly into safetensor weight files.
+
+    Example::
+
+        from llm_grow.safetensor.llama_pro import (
+            LlamaProSafetensorConfig, LlamaProSafetensorExpander,
+        )
+        cfg = LlamaProSafetensorConfig(num_new_blocks=7)
+        LlamaProSafetensorExpander(cfg).expand(
+            src_dir="Qwen/Qwen3-8B",
+            dst_dir="./outputs/qwen3_llama_pro",
+        )
+    """
+
+    def __init__(self, config: LlamaProSafetensorConfig | None = None) -> None:
+        self.config = config or LlamaProSafetensorConfig()
+        # Merge user-specified zero suffixes into base set
+        self.IDENTITY_ZERO_SUFFIXES = frozenset(
+            self.config.attn_zero_suffixes + self.config.mlp_zero_suffixes
+        )
+
+    def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
+        num_orig = src_index.num_hidden_layers()
+        cfg = self.config
+
+        positions = _insert_positions(num_orig, cfg.num_new_blocks, cfg.insert_strategy)
+        pos_set = set(positions)
+
+        # Build ordered layer sequence: (src_orig_idx, is_identity)
+        sequence: list[tuple[int, bool]] = []
+        for i in range(num_orig):
+            sequence.append((i, False))
+            if i in pos_set:
+                sequence.append((i, True))   # identity copy of layer i
+
+        return self._build_layer_plan(src_index, layer_sequence=sequence)
+
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
+    if num_new == 0:
+        return []
+    if strategy == "uniform":
+        step = num_orig / (num_new + 1)
+        return sorted(set(int(round(step * (i + 1))) - 1 for i in range(num_new)))
+    if strategy == "front":
+        return list(range(num_new))
+    if strategy == "rear":
+        return list(range(num_orig - num_new, num_orig))
+    raise ValueError(f"Unknown insert_strategy: {strategy!r}")
