@@ -294,15 +294,48 @@ class SafetensorExpanderBase(ABC):
                 weight_map[name] = shard_name
 
     def _write_config(self, src_dir: Path, dst_dir: Path, plan: ExpansionPlan) -> None:
+        """Write updated config.json to dst_dir.
+
+        Correctly handles architectures that use ``num_layers`` instead of
+        ``num_hidden_layers`` (e.g. LongCat-Flash).  After writing, verifies
+        that every file referenced by ``auto_map`` is present in dst_dir so
+        the model can be loaded with ``trust_remote_code=True``.
+        """
         cfg_path = src_dir / "config.json"
         if not cfg_path.exists():
             return
         with open(cfg_path) as f:
             cfg = json.load(f)
-        cfg["num_hidden_layers"] = plan.new_num_hidden_layers
+
+        # ── update layer count with the correct key ───────────────────────────
+        # Different architectures store layer count under different keys.
+        # Preserve whichever key the source model uses; fall back to the standard.
+        if plan.new_num_hidden_layers > 0:
+            layers_key = next(
+                (k for k in ("num_hidden_layers", "num_layers") if k in cfg),
+                "num_hidden_layers",
+            )
+            cfg[layers_key] = plan.new_num_hidden_layers
+
+        # ── apply expansion-specific patches (expert count, topk, etc.) ───────
         cfg.update(plan.config_patches)
+
         with open(dst_dir / "config.json", "w") as f:
-            json.dump(cfg, f, indent=2)
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+        # ── verify auto_map referenced files are present ──────────────────────
+        auto_map: dict[str, str] = cfg.get("auto_map", {})
+        missing: list[str] = []
+        for _cls, ref in auto_map.items():
+            # ref format: "module_name.ClassName"
+            module_name = ref.split(".")[0] + ".py"
+            if not (dst_dir / module_name).exists():
+                missing.append(module_name)
+        if missing:
+            print(
+                f"[_write_config] WARNING: auto_map references missing files in {dst_dir}: "
+                f"{missing}. Run expand() (not dry_run) to copy them automatically."
+            )
 
     # ── shared plan-building helpers ──────────────────────────────────────────
 

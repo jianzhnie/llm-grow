@@ -143,19 +143,41 @@ class ShardIndex:
     # ── misc ─────────────────────────────────────────────────────────────────
 
     def copy_non_weight_files(self, dst_dir: Path) -> None:
-        """Copy tokenizer, generation_config, README, etc. (skip weights)."""
+        """Copy all auxiliary files from source to dst_dir.
+
+        Always overwrites existing files so that ``configuration_*.py``,
+        ``modeling_*.py`` and other code referenced by ``auto_map`` in
+        ``config.json`` stay in sync with the source model.
+
+        Skipped:
+          - ``*.safetensors`` weight files (written separately)
+          - ``config.json``  (written by ``_write_config``)
+          - ``model.safetensors.index.json`` (written by ``write_index_json``)
+          - directories (e.g. ``__pycache__``)
+        """
         skip_suffixes = {".safetensors"}
         skip_names = {"config.json", self.INDEX_FILENAME}
-        for src_file in self.model_dir.iterdir():
+
+        py_files: list[str] = []
+        other_files: list[str] = []
+
+        for src_file in sorted(self.model_dir.iterdir()):
             if src_file.is_dir():
                 continue
             if src_file.suffix in skip_suffixes:
                 continue
             if src_file.name in skip_names:
                 continue
-            dst_file = dst_dir / src_file.name
-            if not dst_file.exists():
-                shutil.copy2(src_file, dst_file)
+            shutil.copy2(src_file, dst_dir / src_file.name)  # always overwrite
+            if src_file.suffix == ".py":
+                py_files.append(src_file.name)
+            else:
+                other_files.append(src_file.name)
+
+        if py_files:
+            print(f"[ShardIndex] copied Python files (modeling/config code): {py_files}")
+        if other_files:
+            print(f"[ShardIndex] copied auxiliary files: {other_files}")
 
 
 # ── header-only safetensors utilities ────────────────────────────────────────
