@@ -1,0 +1,30 @@
+# Kimi-K2-Base  →  ~1.07T  |  深度扩增（LLaMA-Pro）
+# 61 层 → 65 层，~1T → ~1.07T，~1.07x
+# FP: ✓  layer 0 (dense) 零化 mlp.down_proj；layer 1-60 (MoE) 零化 384 expert down_proj
+# 注：MoE 深度扩增增量有限，推荐 expert_upcycling
+
+model:
+  src_dir: /Users/robin/hfhub/models/moonshotai/Kimi-K2-Base
+  family: deepseek_moe
+  architecture: DeepseekV3ForCausalLM
+  params: ~1T
+  layers: 61
+  experts_per_moe_layer: 384
+  dense_only_layers: [0]
+  has_fp8: true
+
+expansion:
+  method: depth
+  algorithm: generic_moe_depth
+  num_new_layers: 4               # 61 + 4 = 65 层
+  insert_strategy: uniform
+  target_params: ~1.07T
+  target_ratio: ~1.07x
+  function_preserving: true
+  identity_zero_count: 386        # 每个 identity 层：384 expert dp + 1 shared dp + 1 o_proj
+  dense_layer_zero: mlp.down_proj.weight  # layer 0 复制时额外零化此张量
+  fp8_note: "weight_scale_inv 不参与零化（zero_out 仅针对 .weight 后缀）"
+
+output:
+  dir: ./outputs/Kimi-K2-Base/depth
+  target_shard_gb: 2.0

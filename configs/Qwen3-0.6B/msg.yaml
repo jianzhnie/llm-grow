@@ -1,0 +1,25 @@
+# Qwen3-0.6B  →  ~1.08B  |  MSG 深度+FFN宽度混合扩增
+# 28→42 层 + intermediate 3072→5120，596M → 1081M，1.81x
+# FP: ✓  推理延迟仅增 ~40%（优于纯深度翻倍）
+
+model:
+  src_dir: /Users/robin/hfhub/models/Qwen/Qwen3-0.6B
+  family: dense
+  architecture: Qwen3ForCausalLM
+  params: 596M
+  layers: 28
+
+expansion:
+  method: width                   # MSG 深度+FFN宽度组合
+  algorithm: msg
+  num_new_layers: 14              # 28 + 14 = 42 层
+  insert_strategy: uniform
+  ffn_size_expansion: 2048        # intermediate_size: 3072 → 5120
+  target_params: ~1081M
+  target_ratio: ~1.81x
+  function_preserving: true
+  note: "相比纯深度扩增，推理延迟更小（~1.4x vs 2x）"
+
+output:
+  dir: ./outputs/Qwen3-0.6B/msg
+  target_shard_gb: 4.0

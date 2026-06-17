@@ -1,0 +1,24 @@
+# Qwen3-8B  →  ~46B  |  Dense → MoE Upcycling
+# Dense FFN 复制 8 份作为 MoE 专家，~8.2B → ~46B
+# FP: ✗  推理激活参数 ≈ 原 Dense（top-2 路由）
+
+model:
+  src_dir: Qwen/Qwen3-8B
+  family: dense
+  architecture: Qwen3ForCausalLM
+  params: ~8.2B
+  layers: 36
+
+expansion:
+  method: expert                  # Dense → MoE Upcycling（架构发生变化）
+  algorithm: moe_upcycling
+  num_experts: 8                  # 每层创建 8 个专家（复制 Dense FFN）
+  top_k: 2                        # top-2 路由，激活参数 ≈ 原始 Dense
+  noise_std: 0.01                 # 对称性破坏噪声
+  ffn_module_pattern: mlp
+  target_params: ~46B             # 8.2B - FFN(5.4B) + 8×FFN(5.4B) ≈ 46B
+  note: "架构从 Dense 变为 MoE；需 MoE 推理框架（vLLM/DeepSpeed-MoE）"
+
+output:
+  dir: ./outputs/Qwen3-8B/moe_upcycling
+  target_shard_gb: 4.0

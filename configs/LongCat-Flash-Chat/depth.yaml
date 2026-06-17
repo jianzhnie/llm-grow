@@ -1,0 +1,30 @@
+# LongCat-Flash-Chat  →  ~1.14x  |  深度扩增（LLaMA-Pro）
+# 28 层 → 32 层，~1.14x（专家参数主导，深度增量有限）
+# FP: ✓  每个 identity 层需零化 514 个张量（双路注意力 + 双 Dense MLP + 512 专家）
+
+model:
+  src_dir: /Users/robin/hfhub/models/meituan-longcat/LongCat-Flash-Chat
+  family: longcat
+  architecture: LongcatFlashForCausalLM
+  layers: 28
+  n_routed_experts: 512
+
+expansion:
+  method: depth
+  algorithm: longcat_depth
+  num_new_layers: 4               # 28 + 4 = 32 层
+  insert_strategy: uniform
+  target_ratio: ~1.14x
+  function_preserving: true
+  identity_zero_tensors:          # 每个 identity 层需零化的张量类型
+    - self_attn.0.o_proj.weight   # 双路注意力输出（2个）
+    - self_attn.1.o_proj.weight
+    - mlps.0.down_proj.weight     # 双路 Dense MLP 输出（2个）
+    - mlps.1.down_proj.weight
+    - mlp.experts.{0..511}.down_proj.weight  # 512 个专家输出
+  identity_zero_count: 516        # 2 + 2 + 512 = 516 per identity layer
+  note: "推荐 expert_upcycling；深度扩增增量对超大 MoE 意义有限"
+
+output:
+  dir: ./outputs/LongCat-Flash-Chat/depth
+  target_shard_gb: 2.0

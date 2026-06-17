@@ -1,0 +1,23 @@
+# Qwen3-0.6B  →  ~1.2B  |  LLaMA-Pro 恒等块插入
+# 28 层 → 66 层，596M → 1194M，精确 2.00x
+# FP: ✓  (zero-shot 精度零损失)
+
+model:
+  src_dir: /Users/robin/hfhub/models/Qwen/Qwen3-0.6B
+  family: dense
+  architecture: Qwen3ForCausalLM
+  params: 596M
+  layers: 28
+
+expansion:
+  method: depth
+  algorithm: llama_pro
+  num_new_layers: 38              # 28 + 38 = 66 层
+  insert_strategy: uniform
+  target_params: 1194M
+  target_ratio: 2.00x
+  function_preserving: true
+
+output:
+  dir: ./outputs/Qwen3-0.6B/llama_pro
+  target_shard_gb: 4.0

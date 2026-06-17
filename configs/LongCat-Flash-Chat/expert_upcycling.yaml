@@ -1,0 +1,28 @@
+# LongCat-Flash-Chat  →  ~2x  |  Expert Upcycling（专家数扩增）
+# 512 experts → 1024 experts（256 real+256 zero → 512 real+512 zero），topk 12→24
+
+model:
+  src_dir: /Users/robin/hfhub/models/meituan-longcat/LongCat-Flash-Chat
+  family: longcat
+  architecture: LongcatFlashForCausalLM
+  layers: 28
+  n_routed_experts: 512           # 256 真实 + 256 零专家
+  zero_expert_num: 256
+  moe_topk: 12
+  note: "权重文件需单独下载（目录当前仅含 index 和配置文件）"
+
+expansion:
+  method: expert
+  algorithm: longcat_expert_upcycling
+  expand_factor: 2                # 512 → 1024 experts
+  noise_scale: 1.0e-6             # router.classifier.weight 新增行噪声
+  double_zero_experts: true       # zero_expert_num 256 → 512
+  config_patches:
+    n_routed_experts: 1024
+    zero_expert_num: 512
+    moe_topk: 24                  # 12 × 2，保持相同激活比例
+  target_ratio: ~2.0x
+
+output:
+  dir: ./outputs/LongCat-Flash-Chat/expert_upcycling
+  target_shard_gb: 2.0            # 预计输出 ~150 分片

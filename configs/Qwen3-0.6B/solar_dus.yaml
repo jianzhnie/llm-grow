@@ -1,0 +1,23 @@
+# Qwen3-0.6B  →  ~785M  |  SOLAR DUS 层重叠复制
+# 28 层 → 40 层，596M → 785M，1.32x
+# FP: ✗  (需 100B+ tokens CPT 恢复精度)
+
+model:
+  src_dir: /Users/robin/hfhub/models/Qwen/Qwen3-0.6B
+  family: dense
+  architecture: Qwen3ForCausalLM
+  params: 596M
+  layers: 28
+
+expansion:
+  method: depth
+  algorithm: solar_dus
+  num_overlap: 8                  # 上段 0~19 层 + 下段 8~27 层 = 40 层
+  target_params: 785M
+  target_ratio: 1.32x
+  function_preserving: false
+  note: "纯深度扩增，实现最简单（10行代码），但需大量 CPT"
+
+output:
+  dir: ./outputs/Qwen3-0.6B/solar_dus
+  target_shard_gb: 4.0

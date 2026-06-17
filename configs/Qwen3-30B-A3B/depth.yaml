@@ -1,0 +1,27 @@
+# Qwen3-30B-A3B  →  ~34B  |  深度扩增（LLaMA-Pro）
+# 48 层 → 60 层，~30B → ~34B，~1.13x
+# FP: ✓  每个 identity 层需零化 128 个 expert down_proj（由 auto_expand 自动处理）
+# 注：MoE 深度扩增参数增量有限（专家占 96%，层结构占 4%）
+
+model:
+  src_dir: /Users/robin/hfhub/models/Qwen/Qwen3-30B-A3B
+  family: standard_moe
+  architecture: Qwen3MoeForCausalLM
+  params: ~30B
+  layers: 48
+  experts_per_layer: 128
+
+expansion:
+  method: depth
+  algorithm: generic_moe_depth
+  num_new_layers: 12              # 48 + 12 = 60 层
+  insert_strategy: uniform
+  target_params: ~34B
+  target_ratio: ~1.13x
+  function_preserving: true
+  identity_zero_count: 129        # 每个 identity 层：128 expert down_proj + 1 o_proj
+  note: "MoE 深度扩增增量有限（专家参数占 96%），推荐 expert_upcycling"
+
+output:
+  dir: ./outputs/Qwen3-30B-A3B/depth
+  target_shard_gb: 4.0

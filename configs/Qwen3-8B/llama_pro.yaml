@@ -1,0 +1,26 @@
+# Qwen3-8B  →  ~15B  |  LLaMA-Pro 恒等块插入
+# 36 层 → 72 层，~8.2B → ~15.1B，~1.84x
+# FP: ✓
+# 注：embedding(1.2B) 占 ~15%，层数翻倍得到 1.84x；+44 块可达精确 2x
+
+model:
+  src_dir: Qwen/Qwen3-8B
+  family: dense
+  architecture: Qwen3ForCausalLM
+  params: ~8.2B
+  layers: 36
+
+expansion:
+  method: depth
+  algorithm: llama_pro
+  num_new_layers: 36              # 36 + 36 = 72 层（层数翻倍），~1.84x
+  insert_strategy: uniform
+  target_params: ~15.1B
+  target_ratio: ~1.84x
+  function_preserving: true
+
+  # 精确 2x 方案：num_new_layers: 44  →  80 层，~16.5B，2.01x
+
+output:
+  dir: ./outputs/Qwen3-8B/llama_pro
+  target_shard_gb: 4.0
