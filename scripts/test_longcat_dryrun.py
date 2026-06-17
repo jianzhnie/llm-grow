@@ -77,17 +77,13 @@ def check_depth_expansion():
 
     src_index = ShardIndex.load(MODEL_DIR)
 
-    assert plan.new_num_hidden_layers == 32, (
-        f"Expected 32, got {plan.new_num_hidden_layers}"
-    )
+    assert plan.new_num_hidden_layers == 32, f"Expected 32, got {plan.new_num_hidden_layers}"
     print(f"  [OK] new_num_hidden_layers = {plan.new_num_hidden_layers}")
 
     zero_recipes = [k for k, r in plan.recipes.items() if r.zero_out]
     zero_per_layer = {
         "o_proj": sum(1 for k in zero_recipes if "o_proj" in k),
-        "expert_dp": sum(
-            1 for k in zero_recipes if "mlp.experts" in k and "down_proj" in k
-        ),
+        "expert_dp": sum(1 for k in zero_recipes if "mlp.experts" in k and "down_proj" in k),
         "dense_dp": sum(1 for k in zero_recipes if "mlps." in k and "down_proj" in k),
     }
     print("  Zero tensors breakdown:")
@@ -109,14 +105,10 @@ def check_depth_expansion():
 
     # Non-layer tensors (mtp, embed, etc.) must all pass through
     non_layer_orig = sum(
-        1
-        for k in src_index.weight_map
-        if k.split(".")[0] != "model" or k.split(".")[1] not in ("layers",)
+        1 for k in src_index.weight_map if k.split(".")[0] != "model" or k.split(".")[1] not in ("layers",)
     )
     non_layer_plan = sum(1 for k in plan.recipes if not k.startswith("model.layers."))
-    print(
-        f"  [Check] Non-layer tensors: {non_layer_orig} (src) -> {non_layer_plan} (plan)"
-    )
+    print(f"  [Check] Non-layer tensors: {non_layer_orig} (src) -> {non_layer_plan} (plan)")
     assert non_layer_orig == non_layer_plan, "Non-layer tensor count changed!"
     print("  [OK] All non-layer tensors (embed, norm, mtp) pass through")
     return True

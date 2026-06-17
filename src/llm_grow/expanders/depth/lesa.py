@@ -66,9 +66,7 @@ class LESAExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print(
-            "[FP verify] LESA is approximately FP (~80-90%) — running output diff check."
-        )
+        print("[FP verify] LESA is approximately FP (~80-90%) — running output diff check.")
         return super().verify(original, expanded, atol=0.5, **kwargs)
 
 

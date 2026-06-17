@@ -85,9 +85,7 @@ class ShardIndex:
 
     @property
     def is_single_shard(self) -> bool:
-        return (
-            len(self.shard_files) == 1 and self.shard_files[0] == self.SINGLE_FILENAME
-        )
+        return len(self.shard_files) == 1 and self.shard_files[0] == self.SINGLE_FILENAME
 
     def total_size_bytes(self) -> int:
         return sum((self.model_dir / sf).stat().st_size for sf in self.shard_files)
@@ -97,8 +95,7 @@ class ShardIndex:
     def open_all_shards(self) -> dict[str, safe_open]:
         """Open all shards with mmap.  Caller responsible for resource lifecycle."""
         return {
-            sf: safe_open(str(self.model_dir / sf), framework="pt", device="cpu")
-            for sf in self.shard_files
+            sf: safe_open(str(self.model_dir / sf), framework="pt", device="cpu") for sf in self.shard_files
         }
 
     def layer_suffixes(self) -> list[str]:
@@ -112,11 +109,7 @@ class ShardIndex:
 
     def num_hidden_layers(self) -> int:
         """Infer num_hidden_layers from tensor keys."""
-        indices = {
-            parse_layer_idx(k)
-            for k in self.weight_map
-            if parse_layer_idx(k) is not None
-        }
+        indices = {parse_layer_idx(k) for k in self.weight_map if parse_layer_idx(k) is not None}
         return max(indices) + 1 if indices else 0
 
     # ── write helpers ────────────────────────────────────────────────────────

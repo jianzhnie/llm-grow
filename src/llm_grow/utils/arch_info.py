@@ -45,9 +45,7 @@ def parse_arch_info(model: nn.Module) -> ArchInfo:
 
 def count_params(model: nn.Module, trainable_only: bool = False) -> int:
     """统计模型参数量（默认统计全部参数）。"""
-    return sum(
-        p.numel() for p in model.parameters() if not trainable_only or p.requires_grad
-    )
+    return sum(p.numel() for p in model.parameters() if not trainable_only or p.requires_grad)
 
 
 def param_diff_report(

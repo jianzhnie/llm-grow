@@ -74,9 +74,7 @@ def test_llama_pro():
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
-    config = LlamaProConfig(
-        num_new_blocks=7, insert_strategy="uniform", freeze_original=True
-    )
+    config = LlamaProConfig(num_new_blocks=7, insert_strategy="uniform", freeze_original=True)
     t0 = time.time()
     expanded = LlamaProExpander().expand(model, config)
     elapsed = time.time() - t0
@@ -86,12 +84,8 @@ def test_llama_pro():
     trainable = sum(p.numel() for p in expanded.parameters() if p.requires_grad)
 
     print(f"  Layers : {orig_layers} → {exp_layers}  (+{exp_layers - orig_layers})")
-    print(
-        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
-    )
-    print(
-        f"  Trainable params: {trainable / 1e6:.1f}M  ({100 * trainable / exp_params:.1f}%)"
-    )
+    print(f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)")
+    print(f"  Trainable params: {trainable / 1e6:.1f}M  ({100 * trainable / exp_params:.1f}%)")
     print(f"  Expand time: {elapsed:.2f}s")
     quick_fp_check(orig, expanded)
     return True
@@ -118,9 +112,7 @@ def test_solar_dus():
     expected = 2 * (orig_layers - config.num_overlap)
 
     print(f"  Layers : {orig_layers} → {exp_layers}  (expected {expected})")
-    print(
-        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
-    )
+    print(f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)")
     print(f"  Expand time: {elapsed:.2f}s")
     assert exp_layers == expected, f"Layer count mismatch: {exp_layers} != {expected}"
     print("  [✓] Layer count correct")
@@ -178,9 +170,7 @@ def test_msg():
     exp_layers = len(expanded.model.layers)
     exp_params = count_params(expanded)
     print(f"  Layers : {orig_layers} → {exp_layers}")
-    print(
-        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
-    )
+    print(f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)")
     print(f"  Expand time: {elapsed:.2f}s")
     quick_fp_check(orig, expanded)
     return True
@@ -205,9 +195,7 @@ def test_moe_upcycling():
     elapsed = time.time() - t0
 
     exp_params = count_params(expanded)
-    print(
-        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
-    )
+    print(f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)")
     print(f"  Expand time: {elapsed:.2f}s")
 
     from llm_grow.expanders.sparse.moe_upcycling import MoELayer
@@ -284,9 +272,7 @@ def test_generation():
 
     model_orig = load_fresh()
     model_exp = copy.deepcopy(model_orig)
-    LlamaProExpander().expand(
-        model_exp, LlamaProConfig(num_new_blocks=7, freeze_original=False)
-    )
+    LlamaProExpander().expand(model_exp, LlamaProConfig(num_new_blocks=7, freeze_original=False))
 
     print(f"  Prompt: {prompt!r}")
     out_orig = run_generate(model_orig, tokenizer, prompt)

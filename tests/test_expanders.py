@@ -92,9 +92,7 @@ class TestLlamaProExpander:
     def test_function_preserving(self):
         model = self._make_model(8)
         original = copy.deepcopy(model)
-        config = LlamaProConfig(
-            num_new_blocks=4, insert_strategy="uniform", freeze_original=False
-        )
+        config = LlamaProConfig(num_new_blocks=4, insert_strategy="uniform", freeze_original=False)
         expanded = LlamaProExpander().expand(model, config)
 
         input_ids = torch.randint(0, 256, (2, 16))
@@ -114,9 +112,7 @@ class TestLlamaProExpander:
 
     def test_freeze_original_works(self):
         model = self._make_model(8)
-        LlamaProExpander().expand(
-            model, LlamaProConfig(num_new_blocks=2, freeze_original=True)
-        )
+        LlamaProExpander().expand(model, LlamaProConfig(num_new_blocks=2, freeze_original=True))
         trainable = [p for p in model.parameters() if p.requires_grad]
         frozen = [p for p in model.parameters() if not p.requires_grad]
         assert len(trainable) > 0

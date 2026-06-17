@@ -64,9 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--src", required=True, help="Source model directory")
     p.add_argument("--dst", required=True, help="Output directory")
-    p.add_argument(
-        "--dry-run", action="store_true", help="Build plan without writing files"
-    )
+    p.add_argument("--dry-run", action="store_true", help="Build plan without writing files")
     p.add_argument("--target-shard-gb", type=float, default=4.0)
     p.add_argument("--quiet", action="store_true")
 
@@ -86,14 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=4,
         help="[auto depth / llama_pro / msg] layers / blocks to insert",
     )
-    p.add_argument(
-        "--insert-strategy", default="uniform", choices=["uniform", "front", "rear"]
-    )
+    p.add_argument("--insert-strategy", default="uniform", choices=["uniform", "front", "rear"])
 
     # SOLAR DUS
-    p.add_argument(
-        "--num-overlap", type=int, default=8, help="[solar_dus] overlapping layers"
-    )
+    p.add_argument("--num-overlap", type=int, default=8, help="[solar_dus] overlapping layers")
 
     # MSG width
     p.add_argument(
@@ -163,9 +157,7 @@ def main() -> None:
             SolarDUSSafetensorExpander,
         )
 
-        expander = SolarDUSSafetensorExpander(
-            SolarDUSSafetensorConfig(num_overlap=args.num_overlap)
-        )
+        expander = SolarDUSSafetensorExpander(SolarDUSSafetensorConfig(num_overlap=args.num_overlap))
 
     elif args.expander == "msg":
         from llm_grow.safetensor.msg import MSGSafetensorConfig, MSGSafetensorExpander

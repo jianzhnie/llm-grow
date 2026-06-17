@@ -131,14 +131,8 @@ def test_kimik2_expert_upcycling():
     wmap = src.weight_map
 
     # Layer 0 is dense — no experts should appear there
-    l0_expert_keys = [
-        k
-        for k in plan.recipes
-        if k.startswith("model.layers.0.") and "mlp.experts." in k
-    ]
-    assert len(l0_expert_keys) == 0, (
-        f"Layer 0 should be dense, got {len(l0_expert_keys)} expert keys"
-    )
+    l0_expert_keys = [k for k in plan.recipes if k.startswith("model.layers.0.") and "mlp.experts." in k]
+    assert len(l0_expert_keys) == 0, f"Layer 0 should be dense, got {len(l0_expert_keys)} expert keys"
     print("  [OK] Layer 0 is dense — no expert tensors")
 
     # Layer 1 expert count
@@ -162,13 +156,8 @@ def test_kimik2_expert_upcycling():
     print(f"  [OK] {len(router_w)} router weights: dup_rows=True")
 
     # Router bias dup_rows (no noise)
-    router_b = [
-        k for k in plan.recipes if k.endswith("mlp.gate.e_score_correction_bias")
-    ]
-    assert all(
-        plan.recipes[k].dup_rows and plan.recipes[k].dup_rows_noise_scale == 0.0
-        for k in router_b
-    )
+    router_b = [k for k in plan.recipes if k.endswith("mlp.gate.e_score_correction_bias")]
+    assert all(plan.recipes[k].dup_rows and plan.recipes[k].dup_rows_noise_scale == 0.0 for k in router_b)
     print(f"  [OK] {len(router_b)} router biases: dup_rows=True, noise=0")
 
     # Shared expert untouched
@@ -218,18 +207,16 @@ def test_kimik2_depth():
     ]
 
     print("  Zero breakdown:")
-    print(
-        f"    o_proj zeros    : {sum(1 for k in zero_keys if 'o_proj.weight' in k and 'scale' not in k)}"
+    o_proj_n = sum(1 for k in zero_keys if "o_proj.weight" in k and "scale" not in k)
+    expert_n = sum(1 for k in zero_keys if "experts" in k and "down_proj.weight" in k)
+    shared_n = sum(1 for k in zero_keys if "shared_experts.down_proj" in k)
+    dense_n = sum(
+        1 for k in zero_keys if "mlp.down_proj.weight" in k and "experts" not in k and "shared" not in k
     )
-    print(
-        f"    expert dp zeros : {sum(1 for k in zero_keys if 'experts' in k and 'down_proj.weight' in k)}"
-    )
-    print(
-        f"    shared dp zeros : {sum(1 for k in zero_keys if 'shared_experts.down_proj' in k)}"
-    )
-    print(
-        f"    dense dp zeros  : {sum(1 for k in zero_keys if 'mlp.down_proj.weight' in k and 'experts' not in k and 'shared' not in k)}"
-    )
+    print(f"    o_proj zeros    : {o_proj_n}")
+    print(f"    expert dp zeros : {expert_n}")
+    print(f"    shared dp zeros : {shared_n}")
+    print(f"    dense dp zeros  : {dense_n}")
     print(f"    Total zero      : {len(zero_keys)}")
 
     src = ShardIndex.load(KIMI_K2)

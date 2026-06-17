@@ -150,9 +150,7 @@ def _build_expander(
         cfg = MSGSafetensorConfig(ffn_size_expansion=ffn_size_expansion)
         return MSGSafetensorExpander(cfg)
 
-    raise ValueError(
-        f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'."
-    )
+    raise ValueError(f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'.")
 
 
 def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: str):
@@ -202,9 +200,7 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
     )
 
 
-def _build_expert_expander(
-    profile: ModelProfile, expand_factor: int, noise_scale: float
-):
+def _build_expert_expander(profile: ModelProfile, expand_factor: int, noise_scale: float):
     """Select and configure the correct expert upcycling expander."""
 
     if profile.has_dual_attn:
@@ -232,9 +228,7 @@ def _build_expert_expander(
             expand_factor=expand_factor,
             noise_scale=noise_scale,
             router_weight_suffixes=[profile.router_weight_suffix],
-            router_bias_suffixes=(
-                [profile.router_bias_suffix] if profile.router_bias_suffix else []
-            ),
+            router_bias_suffixes=([profile.router_bias_suffix] if profile.router_bias_suffix else []),
             config_expert_count_key=profile.expert_count_config_key,
             config_topk_key=profile.topk_config_key,
         )

@@ -43,9 +43,7 @@ class GenericMoEUpcyclingConfig:
     noise_scale: float = 1e-6
     """Noise std for router weight rows (relative to tensor std)."""
 
-    router_weight_suffixes: list[str] = field(
-        default_factory=lambda: ["mlp.gate.weight"]
-    )
+    router_weight_suffixes: list[str] = field(default_factory=lambda: ["mlp.gate.weight"])
     """Layer-suffixes for router weight matrices → duplicated rows with noise."""
 
     router_bias_suffixes: list[str] = field(default_factory=list)
@@ -69,14 +67,10 @@ class GenericMoEDepthConfig:
     insert_strategy: str = "uniform"
     """'uniform' | 'front' | 'rear'"""
 
-    extra_attn_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["self_attn.o_proj.weight"]
-    )
+    extra_attn_zero_suffixes: list[str] = field(default_factory=lambda: ["self_attn.o_proj.weight"])
     """Exact layer-suffixes for attention output projections to zero."""
 
-    dense_mlp_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["mlp.down_proj.weight"]
-    )
+    dense_mlp_zero_suffixes: list[str] = field(default_factory=lambda: ["mlp.down_proj.weight"])
     """Exact layer-suffixes for dense MLP outputs to zero (non-MoE layers)."""
 
     zero_shared_expert_down: bool = True
@@ -119,14 +113,8 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
         patches: dict[str, Any] = {}
         if cfg.config_expert_count_key:
             patches[cfg.config_expert_count_key] = orig_n * cfg.expand_factor
-        if (
-            cfg.scale_topk
-            and cfg.config_topk_key
-            and cfg.config_topk_key in orig_model_cfg
-        ):
-            patches[cfg.config_topk_key] = (
-                orig_model_cfg[cfg.config_topk_key] * cfg.expand_factor
-            )
+        if cfg.scale_topk and cfg.config_topk_key and cfg.config_topk_key in orig_model_cfg:
+            patches[cfg.config_topk_key] = orig_model_cfg[cfg.config_topk_key] * cfg.expand_factor
 
         plan = ExpansionPlan(
             new_num_hidden_layers=src_index.num_hidden_layers(),
@@ -138,11 +126,7 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
 
         for key, shard in wmap.items():
             layer_idx = parse_layer_idx(key)
-            suf = (
-                key[key.index(".", len("model.layers.")) + 1 :]
-                if layer_idx is not None
-                else ""
-            )
+            suf = key[key.index(".", len("model.layers.")) + 1 :] if layer_idx is not None else ""
 
             if _is_expert_key(key):
                 plan.passthrough(key, shard)
@@ -182,21 +166,10 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
     @staticmethod
     def _count_experts_per_moe_layer(wmap: dict[str, str]) -> int:
         """Find the first MoE layer and count distinct expert indices."""
-        num_layers = (
-            max(
-                (parse_layer_idx(k) or 0)
-                for k in wmap
-                if parse_layer_idx(k) is not None
-            )
-            + 1
-        )
+        num_layers = max((parse_layer_idx(k) or 0) for k in wmap if parse_layer_idx(k) is not None) + 1
         for layer_id in range(num_layers):
             prefix = f"model.layers.{layer_id}."
-            indices = {
-                _expert_idx(k)
-                for k in wmap
-                if k.startswith(prefix) and _is_expert_key(k)
-            }
+            indices = {_expert_idx(k) for k in wmap if k.startswith(prefix) and _is_expert_key(k)}
             if indices:
                 return len(indices)
         return 0
@@ -238,9 +211,7 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
         if suf.endswith(".down_proj.weight") and "mlp.experts." in suf:
             return True
         # Shared expert down_proj
-        return bool(
-            cfg.zero_shared_expert_down and suf == "mlp.shared_experts.down_proj.weight"
-        )
+        return bool(cfg.zero_shared_expert_down and suf == "mlp.shared_experts.down_proj.weight")
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         cfg = self.config
@@ -248,9 +219,7 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
         wmap = src_index.weight_map
         suffixes = src_index.layer_suffixes()
 
-        positions = set(
-            _insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
-        )
+        positions = set(_insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy))
         sequence: list[tuple[int, bool]] = []
         for i in range(num_orig):
             sequence.append((i, False))

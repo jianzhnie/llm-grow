@@ -38,12 +38,8 @@ class MSGSafetensorConfig:
     """Amount to increase intermediate_size (FFN hidden dim) per layer."""
 
     # ── zero suffixes (identity blocks) ─────────────────────────────────────
-    attn_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["self_attn.o_proj.weight"]
-    )
-    mlp_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["mlp.down_proj.weight"]
-    )
+    attn_zero_suffixes: list[str] = field(default_factory=lambda: ["self_attn.o_proj.weight"])
+    mlp_zero_suffixes: list[str] = field(default_factory=lambda: ["mlp.down_proj.weight"])
 
 
 class MSGSafetensorExpander(SafetensorExpanderBase):
@@ -74,9 +70,7 @@ class MSGSafetensorExpander(SafetensorExpanderBase):
 
         # ── depth: build layer sequence ──────────────────────────────────────
         if cfg.depth_expansion > 0:
-            positions = set(
-                _insert_positions(num_orig, cfg.depth_expansion, cfg.insert_strategy)
-            )
+            positions = set(_insert_positions(num_orig, cfg.depth_expansion, cfg.insert_strategy))
         else:
             positions = set()
 
@@ -89,10 +83,7 @@ class MSGSafetensorExpander(SafetensorExpanderBase):
         plan = ExpansionPlan(
             new_num_hidden_layers=len(sequence),
             config_patches=(
-                {
-                    "intermediate_size": _get_intermediate_size(src_index)
-                    + cfg.ffn_size_expansion
-                }
+                {"intermediate_size": _get_intermediate_size(src_index) + cfg.ffn_size_expansion}
                 if cfg.ffn_size_expansion > 0
                 else {}
             ),

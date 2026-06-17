@@ -41,9 +41,7 @@ class SolarDUSExpander(AbstractExpander):
         overlap = config.num_overlap
 
         if overlap >= num_layers:
-            raise ValueError(
-                f"num_overlap ({overlap}) must be < num_layers ({num_layers})."
-            )
+            raise ValueError(f"num_overlap ({overlap}) must be < num_layers ({num_layers}).")
 
         upper_end = num_layers - overlap
         lower_start = overlap
@@ -57,7 +55,5 @@ class SolarDUSExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print(
-            "[FP verify] SOLAR DUS is NOT function-preserving — skipping output check."
-        )
+        print("[FP verify] SOLAR DUS is NOT function-preserving — skipping output check.")
         return False

@@ -19,9 +19,7 @@ class GrowthScheduleConfig:
     strategy: str = "linear"
     """解锁策略：'linear' | 'cosine' | 'step'。"""
 
-    growth_dims: list[str] = field(
-        default_factory=lambda: ["depth", "width", "ffn", "heads"]
-    )
+    growth_dims: list[str] = field(default_factory=lambda: ["depth", "width", "ffn", "heads"])
     """需要渐进解锁的维度名称列表。"""
 
 

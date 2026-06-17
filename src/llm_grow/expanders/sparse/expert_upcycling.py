@@ -118,9 +118,7 @@ def _expand_experts(
         new_experts.append(clone)
 
     router_w = moe_module.router.weight.data
-    new_router_w = _expand_router_weight(
-        router_w, src_indices, num_orig, config.router_noise_std
-    )
+    new_router_w = _expand_router_weight(router_w, src_indices, num_orig, config.router_noise_std)
     return new_experts, new_router_w
 
 
@@ -144,9 +142,7 @@ def _update_router(moe_module: nn.Module, new_weight: torch.Tensor) -> None:
     """new_weight: (num_new_experts, hidden_size)"""
     old_router = moe_module.router
     num_new_experts, hidden_size = new_weight.shape
-    new_router = nn.Linear(
-        hidden_size, num_new_experts, bias=old_router.bias is not None
-    )
+    new_router = nn.Linear(hidden_size, num_new_experts, bias=old_router.bias is not None)
     new_router.weight = nn.Parameter(new_weight)  # shape 已对齐，无需转置
     moe_module.router = new_router
 

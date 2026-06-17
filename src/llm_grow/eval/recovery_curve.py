@@ -69,10 +69,7 @@ class RecoveryCurveTracker:
                 for k, v in scores.items()
                 if k in self.baseline and self.baseline[k] > 0
             }
-            print(
-                f"[Recovery] step={step} tokens={tokens_seen:,}  {scores}  "
-                f"recovery={recovery}"
-            )
+            print(f"[Recovery] step={step} tokens={tokens_seen:,}  {scores}  recovery={recovery}")
 
     def summary(self) -> None:
         if not self.points:
@@ -85,7 +82,4 @@ class RecoveryCurveTracker:
             for k, v in last.scores.items():
                 base = self.baseline.get(k, None)
                 if base:
-                    print(
-                        f"  {k}: {v:.4f}  (baseline={base:.4f}, "
-                        f"recovery={v / base * 100:.1f}%)"
-                    )
+                    print(f"  {k}: {v:.4f}  (baseline={base:.4f}, recovery={v / base * 100:.1f}%)")

@@ -91,9 +91,7 @@ class MoEUpcyclingExpander(AbstractExpander):
             if not _is_ffn_module(module):
                 continue
 
-            experts = nn.ModuleList(
-                [copy.deepcopy(module) for _ in range(config.num_experts)]
-            )
+            experts = nn.ModuleList([copy.deepcopy(module) for _ in range(config.num_experts)])
             add_noise_to_experts(experts, std=config.noise_std)
 
             moe_layer = MoELayer(
@@ -124,9 +122,7 @@ class MoEUpcyclingExpander(AbstractExpander):
 def _is_ffn_module(module: nn.Module) -> bool:
     """判断是否是叶子 FFN 模块（含 gate_proj / up_proj 的 SwiGLU MLP）。"""
     child_names = {n for n, _ in module.named_children()}
-    return bool({"gate_proj", "up_proj", "down_proj"} & child_names) or bool(
-        {"fc1", "fc2"} & child_names
-    )
+    return bool({"gate_proj", "up_proj", "down_proj"} & child_names) or bool({"fc1", "fc2"} & child_names)
 
 
 def _get_hidden_size(model: nn.Module) -> int:

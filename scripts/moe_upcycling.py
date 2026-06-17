@@ -32,9 +32,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--noise-std", type=float, default=0.01)
     p.add_argument("--ffn-pattern", default="mlp", help="用于定位 FFN 模块的名称模式")
     p.add_argument("--output-dir", default="./expanded_moe")
-    p.add_argument(
-        "--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"]
-    )
+    p.add_argument("--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"])
     return p.parse_args()
 
 

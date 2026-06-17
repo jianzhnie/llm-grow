@@ -30,12 +30,8 @@ class LlamaProConfig(ExpansionConfig):
     freeze_original: bool = True
     """Phase-1 训练时是否冻结原始块（仅训练新增块）。"""
 
-    attn_output_proj_names: list[str] = field(
-        default_factory=lambda: ["o_proj", "out_proj"]
-    )
-    mlp_output_proj_names: list[str] = field(
-        default_factory=lambda: ["down_proj", "fc2"]
-    )
+    attn_output_proj_names: list[str] = field(default_factory=lambda: ["o_proj", "out_proj"])
+    mlp_output_proj_names: list[str] = field(default_factory=lambda: ["down_proj", "fc2"])
 
 
 class LlamaProExpander(AbstractExpander):
@@ -55,9 +51,7 @@ class LlamaProExpander(AbstractExpander):
     def expand(self, model: nn.Module, config: LlamaProConfig) -> nn.Module:
         layers = _get_decoder_layers(model)
         num_orig = len(layers)
-        insert_positions = _compute_insert_positions(
-            num_orig, config.num_new_blocks, config.insert_strategy
-        )
+        insert_positions = _compute_insert_positions(num_orig, config.num_new_blocks, config.insert_strategy)
 
         new_layers = nn.ModuleList()
         insert_set = set(insert_positions)

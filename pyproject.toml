@@ -60,7 +60,7 @@ llm-grow = "llm_grow.cli:main"
 where = ["src"]
 
 [tool.ruff]
-line-length = 88
+line-length = 110
 target-version = "py310"
 extend-exclude = [
     ".git",
@@ -92,7 +92,6 @@ ignore = [
     "RUF001",  # Ambiguous unicode in string — intentional CJK punctuation
     "RUF002",  # Ambiguous unicode in docstring — intentional CJK text
     "RUF003",  # Ambiguous unicode in comment — intentional CJK text
-    "E501",    # Line too long — handled by formatter
 ]
 
 [tool.pytest.ini_options]

@@ -134,23 +134,13 @@ class SafetensorExpanderBase(ABC):
         plan = self._build_plan(src_index)
 
         _log(f"[dry_run] {type(self).__name__}  src={src_dir}")
-        _log(
-            f"  source:  {len(src_index.all_keys)} tensors, "
-            f"{len(src_index.shard_files)} shard(s)"
-        )
-        _log(
-            f"  output:  {len(plan.recipes)} tensors, "
-            f"num_hidden_layers → {plan.new_num_hidden_layers}"
-        )
+        _log(f"  source:  {len(src_index.all_keys)} tensors, {len(src_index.shard_files)} shard(s)")
+        _log(f"  output:  {len(plan.recipes)} tensors, num_hidden_layers → {plan.new_num_hidden_layers}")
         _log(f"  config patches: {plan.config_patches}")
 
         zero_keys = [k for k, r in plan.recipes.items() if r.zero_out]
         dup_keys = [k for k, r in plan.recipes.items() if r.dup_rows]
-        padded_keys = [
-            k
-            for k, r in plan.recipes.items()
-            if (r.pad_rows or r.pad_cols) and not r.zero_out
-        ]
+        padded_keys = [k for k, r in plan.recipes.items() if (r.pad_rows or r.pad_cols) and not r.zero_out]
         new_keys = [k for k in plan.recipes if k not in src_index.weight_map]
 
         _log(f"  zero-out tensors : {len(zero_keys)}")
@@ -202,11 +192,7 @@ class SafetensorExpanderBase(ABC):
         # Rename temp files to final shard names
         n = len(tmp_shards)
         for i, (tmp_path, keys) in enumerate(tmp_shards):
-            final_name = (
-                "model.safetensors"
-                if n == 1
-                else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
-            )
+            final_name = "model.safetensors" if n == 1 else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
             tmp_path.rename(dst_dir / final_name)
             for k in keys:
                 weight_map[k] = final_name
