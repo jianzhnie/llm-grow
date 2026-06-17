@@ -1,0 +1,83 @@
+# ============================================================
+# Qwen3-0.6B  →  ~1.2B  (2x 参数量)
+# 方法：LLaMA-Pro 恒等块插入（深度扩增）
+# 结果：28 层 → 66 层，596M → 1194M，精确 2.00x
+#
+# 选择理由：
+#   - 架构不变（Dense），FP 初始化零精度损失
+#   - embedding (155M) 占 26% 参数，纯深度扩增需 +38 层才能达到精确 2x
+#   - 训练数据需求最少（8-16B tokens），适合预算有限场景
+# ============================================================
+
+model:
+  src_dir: /Users/robin/hfhub/models/Qwen/Qwen3-0.6B
+  family: dense
+  architecture: Qwen3ForCausalLM
+  original_params: 596M
+  original_layers: 28
+
+expansion:
+  method: depth
+  algorithm: llama_pro            # 恒等块插入（FP，zero-shot 精度零损失）
+
+  # 深度扩增参数
+  num_new_layers: 38              # 28 + 38 = 66 层，精确 2.00x
+  insert_strategy: uniform        # 均匀插入（论文推荐，效果最佳）
+
+  # 参数量预估
+  target_params: 1194M
+  target_ratio: 2.00x
+  target_layers: 66
+
+output:
+  dir: ./outputs/qwen3_0.6b_2x
+  target_shard_gb: 4.0
+
+# ── Continued Pre-training ────────────────────────────────────────────────
+training:
+  # 两阶段训练：先冻结原始层，再全量微调
+  phase1:
+    description: "冻结原始 28 层，仅训练 38 个新增恒等块"
+    freeze_original: true
+    max_tokens: 12_000_000_000    # 12B tokens（~新增参数每B对应约20B tokens）
+    learning_rate: 2.0e-4
+    lr_scheduler: cosine
+    warmup_steps: 1000
+    per_device_batch_size: 4
+    gradient_accumulation_steps: 8
+    save_steps: 500
+
+  phase2:
+    description: "解冻全部参数，全量微调弥合新旧参数分布"
+    freeze_original: false
+    max_tokens: 6_000_000_000     # 6B tokens
+    learning_rate: 5.0e-5
+    lr_scheduler: cosine
+    warmup_steps: 200
+    per_device_batch_size: 4
+    gradient_accumulation_steps: 8
+
+data:
+  pretrain_data_path: null        # 填写预训练语料路径
+  domain_data_path: null
+  pretrain_ratio: 0.93
+  instruction_ratio: 0.05         # 5% 指令数据防遗忘
+  replay_ratio: 0.02              # 2% 原始分布 replay 防灾难性遗忘
+
+  # 数据过滤建议
+  filter:
+    max_ppl: 1000                  # 过滤 PPL 异常高的样本
+    max_ngram_repeat: 0.15         # 过滤 n-gram 重复率 > 0.15
+
+eval:
+  benchmarks: [mmlu, gsm8k, humaneval, arc_challenge, ceval]
+  eval_every_n_tokens: 3_000_000_000  # 每 3B tokens 评估一次
+  fp_verify_on_expand: true           # 扩增后立即验证 FP（max|Δlogit| 应为 0）
+
+# ── 可选：MSG 深度+宽度组合（更平衡的延迟/参数权衡）────────────────────
+# expansion_alternative:
+#   method: depth_width
+#   algorithm: msg
+#   num_new_layers: 14            # 28 + 14 = 42 层
+#   ffn_size_expansion: 2048      # 3072 + 2048 = 5120
+#   target_params: ~1081M         # 1.81x（延迟仅增 ~40%，优于纯深度）

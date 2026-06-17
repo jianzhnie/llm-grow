@@ -1,0 +1,97 @@
+# ============================================================
+# Qwen3-30B-A3B  →  ~60B  (2x 参数量)
+# 方法：Expert Upcycling（专家数扩增）
+# 结果：128 experts → 256 experts，~30B → ~59B，~2.0x
+#
+# 选择理由：
+#   - MoE 架构独有优势：专家扩增不增加推理激活参数量
+#   - 专家参数占总参数 96%，128→256 专家精确实现 2x
+#   - 推理激活参数（top-8）不变，num_experts_per_tok 同步翻倍
+#   - 深度扩增（48→60 层）同样可行，但会增加推理延迟
+#
+# 关键 identity block 细节（与 Dense 的核心区别）：
+#   Dense: 只需零化 1 个 mlp.down_proj.weight
+#   MoE:   需零化 128 个 mlp.experts.{0..127}.down_proj.weight
+#          → 使用 auto_expand / GenericMoEDepthExpander 自动处理
+# ============================================================
+
+model:
+  src_dir: /Users/robin/hfhub/models/Qwen/Qwen3-30B-A3B
+  family: standard_moe
+  architecture: Qwen3MoeForCausalLM
+  original_params: ~30B
+  original_layers: 48
+  original_experts_per_layer: 128
+  original_topk: 8
+
+expansion:
+  method: expert                  # MoE 专家数扩增（推理成本不变）
+  algorithm: generic_moe_upcycling
+
+  # 专家扩增参数
+  expand_factor: 2                # 128 → 256 experts
+  noise_scale: 1.0e-6             # Router 新增行的对称性破坏噪声
+
+  # 同步更新配置
+  config_patches:
+    num_experts: 256              # 128 × 2
+    num_experts_per_tok: 16       # 8 × 2（保持激活比例不变，激活参数量翻倍）
+    # 注：若希望保持相同激活参数量（推理成本不变），改为 num_experts_per_tok: 8
+
+  # 参数量预估
+  target_params: ~59B
+  target_ratio: ~2.0x
+  activation_params_change: "num_experts_per_tok 8→16 时激活参数约 2x"
+
+output:
+  dir: ./outputs/qwen3_30b_a3b_2x
+  target_shard_gb: 4.0            # 每个输出 shard 不超过 4GB
+
+# ── Continued Pre-training ────────────────────────────────────────────────
+training:
+  # 专家扩增后无需 Phase-1 冻结（所有参数需参与训练以分化新旧专家）
+  freeze_original: false
+
+  phase1:
+    description: "全参数 CPT，新旧专家共同分化"
+    max_tokens: 30_000_000_000    # 30B tokens（专家分化需要足够的数据多样性）
+    learning_rate: 3.0e-5
+    lr_scheduler: cosine
+    warmup_steps: 2000
+    per_device_batch_size: 1
+    gradient_accumulation_steps: 16
+    save_steps: 1000
+
+    # MoE 专用：负载均衡损失（防止专家崩溃）
+    moe_loss:
+      load_balance_coeff: 1.0e-2  # Switch Transformer aux_loss 系数
+      z_loss_coeff: 1.0e-3        # Router z-loss 系数
+      router_aux_loss_coef: 1.0e-3  # Qwen3MoE 原生配置键
+
+data:
+  pretrain_data_path: null
+  domain_data_path: null
+  pretrain_ratio: 0.92
+  instruction_ratio: 0.05
+  replay_ratio: 0.03
+
+  # 专家分化需要足够的数据多样性
+  # 建议混合多领域语料（通用 Web + 代码 + 数学 + 科学）
+
+eval:
+  benchmarks: [mmlu, cmmlu, gsm8k, math, humaneval, arc_challenge]
+  eval_every_n_tokens: 5_000_000_000
+
+  # 专家利用率监控
+  monitor:
+    expert_load_balance: true     # 记录各专家激活频率分布
+    router_entropy: true          # 路由熵（越高越均衡）
+
+# ── 可选：深度扩增方案（接受推理延迟增加）──────────────────────────────
+# expansion_alternative:
+#   method: depth
+#   algorithm: generic_moe_depth
+#   num_new_layers: 16            # 48 + 16 = 64 层
+#   insert_strategy: uniform
+#   target_params: ~40B           # ~1.33x（深度扩增因非层参数较少比例有限）
+#   note: "每个 identity 层需零化 128 个 expert down_proj"
