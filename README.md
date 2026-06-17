@@ -10,16 +10,11 @@
 - [安装](#安装)
 - [快速开始](#快速开始)
 - [Safetensor 直接扩增](#safetensor-直接扩增)
-  - [自动检测：Dense vs MoE](#自动检测dense-vs-moe)
-  - [核心区别：identity block 的差异](#核心区别identity-block-的差异)
-  - [CLI 用法](#cli-用法)
-  - [Python API](#python-api-safetensor)
-  - [Dry-run 与验证](#dry-run-与验证)
 - [内存级扩增 API](#内存级扩增-api)
 - [方法选择指南](#方法选择指南)
 - [训练工具链](#训练工具链)
-- [评估](#评估)
 - [配置文件参考](#配置文件参考)
+- [扩增教程（按模型）](#扩增教程按模型)
 - [项目结构](#项目结构)
 - [实测结果](#实测结果)
 - [参考文献](#参考文献)
@@ -431,13 +426,27 @@ tracker.summary()
 
 ## 配置文件参考
 
-`configs/` 目录下提供三个 Qwen3-8B 参考配置：
+按模型分类，每种方法一个 YAML（仅含 `model` / `expansion` / `output`）：
 
-| 配置文件 | 方法 | 目标 |
-|---------|------|------|
-| `configs/llama_pro/qwen3_8b_to_16b.yaml` | LLaMA-Pro | 8B → ~16B |
-| `configs/msg/qwen3_8b_2x.yaml` | MSG | 8B → ~16B |
-| `configs/moe_upcycling/qwen3_8b.yaml` | MoE Upcycling | Dense → MoE |
+```
+configs/
+├── Qwen3-0.6B/      llama_pro.yaml  solar_dus.yaml  msg.yaml
+├── Qwen3-8B/        llama_pro.yaml  msg.yaml  moe_upcycling.yaml
+├── Qwen3-30B-A3B/   expert_upcycling.yaml  depth.yaml
+├── Kimi-K2-Base/    expert_upcycling.yaml  depth.yaml
+└── LongCat-Flash-Chat/  expert_upcycling.yaml  depth.yaml
+```
+
+---
+
+## 扩增教程（按模型）
+
+| 模型 | 架构 | 参数量 | 教程 |
+|------|:---:|:---:|------|
+| Qwen3-0.6B | Dense | 596M | [docs/expand_qwen3_0.6b.md](docs/expand_qwen3_0.6b.md) |
+| Qwen3-30B-A3B | MoE Standard | ~30B | [docs/expand_qwen3_30b_a3b.md](docs/expand_qwen3_30b_a3b.md) |
+| Kimi-K2-Base | DeepSeek MoE + fp8 | ~1T | [docs/expand_kimi_k2.md](docs/expand_kimi_k2.md) |
+| LongCat-Flash-Chat | LongCat MoE | ~0.5T | [docs/expand_longcat_flash.md](docs/expand_longcat_flash.md) |
 
 ---
 
@@ -445,47 +454,34 @@ tracker.summary()
 
 ```
 llm-grow/
-├── configs/                             # 参考配置（YAML）
+├── configs/
+│   ├── Qwen3-0.6B/    Qwen3-8B/    Qwen3-30B-A3B/
+│   ├── Kimi-K2-Base/  LongCat-Flash-Chat/
+├── docs/
+│   ├── expand_qwen3_0.6b.md         # Dense 扩增教程
+│   ├── expand_qwen3_30b_a3b.md      # MoE Standard 扩增教程
+│   ├── expand_kimi_k2.md            # DeepSeek MoE + fp8 教程
+│   └── expand_longcat_flash.md      # LongCat MoE 教程
 ├── scripts/
-│   ├── safetensor_expand.py             # ★ 统一 safetensor 扩增 CLI（auto/llama_pro/...）
-│   ├── verify_safetensor.py             # ★ Safetensor 扩增验证（结构+FP）
-│   ├── expand_llama_pro.py              # 内存级 LLaMA-Pro
-│   ├── expand_msg.py                    # 内存级 MSG
-│   ├── moe_upcycling.py                 # 内存级 MoE Upcycling
-│   ├── expert_upcycling.py              # 内存级 Expert Upcycling
-│   ├── test_real_model.py               # 集成测试（Qwen3-0.6B，内存级）
-│   ├── test_longcat_dryrun.py           # LongCat-Flash dry_run 测试
-│   ├── test_qwen3_kimi_dryrun.py        # Qwen3-30B / Kimi-K2 dry_run 测试
-│   └── test_auto_detect.py             # 自动检测 & dispatch 测试（26 cases）
+│   ├── safetensor_expand.py   # ★ 统一 Safetensor CLI（auto / llama_pro / ...）
+│   ├── verify_safetensor.py   # ★ 扩增验证（结构 + FP）
+│   ├── expand_llama_pro.py    # 内存级 LLaMA-Pro
+│   ├── expand_msg.py          # 内存级 MSG
+│   └── test_*.py              # 集成测试
 ├── src/llm_grow/
-│   ├── safetensor/                      # ★ Safetensor 直接扩增（无需加载模型）
-│   │   ├── detect.py                    # ModelProfile 自动检测（Dense/MoE 区分）
-│   │   ├── auto.py                      # auto_expand() 统一入口（自动选 expander）
-│   │   ├── base.py                      # SafetensorExpanderBase + TensorRecipe
-│   │   ├── utils.py                     # ShardIndex（单文件/多分片统一接口）
-│   │   ├── llama_pro.py                 # Dense 深度扩增
-│   │   ├── solar_dus.py                 # Dense 深度扩增（DUS）
-│   │   ├── msg.py                       # Dense 深度+FFN宽度扩增
-│   │   ├── moe_generic.py               # 通用 MoE 扩增（Qwen3MoE / KimiK2 / ...）
-│   │   └── longcat.py                   # LongCat-Flash 专用扩增
-│   ├── expanders/                       # 内存级扩增
-│   │   ├── base.py                      # AbstractExpander 基类
-│   │   ├── depth/  llama_pro / solar_dus / lesa
-│   │   ├── width/  msg / net2net
-│   │   └── sparse/ moe_upcycling / expert_upcycling
-│   ├── initializers/                    # 权重初始化策略
-│   │   ├── identity.py                  # 零初始化输出投影
-│   │   ├── svd_interp.py                # SVD 插值
-│   │   └── symmetry_break.py            # 加噪 / Drop-Upcycling
-│   ├── training/                        # 训练工具链
-│   │   ├── freeze.py  growth_scheduler.py  distillation.py  load_balance.py
-│   ├── eval/                            # 评估
-│   │   ├── fp_verifier.py               # FP 一致性验证
-│   │   └── recovery_curve.py            # 精度恢复曲线
-│   └── utils/  model_io.py  arch_info.py
-└── tests/
-    ├── test_expanders.py                # 12 unit tests
-    └── test_initializers.py
+│   ├── safetensor/
+│   │   ├── detect.py          # ModelProfile 自动检测（Dense/MoE 区分）
+│   │   ├── auto.py            # auto_expand() 统一入口
+│   │   ├── base.py            # 两阶段写出 + 并行 + router_split
+│   │   ├── utils.py           # ShardIndex + 头部扫描 + auto_detect_shard_size
+│   │   ├── llama_pro.py / solar_dus.py / msg.py
+│   │   ├── moe_generic.py     # Qwen3MoE / KimiK2 通用 MoE 扩增
+│   │   └── longcat.py         # LongCat 专用（router_split 零专家处理）
+│   ├── expanders/             # 内存级扩增
+│   ├── initializers/          # 权重初始化策略
+│   ├── training/              # CPT / 蒸馏 / 冻结 / 负载均衡
+│   └── eval/                  # FP 验证 / 精度恢复曲线
+└── tests/  test_expanders.py  test_initializers.py
 ```
 
 ---
