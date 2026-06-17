@@ -36,9 +36,11 @@ class TensorRecipe:
 
     src_shard: str      # source shard filename (basename)
     src_key: str        # source tensor name
-    zero_out: bool = False   # replace with all-zeros (identity block trick)
-    pad_rows: int = 0        # zero-pad output dimension (rows / out_features)
-    pad_cols: int = 0        # zero-pad input  dimension (cols / in_features)
+    zero_out: bool = False       # replace with all-zeros (identity block trick)
+    pad_rows: int = 0            # zero-pad output dimension (rows / out_features)
+    pad_cols: int = 0            # zero-pad input  dimension (cols / in_features)
+    dup_rows: bool = False       # duplicate existing rows → [original; copy + noise]
+    dup_rows_noise_scale: float = 1e-6  # noise std relative to tensor std
 
 
 @dataclass
@@ -117,7 +119,32 @@ class SafetensorExpanderBase(ABC):
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         """Build the full tensor-level expansion plan."""
 
-    # ── shard I/O ─────────────────────────────────────────────────────────────
+    def dry_run(self, src_dir: str | Path) -> ExpansionPlan:
+        """Build and print the expansion plan without loading any tensor data."""
+        src_dir = Path(src_dir)
+        src_index = ShardIndex.load(src_dir)
+        plan = self._build_plan(src_index)
+
+        _log(f"[dry_run] {type(self).__name__}  src={src_dir}")
+        _log(f"  source:  {len(src_index.all_keys)} tensors, "
+             f"{len(src_index.shard_files)} shard(s)")
+        _log(f"  output:  {len(plan.recipes)} tensors, "
+             f"num_hidden_layers → {plan.new_num_hidden_layers}")
+        _log(f"  config patches: {plan.config_patches}")
+
+        zero_keys    = [k for k, r in plan.recipes.items() if r.zero_out]
+        dup_keys     = [k for k, r in plan.recipes.items() if r.dup_rows]
+        padded_keys  = [k for k, r in plan.recipes.items()
+                        if (r.pad_rows or r.pad_cols) and not r.zero_out]
+        new_keys     = [k for k in plan.recipes if k not in src_index.weight_map]
+
+        _log(f"  zero-out tensors : {len(zero_keys)}")
+        _log(f"  dup-rows tensors : {len(dup_keys)}")
+        _log(f"  padded tensors   : {len(padded_keys)}")
+        _log(f"  brand-new keys   : {len(new_keys)}")
+        if new_keys[:3]:
+            _log(f"    sample: {new_keys[:3]}")
+        return plan
 
     def _write_shards(
         self,
@@ -238,7 +265,13 @@ class SafetensorExpanderBase(ABC):
 # ── tensor transform ──────────────────────────────────────────────────────────
 
 def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
-    # Step 1: apply padding (if any) to reach target shape
+    # ── dup_rows: [A] → [A ; A+noise]  (used for router classifier)
+    if recipe.dup_rows:
+        noise = torch.randn_like(src) * recipe.dup_rows_noise_scale * src.float().std()
+        dup = (src + noise.to(src.dtype))
+        return torch.cat([src.clone(), dup], dim=0)
+
+    # ── pad then optionally zero ──────────────────────────────────────────────
     if recipe.pad_rows > 0 or recipe.pad_cols > 0:
         if src.dim() == 2:
             t = torch.zeros(
@@ -255,7 +288,6 @@ def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
     else:
         t = src.clone()
 
-    # Step 2: zero out if requested (preserves the padded shape)
     if recipe.zero_out:
         return torch.zeros_like(t)
 
