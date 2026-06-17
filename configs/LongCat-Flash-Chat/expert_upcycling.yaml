@@ -1,27 +1,32 @@
 # LongCat-Flash-Chat  →  ~2x  |  Expert Upcycling（专家数扩增）
-# 512 experts → 1024 experts（256 real+256 zero → 512 real+512 zero），topk 12→24
+# 512 experts → 1024 experts（256 real+256 zero → 512 real+512 zero）
+#
+# scale_moe_topk=false  : 默认行为，与原始 expand_experts.py 一致（topk 不变）
+# scale_moe_topk=true   : topk 12→24，保持相同激活比例（更换此选项时修改下方 config_patches）
+# use_group_routing=true : 不改 topk，在 config 中写入 use_group_routing + expert_expansion_factor
 
 model:
   src_dir: /Users/robin/hfhub/models/meituan-longcat/LongCat-Flash-Chat
   family: longcat
   architecture: LongcatFlashForCausalLM
   layers: 28
-  n_routed_experts: 512           # 256 真实 + 256 零专家
-  zero_expert_num: 256
+  n_routed_experts: 512           # 512 真实路由专家
+  zero_expert_num: 256            # 256 零专家（identity 初始化，仅在代码层管理，不在权重文件中）
   moe_topk: 12
   note: "权重文件需单独下载（目录当前仅含 index 和配置文件）"
 
 expansion:
   method: expert
   algorithm: longcat_expert_upcycling
-  expand_factor: 2                # 512 → 1024 experts
-  noise_scale: 1.0e-6             # router.classifier.weight 新增行噪声
+  expand_factor: 2                # 512 → 1024 real experts
+  noise_scale: 1.0e-6             # router.classifier.weight 真实专家行的对称性破坏噪声
   double_zero_experts: true       # zero_expert_num 256 → 512
+  scale_moe_topk: false           # 与原始 expand_experts.py 默认行为一致：topk 保持不变
+  use_group_routing: false        # 若改为 true：不改 topk，改为写入 use_group_routing flag
   config_patches:
     n_routed_experts: 1024
     zero_expert_num: 512
-    moe_topk: 24                  # 12 × 2，保持相同激活比例
-  target_ratio: ~2.0x
+    # moe_topk: 24               # 取消注释以启用 topk 同步翻倍（scale_moe_topk=true 时自动）
 
 output:
   dir: ./outputs/LongCat-Flash-Chat/expert_upcycling

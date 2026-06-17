@@ -60,33 +60,69 @@ class LongcatExpertUpcyclingConfig:
     """Expert count multiplier (e.g. 2 → 512 experts × 2 = 1024)."""
 
     noise_scale: float = 1e-6
-    """Noise std for router classifier rows (relative to tensor std)."""
+    """Noise std for router classifier rows (relative to tensor std).
+    Applied only to real expert rows; zero expert rows always use noise=0."""
 
     double_zero_experts: bool = True
-    """Also double ``zero_expert_num`` in config."""
+    """Also double ``zero_expert_num`` in config (default True)."""
+
+    scale_moe_topk: bool = False
+    """Whether to scale ``moe_topk`` by ``expand_factor``.
+
+    Default **False** to match the original ``expand_experts.py`` behaviour
+    (topk unchanged unless explicitly requested).  Set to True if you want to
+    maintain the same activation *ratio* after expert doubling.
+    """
+
+    use_group_routing: bool = False
+    """Add ``use_group_routing=True`` and ``expert_expansion_factor`` to
+    config instead of scaling topk.  Mutually exclusive with ``scale_moe_topk``.
+    Mirrors the ``--use_group_routing`` flag in the original script.
+    """
 
 
 class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
     """Expand LongCat-Flash expert count using mmap streaming.
 
-    Differences from the bundled ``expand_experts.py``:
+    Behavioural alignment with the bundled ``expand_experts.py``
+    ---------------------------------------------------------------
+    For ``expand_factor=2`` (the common case) this expander produces
+    **identical tensor values** to ``expand_experts.py``:
 
-    * **Memory-efficient**: processes one shard at a time via mmap instead of
-      loading entire shards with ``load_file()``.
-    * **Generalised expand_factor**: supports any integer multiplier, not just ×2.
-    * **Integrated into llm-grow**: uses the shared ``TensorRecipe`` / plan
-      infrastructure, verification script, and CLI.
+    * Real expert weights copied as-is; copies get small Gaussian noise
+      (``noise_scale`` relative to per-tensor std) to break symmetry.
+    * Zero expert weights (``zero_expert_num``) are always copied exactly
+      — no noise — because they are identity-initialised blocks that should
+      stay semantically neutral.
+    * Router ``classifier.weight`` layout: ``[real×k | zero×k, hidden]``
+      where ``k = expand_factor``, real copies have noise, zero copies do not.
+    * Router ``e_score_correction_bias`` layout: same structure, no noise.
+
+    Differences from ``expand_experts.py``
+    ----------------------------------------
+    * **Memory-efficient**: processes one shard at a time via mmap;
+      ``expand_experts.py`` loads entire shards with ``load_file()``.
+    * **scale_moe_topk** defaults to *False* (matches original script default
+      which leaves topk unchanged unless ``--target_topk`` is given).
+    * **use_group_routing** maps to ``--use_group_routing`` in the original.
+    * **expand_factor > 2** for the router still raises ``NotImplementedError``
+      (same workaround: use ``expand_experts.py`` for arbitrary factors).
 
     Example::
 
-        cfg = LongcatExpertUpcyclingConfig(expand_factor=2, noise_scale=1e-6)
+        cfg = LongcatExpertUpcyclingConfig(
+            expand_factor=2,
+            noise_scale=1e-6,
+            scale_moe_topk=True,   # 12 → 24 (same activation ratio)
+        )
         LongcatExpertUpcyclingExpander(cfg).expand(
             src_dir="LongCat-Flash-Chat",
             dst_dir="LongCat-Flash-Chat-2x-experts",
         )
 
-        # Or dry-run first (no weight files required):
-        LongcatExpertUpcyclingExpander(cfg).dry_run("LongCat-Flash-Chat")
+        # group-routing variant (topk unchanged, add routing flags)
+        cfg2 = LongcatExpertUpcyclingConfig(expand_factor=2, use_group_routing=True)
+        LongcatExpertUpcyclingExpander(cfg2).dry_run("LongCat-Flash-Chat")
     """
 
     def __init__(self, config: LongcatExpertUpcyclingConfig | None = None) -> None:
@@ -102,11 +138,24 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
         # Config patches
         orig_cfg = self._peek_config(src_index.model_dir)
         zero_expert_num: int = orig_cfg.get("zero_expert_num") or 0
+
+        if cfg.use_group_routing and cfg.scale_moe_topk:
+            raise ValueError(
+                "use_group_routing and scale_moe_topk are mutually exclusive. "
+                "use_group_routing keeps moe_topk unchanged by design."
+            )
+
+        # Config patches — mirrors expand_experts.py's expand_config()
         patches: dict = {"n_routed_experts": new_n_experts}
         if cfg.double_zero_experts and zero_expert_num > 0:
             patches["zero_expert_num"] = zero_expert_num * cfg.expand_factor
-        if "moe_topk" in orig_cfg:
+        if cfg.scale_moe_topk and "moe_topk" in orig_cfg:
+            # scale topk to maintain the same activation ratio
             patches["moe_topk"] = orig_cfg["moe_topk"] * cfg.expand_factor
+        if cfg.use_group_routing:
+            # group routing: keep topk unchanged, add routing flags to config
+            patches["use_group_routing"] = True
+            patches["expert_expansion_factor"] = cfg.expand_factor
 
         plan = ExpansionPlan(
             new_num_hidden_layers=src_index.num_hidden_layers(),
@@ -151,7 +200,7 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
                     ),
                 )
 
-            elif key.endswith(("mlp.router.e_score_correction_bias", "mlp.router.e_score_correction_bias")):
+            elif key.endswith("mlp.router.e_score_correction_bias"):
                 # Bias: exact copies, no noise, but still split real/zero
                 plan.add(
                     key,

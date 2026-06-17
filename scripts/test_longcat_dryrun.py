@@ -13,7 +13,8 @@ MODEL_DIR = "/Users/robin/hfhub/models/meituan-longcat/LongCat-Flash-Chat"
 
 def check_expert_upcycling():
     print("\n" + "=" * 60)
-    print("  Expert Upcycling  (512 -> 1024 experts, top-k 12 -> 24)")
+    print("  Expert Upcycling  (512 -> 1024 experts)")
+    print("  scale_moe_topk=False: matches expand_experts.py default")
     print("=" * 60)
     from llm_grow.safetensor.longcat import (
         LongcatExpertUpcyclingConfig,
@@ -21,7 +22,8 @@ def check_expert_upcycling():
     )
     from llm_grow.safetensor.utils import ShardIndex
 
-    cfg = LongcatExpertUpcyclingConfig(expand_factor=2, noise_scale=1e-6)
+    # Default: scale_moe_topk=False → moe_topk unchanged (matches original default)
+    cfg = LongcatExpertUpcyclingConfig(expand_factor=2, noise_scale=1e-6, scale_moe_topk=False)
     expander = LongcatExpertUpcyclingExpander(cfg)
     plan = expander.dry_run(MODEL_DIR)
 
@@ -52,11 +54,25 @@ def check_expert_upcycling():
         assert plan.recipes[k].dup_rows, "Classifier should have dup_rows=True"
     print("  [OK] Router classifier dup_rows=True")
 
-    # Verify config patches
+    # scale_moe_topk=False: moe_topk unchanged (matches original expand_experts.py default)
     assert plan.config_patches.get("n_routed_experts") == 1024
     assert plan.config_patches.get("zero_expert_num") == 512
-    assert plan.config_patches.get("moe_topk") == 24
-    print("  [OK] Config: n_routed_experts=1024, zero_expert_num=512, moe_topk=24")
+    assert "moe_topk" not in plan.config_patches
+    print("  [OK] Config: n_routed_experts=1024, zero_expert_num=512, moe_topk=UNCHANGED")
+
+    # scale_moe_topk=True: explicit topk scaling
+    cfg2 = LongcatExpertUpcyclingConfig(expand_factor=2, scale_moe_topk=True)
+    plan2 = LongcatExpertUpcyclingExpander(cfg2)._build_plan(src_index)
+    assert plan2.config_patches.get("moe_topk") == 24
+    print("  [OK] scale_moe_topk=True correctly patches moe_topk=24")
+
+    # use_group_routing: topk unchanged, routing flags added
+    cfg3 = LongcatExpertUpcyclingConfig(expand_factor=2, use_group_routing=True)
+    plan3 = LongcatExpertUpcyclingExpander(cfg3)._build_plan(src_index)
+    assert plan3.config_patches.get("use_group_routing") is True
+    assert plan3.config_patches.get("expert_expansion_factor") == 2
+    assert "moe_topk" not in plan3.config_patches
+    print("  [OK] use_group_routing=True: adds flags, moe_topk unchanged")
 
     total_new = len([k for k in plan.recipes if k not in wmap])
     print(f"\n  Total new tensors added : {total_new}")
