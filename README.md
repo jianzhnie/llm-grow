@@ -1,14 +1,21 @@
 # llm-grow
 
 > 从已有 LLM checkpoint **生长**出更大模型的模块化工具库。
-> 支持 Dense 深度/宽度扩增、Dense→MoE Upcycling、MoE 基座专家扩展七种算法，全部在 Qwen3 上通过实测验证。
+> 同时支持 **内存级扩增**（加载模型后修改）和 **Safetensor 直接扩增**（无需加载权重，适合超大模型）。
+> 覆盖 Dense / MoE-Standard / DeepSeek-MoE / LongCat 四类架构，全部通过实测验证。
 
 ## 目录
 
 - [支持的扩增方法](#支持的扩增方法)
 - [安装](#安装)
 - [快速开始](#快速开始)
-- [方法详解与 API](#方法详解与-api)
+- [Safetensor 直接扩增](#safetensor-直接扩增)
+  - [自动检测：Dense vs MoE](#自动检测dense-vs-moe)
+  - [核心区别：identity block 的差异](#核心区别identity-block-的差异)
+  - [CLI 用法](#cli-用法)
+  - [Python API](#python-api-safetensor)
+  - [Dry-run 与验证](#dry-run-与验证)
+- [内存级扩增 API](#内存级扩增-api)
 - [方法选择指南](#方法选择指南)
 - [训练工具链](#训练工具链)
 - [评估](#评估)
@@ -21,102 +28,266 @@
 
 ## 支持的扩增方法
 
-| 方法 | 路线 | FP | 扩展方向 | 即时精度 | 推荐 CPT 量 | 推理延迟 |
-|------|:---:|:---:|:---:|:---:|:---:|:---:|
-| **LLaMA-Pro** | 架构不变 | ✓ | 深度 | **100%** | 8–16B tokens | ↑ 线性 |
-| **SOLAR DUS** | 架构不变 | ✗ | 深度 | 50–80% | 100B+ tokens | ↑ 线性 |
-| **LESA** | 架构不变 | ≈ | 深度 | 80–90% | <50B tokens | ↑ 线性 |
-| **MSG** | 架构不变 | ✓ | 深度+宽度 | **100%** | 30–60B tokens | ↑ ~1.4x |
-| **Net2Net** | 架构不变 | ✓ | 深度+宽度 | **100%** | 中等 | 可控 |
-| **MoE Upcycling** | 架构改变 | ✗ | Dense→MoE | 70–85% | 50–100B tokens | **≈不变** (top-1) |
-| **Expert Upcycling** | 架构改变 | ≈ | MoE→更大MoE | — | 节省 32–67% | **≈不变** |
+### 内存级扩增（加载模型后操作）
 
-> **FP**（Function-Preserving）= 扩增后模型与原始模型输出完全一致（zero-shot 精度零损失）。
+| 方法 | FP | 扩展方向 | 即时精度 | 推荐 CPT | 推理延迟 |
+|------|:---:|:---:|:---:|:---:|:---:|
+| **LLaMA-Pro** | ✓ | 深度 | **100%** | 8–16B tokens | ↑ 线性 |
+| **SOLAR DUS** | ✗ | 深度 | 50–80% | 100B+ tokens | ↑ 线性 |
+| **LESA** | ≈ | 深度 | 80–90% | <50B tokens | ↑ 线性 |
+| **MSG** | ✓ | 深度+宽度 | **100%** | 30–60B tokens | ↑ ~1.4x |
+| **MoE Upcycling** | ✗ | Dense→MoE | 70–85% | 50–100B tokens | **≈不变** |
+| **Expert Upcycling** | ≈ | MoE专家扩展 | — | 节省 32–67% | **≈不变** |
+
+### Safetensor 直接扩增（无需加载权重）
+
+| 方法 | 适用架构 | 扩展轴 | 内存峰值 |
+|------|:---:|:---:|:---:|
+| `auto depth` | Dense / MoE / LongCat | 深度（自动选 expander） | ≤ 1 shard |
+| `auto expert` | 任意 MoE | 专家数 | ≤ 1 shard × 2 |
+| `auto width` | Dense only | FFN 宽度 | ≤ 1 shard |
+| `llama_pro` | Dense | 深度 | ≤ 1 shard |
+| `solar_dus` | Dense | 深度 | ≤ 1 shard |
+| `msg` | Dense | 深度+FFN宽度 | ≤ 1 shard |
+
+> **FP**（Function-Preserving）= 扩增后模型输出与原始模型完全一致（zero-shot 精度零损失）。
 
 ---
 
 ## 安装
 
 ```bash
-# 基础安装（仅扩增工具，不含训练依赖）
-pip install -e .
-
-# 含训练依赖（DeepSpeed、Flash-Attn、Datasets）
-pip install -e ".[train]"
-
-# 含评估依赖（lm-eval-harness）
-pip install -e ".[eval]"
-
-# 开发环境（pytest、ruff、mypy）
-pip install -e ".[dev]"
+pip install -e .                # 基础（扩增工具）
+pip install -e ".[train]"       # 含训练依赖（DeepSpeed、Flash-Attn、Datasets）
+pip install -e ".[eval]"        # 含评估依赖（lm-eval-harness）
+pip install -e ".[dev]"         # 开发环境（pytest、ruff、mypy）
 ```
 
-**环境要求**：Python ≥ 3.10，PyTorch ≥ 2.2，Transformers ≥ 4.40
+**环境要求**：Python ≥ 3.10，PyTorch ≥ 2.2，Transformers ≥ 4.40，safetensors ≥ 0.4
 
 ---
 
 ## 快速开始
 
-### Python API
+### Safetensor 直接扩增（推荐用于大模型）
+
+```bash
+# 自动检测架构，一行搞定
+python scripts/safetensor_expand.py auto \
+    --src /path/to/any_model \
+    --dst ./output \
+    --method depth \
+    --num-new-layers 4
+
+# 先 dry-run 确认方案（无需权重文件）
+python scripts/safetensor_expand.py auto \
+    --src /path/to/model --dst /tmp/out \
+    --method depth --dry-run
+
+# MoE 专家扩增
+python scripts/safetensor_expand.py auto \
+    --src /path/to/moe_model \
+    --dst ./output \
+    --method expert --expand-factor 2
+```
+
+### 内存级扩增（小模型 / 快速实验）
 
 ```python
 import copy
 from transformers import AutoModelForCausalLM
 from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
-from llm_grow.utils.arch_info import param_diff_report
 
 model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-8B", dtype="auto")
 original = copy.deepcopy(model)
 
-config = LlamaProConfig(num_new_blocks=9, insert_strategy="uniform", freeze_original=True)
-expanded = LlamaProExpander().expand(model, config)
-
-param_diff_report(original, expanded)          # 打印扩增前后参数量对比
-LlamaProExpander().verify(original, expanded)  # FP 验证：max|Δlogit| 应为 0
-```
-
-### 命令行脚本
-
-```bash
-# LLaMA-Pro：恒等块插入（Qwen3-8B → ~10B，FP）
-python scripts/expand_llama_pro.py \
-    --model Qwen/Qwen3-8B \
-    --num-new-blocks 9 \
-    --output-dir ./outputs/qwen3_llama_pro \
-    --verify
-
-# MSG：深度+宽度混合扩增（精确控制参数量，FP）
-python scripts/expand_msg.py \
-    --model Qwen/Qwen3-8B \
-    --depth-expansion 10 \
-    --hidden-size-expansion 512 \
-    --intermediate-size-expansion 3072 \
-    --output-dir ./outputs/qwen3_msg \
-    --verify
-
-# MoE Upcycling：Dense → 稀疏 MoE（推理激活参数近似不变）
-python scripts/moe_upcycling.py \
-    --model Qwen/Qwen3-8B \
-    --num-experts 8 \
-    --top-k 2 \
-    --output-dir ./outputs/qwen3_moe
-
-# Expert Upcycling：MoE 基座专家数扩展（M1，推理延迟不变）
-python scripts/expert_upcycling.py \
-    --model path/to/moe_model \
-    --expand-factor 2 \
-    --selection-strategy utility \
-    --output-dir ./outputs/qwen3_moe_2x
+expanded = LlamaProExpander().expand(
+    model, LlamaProConfig(num_new_blocks=9, freeze_original=True)
+)
+LlamaProExpander().verify(original, expanded)  # max|Δlogit| 应为 0
 ```
 
 ---
 
-## 方法详解与 API
+## Safetensor 直接扩增
+
+不加载完整模型权重，通过 **mmap 流式读写** safetensor 文件实现扩增：
+- 内存峰值 ≤ 单个输出 shard（默认 4 GB）
+- 支持任意分片数（75 分片的 LongCat-Flash 亦可处理）
+- 先用 `dry_run()` 验证方案，再下载权重执行
+
+### 自动检测：Dense vs MoE
+
+`detect_model()` 从 `config.json` + 权重索引推断完整架构画像，无需加载权重：
+
+```python
+from llm_grow.safetensor.detect import detect_model
+
+profile = detect_model("/path/to/model")
+print(profile.summary())
+```
+
+**四类架构自动识别**：
+
+| 检测结果 | 代表模型 | 关键特征 |
+|---------|---------|---------|
+| `dense` | Qwen3-0.6B/8B/14B/32B | 无 `mlp.experts.*`，有 `mlp.down_proj` |
+| `standard_moe` | Qwen3-30B-A3B | `mlp.experts.*` + `mlp.gate.weight`，无 fp8 |
+| `deepseek_moe` | Kimi-K2-Base | MLA 注意力 + fp8 `weight_scale_inv` + 共享专家 + dense 首层 |
+| `longcat` | LongCat-Flash-Chat | 双路注意力 `self_attn.0/1` + 双 MLP `mlps.0/1` + 512 专家 |
+
+**已验证模型**：
+
+```
+Qwen3-0.6B      → dense           ✓
+Qwen3-30B-A3B   → standard_moe    ✓  (128 experts/layer, 48 layers)
+Kimi-K2-Base    → deepseek_moe    ✓  (384 experts/layer, fp8, dense layer-0)
+LongCat-Flash   → longcat         ✓  (512 experts/layer, dual-attn)
+```
+
+### 核心区别：identity block 的差异
+
+**这是 Dense 与 MoE 扩增最关键的不同点。**
+
+恒等块要求 `Block(x) = 0`，使残差连接保证 `output = x + 0 = x`。
+但 Dense 和 MoE 的 FFN 结构不同，需要零化的张量也不同：
+
+| 架构 | 必须置零的输出投影 | 数量 |
+|------|-----------------|:---:|
+| Dense | `mlp.down_proj.weight` | 1 |
+| Qwen3-MoE (128 experts) | `mlp.experts.{0..127}.down_proj.weight` | **128** |
+| Kimi-K2 (384 experts + shared) | `mlp.experts.{0..383}.down_proj.weight` + `mlp.shared_experts.down_proj.weight` | **385** |
+| LongCat (512 experts + 2 dense MLP) | 所有 expert down_proj + `mlps.{0,1}.down_proj.weight` | **514** |
+
+> ⚠️ **用错的后果**：若对 MoE 模型使用 Dense 的 `LlamaProSafetensorExpander`，
+> 它只会零化 `mlp.down_proj.weight`（在 MoE 层根本不存在），
+> 导致所有专家 FFN 输出仍为非零值，identity block 失效，zero-shot 精度立刻崩塌。
+
+`auto_expand()` 通过 `detect_model()` 自动规避这个问题。
+
+**不同架构的扩展轴对比**：
+
+```
+Dense 模型扩增轴：
+  ├── 深度（depth）    → 插入 identity 层（LLaMA-Pro / SOLAR DUS / LESA）
+  └── 宽度（width）    → 零填充 FFN 维度（MSG）
+
+MoE 模型扩增轴：
+  ├── 深度（depth）    → 插入 identity 层（与 Dense 相似，但需零化所有专家）
+  └── 专家（expert）   → 复制已有专家（MoE 独有，推理成本不变）✅
+```
+
+### CLI 用法
+
+```bash
+# ── auto 模式（推荐，自动检测架构）────────────────────────────────────────
+# Dense 深度扩增（Qwen3-0.6B 28→32 层）
+python scripts/safetensor_expand.py auto \
+    --src /path/to/Qwen3-0.6B --dst ./out \
+    --method depth --num-new-layers 4
+
+# MoE 专家扩增（Qwen3-30B-A3B 128→256 experts）
+python scripts/safetensor_expand.py auto \
+    --src /path/to/Qwen3-30B-A3B --dst ./out \
+    --method expert --expand-factor 2
+
+# Dense 宽度扩增（FFN +512）
+python scripts/safetensor_expand.py auto \
+    --src /path/to/Qwen3-0.6B --dst ./out \
+    --method width --ffn-size-expansion 512
+
+# Dense 调用 expert 会明确报错：
+# ValueError: method='expert' requires MoE model, detected family='dense'
+
+# ── 显式指定 expander（细粒度控制）──────────────────────────────────────
+python scripts/safetensor_expand.py llama_pro \
+    --src /path/to/model --dst ./out --num-new-layers 7
+
+python scripts/safetensor_expand.py solar_dus \
+    --src /path/to/model --dst ./out --num-overlap 8
+
+python scripts/safetensor_expand.py msg \
+    --src /path/to/model --dst ./out \
+    --num-new-layers 4 --ffn-size-expansion 1024
+
+python scripts/safetensor_expand.py moe_expert \
+    --src /path/to/moe_model --dst ./out --expand-factor 2
+
+# ── dry-run（无需权重文件，只验证方案）───────────────────────────────────
+python scripts/safetensor_expand.py auto \
+    --src /path/to/model --dst /tmp/x --method depth --dry-run
+```
+
+### Python API（Safetensor）
+
+```python
+from llm_grow.safetensor.auto import auto_expand
+from llm_grow.safetensor.detect import detect_model
+
+# 查看模型画像
+profile = detect_model("/path/to/model")
+print(profile.family)             # "dense" | "standard_moe" | "deepseek_moe" | "longcat"
+print(profile.is_moe)             # True/False
+print(profile.experts_per_moe_layer)  # 0 for dense
+print(profile.has_fp8)            # True for Kimi-K2
+
+# 自动扩增
+auto_expand(
+    src_dir="/path/to/model",
+    dst_dir="./expanded",
+    method="depth",               # "depth" | "expert" | "width"
+    num_new_layers=4,
+    insert_strategy="uniform",
+    target_shard_gb=4.0,
+    dry_run=False,
+)
+
+# 手动选择 expander
+from llm_grow.safetensor.moe_generic import make_qwen3moe_upcycling
+make_qwen3moe_upcycling(expand_factor=2).expand(
+    src_dir="/path/to/Qwen3-30B-A3B",
+    dst_dir="./Qwen3-30B-A3B-256experts",
+)
+```
+
+**预配置工厂函数**：
+
+| 函数 | 适用模型 | 说明 |
+|------|---------|------|
+| `make_qwen3moe_upcycling(factor)` | Qwen3-30B-A3B | 专家数扩增 |
+| `make_qwen3moe_depth(n)` | Qwen3-30B-A3B | 深度扩增 |
+| `make_kimik2_upcycling(factor)` | Kimi-K2-Base | 专家数扩增（含fp8处理） |
+| `make_kimik2_depth(n)` | Kimi-K2-Base | 深度扩增（含dense首层处理） |
+
+### Dry-run 与验证
+
+```bash
+# 1. Dry-run：无需权重文件，在几秒内验证扩增方案
+python scripts/safetensor_expand.py auto \
+    --src /path/to/model --dst /tmp/x --method depth --dry-run
+# 输出：plan 张量数、zero-out 数、brand-new keys 等统计
+
+# 2. 扩增后验证（结构 + FP）
+python scripts/verify_safetensor.py \
+    --src /path/to/original \
+    --dst /path/to/expanded \
+    --fp   # 可选：加载模型并做 logit 一致性检查
+```
+
+验证脚本执行 5 项检查：
+- **Config diff**：num_hidden_layers、intermediate_size 等变化确认
+- **Tensor counts**：输出张量数与理论预期一致
+- **Original weights preserved**：原始层权重未被修改（扫描最近匹配）
+- **Identity blocks zeroed**：o_proj / down_proj 已置零
+- **FP logit check**：加载两个模型，随机输入对比 logits（`--fp`）
+
+---
+
+## 内存级扩增 API
+
+适用于小/中等规模模型（可完整加载进内存的场景）。
 
 ### LLaMA-Pro — 恒等块插入
-
-**原理**：复制源层后将 `o_proj` 和 `down_proj` 置零，使新块满足 `Block(x) = 0`，
-残差连接保证 `output = x + 0 = x`，实现严格恒等映射。
 
 ```python
 from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
@@ -131,136 +302,46 @@ expanded = LlamaProExpander().expand(model, config)
 
 **推荐场景**：精度最优先、训练数据有限（< 20B tokens）。
 
----
-
-### SOLAR DUS — 层重叠复制
-
-**原理**：取原模型上段前 `(L - overlap)` 层与下段后 `(L - overlap)` 层拼接，
-重叠区保证拼接点分布连续。非 FP，需大量 CPT。
-
-```python
-from llm_grow.expanders.depth.solar_dus import SolarDUSConfig, SolarDUSExpander
-
-config = SolarDUSConfig(num_overlap=8)
-# 28 层模型 → 2*(28-8) = 40 层
-expanded = SolarDUSExpander().expand(model, config)
-```
-
----
-
-### LESA — SVD 插值
-
-**原理**：对相邻层权重做 SVD 分解提取特征，训练轻量预测网络生成插入层参数；
-默认使用相邻层算术平均（`use_predictor=False`）作为快速 baseline。
-
-```python
-from llm_grow.expanders.depth.lesa import LESAConfig, LESAExpander
-
-config = LESAConfig(
-    insert_between=[(i, i+1) for i in range(14)],  # 指定插入位置
-    svd_rank=64,
-    use_predictor=False,   # True 时使用 MLP 预测网络（需额外训练）
-)
-expanded = LESAExpander().expand(model, config)
-```
-
----
-
 ### MSG — 多维度掩码生长
-
-**原理**：同时扩展深度（恒等块）+ 宽度（零填充）+ FFN，
-新增维度初始贡献为零（FP），配合 `GrowthScheduler` 渐进解锁。
 
 ```python
 from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
 
 config = MSGConfig(
-    depth_expansion=10,                 # 新增层数
-    hidden_size_expansion=512,          # hidden_size 增量
-    intermediate_size_expansion=3072,   # FFN 宽度增量
+    depth_expansion=10,
+    hidden_size_expansion=512,
+    intermediate_size_expansion=3072,
     freeze_original=True,
-    growth_schedule="linear",           # "instant" | "linear" | "cosine"
+    growth_schedule="linear",
 )
 expanded = MSGExpander().expand(model, config)
 ```
 
-配合渐进式解锁调度：
-
-```python
-from llm_grow.training.growth_scheduler import GrowthScheduler, GrowthScheduleConfig
-
-scheduler = GrowthScheduler(GrowthScheduleConfig(total_steps=50000, warmup_ratio=0.3))
-for step, batch in enumerate(dataloader):
-    ratio = scheduler.get_unlock_ratio(step)
-    scheduler.apply_masks(model, ratio)
-    loss = model(**batch).loss
-    loss.backward()
-    optimizer.step()
-```
-
----
-
 ### MoE Upcycling — Dense → 稀疏 MoE
-
-**原理**：将 Dense FFN 复制 `num_experts` 份作为专家初始权重，
-新增 Router（随机初始化）；每 token 通过 Top-K 路由激活 K 个专家。
-Top-1 时推理激活参数量与原 Dense 近似相同。
 
 ```python
 from llm_grow.expanders.sparse.moe_upcycling import MoEUpcyclingConfig, MoEUpcyclingExpander
-
-config = MoEUpcyclingConfig(
-    num_experts=8,           # 专家数
-    top_k=2,                 # 每 token 激活专家数
-    noise_std=0.01,          # 对称性破坏噪声
-    ffn_module_pattern="mlp" # FFN 模块名称模式
-)
-expanded = MoEUpcyclingExpander().expand(model, config)
-```
-
-训练需加入负载均衡损失：
-
-```python
 from llm_grow.training.load_balance import combined_moe_loss
 
-total_loss = combined_moe_loss(
-    lm_loss=lm_loss,
-    router_logits_list=router_logits_list,  # 每层 MoE 的 router logits
-    num_experts=8,
-    top_k=2,
-    balance_coeff=1e-2,   # Switch Transformer load balance loss 系数
-    z_coeff=1e-3,         # z-loss 系数
+expanded = MoEUpcyclingExpander().expand(
+    model, MoEUpcyclingConfig(num_experts=8, top_k=2)
 )
+# 训练时加入负载均衡损失
+loss = combined_moe_loss(lm_loss, router_logits_list, num_experts=8, top_k=2)
 ```
 
----
-
-### Expert Upcycling — MoE 专家数扩展（M1）
-
-**原理**：将 MoE 基座已有的 E 个专家复制为 mE 个，保持 Top-K 不变，
-推理激活参数量不变，总参数量线性增长。关键步骤是打破副本间的对称性。
+### Expert Upcycling — MoE 专家数扩展
 
 ```python
 from llm_grow.expanders.sparse.expert_upcycling import (
     ExpertUpcyclingConfig, ExpertUpcyclingExpander, ExpertSelectionStrategy
 )
 
-config = ExpertUpcyclingConfig(
-    expand_factor=2,                                    # 专家数倍数
-    selection_strategy=ExpertSelectionStrategy.UTILITY, # 效用导向（推荐）
-    symmetry_break="noise",    # "noise" | "drop"
-    noise_std=0.01,
-)
-expanded = ExpertUpcyclingExpander().expand(moe_model, config)
+expanded = ExpertUpcyclingExpander().expand(moe_model, ExpertUpcyclingConfig(
+    expand_factor=2,
+    selection_strategy=ExpertSelectionStrategy.UTILITY,
+))
 ```
-
-**三种专家选择策略**：
-
-| 策略 | 说明 | 效果 |
-|------|------|------|
-| `uniform` | 每个专家等概率复制 | 基线 |
-| `utility` | 按 L2 范数（可扩展为梯度重要性）优先复制高价值专家 | 差距闭合 **3x+** |
-| `random_subset` | 随机选部分专家 | 不稳定 |
 
 ---
 
@@ -268,51 +349,58 @@ expanded = ExpertUpcyclingExpander().expand(moe_model, config)
 
 ```
 需要扩增参数
-├── 不接受架构变化（保持 Dense）
-│   ├── 训练数据 < 20B tokens  →  ✅ LLaMA-Pro（零精度损失，最省数据）
-│   ├── 训练数据 20–100B tokens → LESA（收敛最快）
-│   ├── 训练数据 > 100B tokens  → SOLAR DUS（10 行代码，最简单）
-│   └── 需精确 2x 且控制延迟   →  ✅ MSG（多维度组合，延迟仅增 ~40%）
-└── 接受架构变化
-    ├── 推理延迟不能增加        →  ✅ MoE Upcycling（top-1 激活量不变）
-    ├── 有大 Teacher 模型       →  扩展 + 蒸馏（效果上限最高）
-    └── 基座已是 MoE            →  ✅ Expert Upcycling M1（推理成本近似不变）
+├── 超大模型（无法完整加载）→ 用 Safetensor 直接扩增
+│   ├── Dense 模型
+│   │   ├── 深度扩增        python safetensor_expand.py auto --method depth
+│   │   └── FFN 宽度扩增    python safetensor_expand.py auto --method width
+│   └── MoE 模型
+│       ├── 专家扩增（推理成本不变）  python safetensor_expand.py auto --method expert
+│       └── 深度扩增（层数增加）      python safetensor_expand.py auto --method depth
+│
+└── 中小模型（可加载进内存）→ 用内存级扩增
+    ├── 精度最优先，数据有限   → ✅ LLaMA-Pro（FP，8-16B tokens）
+    ├── 精确 2x，控制延迟      → ✅ MSG（深度+宽度，延迟 ~1.4x）
+    ├── 最简实现，数据充足     → SOLAR DUS（10 行代码）
+    ├── 推理延迟不能增加       → MoE Upcycling（top-1 激活量不变）
+    ├── 有大 Teacher 模型      → 扩展 + 蒸馏（效果上限最高）
+    └── 基座已是 MoE           → Expert Upcycling M1
 ```
 
 ---
 
 ## 训练工具链
 
-### 两阶段冻结训练（LLaMA-Pro / MSG 推荐）
+### 两阶段冻结训练
 
 ```python
 from llm_grow.training.freeze import freeze_original_layers, unfreeze_all, report_trainable
 
-# Phase 1：仅训练新增参数（保护原始能力）
-freeze_original_layers(model)
-report_trainable(model)
-train(model, phase1_data, lr=2e-4, tokens=10e9)
+freeze_original_layers(model)          # Phase-1：仅训练新增参数
+train(model, phase1_data, lr=2e-4)
 
-# Phase 2：全量微调（弥合新旧参数分布差异）
-unfreeze_all(model)
-train(model, phase2_data, lr=1e-5, tokens=5e9)
+unfreeze_all(model)                    # Phase-2：全量微调
+train(model, phase2_data, lr=1e-5)
 ```
 
-### 知识蒸馏（扩展 + 蒸馏流水线）
+### 知识蒸馏
 
 ```python
 from llm_grow.training.distillation import DistillConfig, DistillationLoss, run_teacher_inference
 
 criterion = DistillationLoss(DistillConfig(temperature=2.0, alpha=0.5))
+teacher_logits = run_teacher_inference(teacher_model, input_ids)
+loss = criterion(student_logits, teacher_logits, labels=batch["labels"])
+```
 
-# 生成 teacher soft labels
-teacher_logits = run_teacher_inference(teacher_model, input_ids, batch_size=4)
+### MoE 负载均衡
 
-# 蒸馏训练
-loss = criterion(
-    student_logits=student_out.logits,
-    teacher_logits=teacher_logits,
-    labels=batch["labels"],
+```python
+from llm_grow.training.load_balance import combined_moe_loss
+
+loss = combined_moe_loss(
+    lm_loss, router_logits_list,
+    num_experts=8, top_k=2,
+    balance_coeff=1e-2, z_coeff=1e-3,
 )
 ```
 
@@ -322,18 +410,10 @@ loss = criterion(
 
 ### Function-Preserving 验证
 
-扩增完成后立即验证输出一致性（FP 方法应 max\|Δlogit\| ≈ 0）：
-
 ```python
 from llm_grow.eval.fp_verifier import verify_fp
 
-passed = verify_fp(
-    original="path/to/original",
-    expanded="path/to/expanded",
-    num_samples=8,
-    seq_len=64,
-    atol=1e-4,
-)
+verify_fp("path/to/original", "path/to/expanded", num_samples=8, atol=1e-4)
 ```
 
 ### 精度恢复曲线追踪
@@ -341,15 +421,9 @@ passed = verify_fp(
 ```python
 from llm_grow.eval.recovery_curve import RecoveryCurveTracker
 
-tracker = RecoveryCurveTracker(save_path="recovery.jsonl")
+tracker = RecoveryCurveTracker("recovery.jsonl")
 tracker.set_baseline({"mmlu": 0.72, "gsm8k": 0.65})
-
-for step, batch in enumerate(dataloader):
-    ...
-    if step % eval_interval == 0:
-        scores = run_eval(model)
-        tracker.log(step=step, tokens_seen=step * batch_tokens, scores=scores)
-
+tracker.log(step=1000, tokens_seen=2e9, scores=run_eval(model))
 tracker.summary()
 ```
 
@@ -357,50 +431,13 @@ tracker.summary()
 
 ## 配置文件参考
 
-所有脚本支持通过 YAML 配置文件驱动（`configs/` 目录下有三个开箱即用的模板）：
+`configs/` 目录下提供三个 Qwen3-8B 参考配置：
 
-| 配置文件 | 适用方法 | 目标模型 |
-|---------|---------|---------|
-| `configs/llama_pro/qwen3_8b_to_16b.yaml` | LLaMA-Pro | Qwen3-8B → ~16B |
-| `configs/msg/qwen3_8b_2x.yaml` | MSG | Qwen3-8B → ~16B |
-| `configs/moe_upcycling/qwen3_8b.yaml` | MoE Upcycling | Qwen3-8B → MoE |
-
-**LLaMA-Pro 配置关键字段**：
-
-```yaml
-expansion:
-  method: llama_pro
-  num_new_blocks: 36        # 插入块数
-  insert_strategy: uniform  # uniform | front | rear
-  freeze_original: true
-
-training:
-  phase1:
-    max_tokens: 10_000_000_000
-    learning_rate: 2.0e-4
-    warmup_steps: 500
-    lr_scheduler: cosine
-  phase2:
-    max_tokens: 5_000_000_000
-    learning_rate: 1.0e-5
-
-data:
-  instruction_data_ratio: 0.05  # 5% 指令数据防遗忘
-```
-
-**MSG 配置关键字段**：
-
-```yaml
-expansion:
-  depth_expansion: 10            # 新增层数
-  hidden_size_expansion: 512     # hidden_size 增量
-  intermediate_size_expansion: 3072
-
-growth_schedule:
-  strategy: linear    # linear | cosine | step
-  warmup_ratio: 0.3
-  total_steps: 50000
-```
+| 配置文件 | 方法 | 目标 |
+|---------|------|------|
+| `configs/llama_pro/qwen3_8b_to_16b.yaml` | LLaMA-Pro | 8B → ~16B |
+| `configs/msg/qwen3_8b_2x.yaml` | MSG | 8B → ~16B |
+| `configs/moe_upcycling/qwen3_8b.yaml` | MoE Upcycling | Dense → MoE |
 
 ---
 
@@ -408,78 +445,98 @@ growth_schedule:
 
 ```
 llm-grow/
-├── configs/                        # 开箱即用的参考配置
-│   ├── llama_pro/qwen3_8b_to_16b.yaml
-│   ├── msg/qwen3_8b_2x.yaml
-│   └── moe_upcycling/qwen3_8b.yaml
-├── scripts/                        # 命令行入口
-│   ├── expand_llama_pro.py
-│   ├── expand_msg.py
-│   ├── moe_upcycling.py
-│   ├── expert_upcycling.py
-│   └── test_real_model.py          # 集成测试（Qwen3-0.6B）
+├── configs/                             # 参考配置（YAML）
+├── scripts/
+│   ├── safetensor_expand.py             # ★ 统一 safetensor 扩增 CLI（auto/llama_pro/...）
+│   ├── verify_safetensor.py             # ★ Safetensor 扩增验证（结构+FP）
+│   ├── expand_llama_pro.py              # 内存级 LLaMA-Pro
+│   ├── expand_msg.py                    # 内存级 MSG
+│   ├── moe_upcycling.py                 # 内存级 MoE Upcycling
+│   ├── expert_upcycling.py              # 内存级 Expert Upcycling
+│   ├── test_real_model.py               # 集成测试（Qwen3-0.6B，内存级）
+│   ├── test_longcat_dryrun.py           # LongCat-Flash dry_run 测试
+│   ├── test_qwen3_kimi_dryrun.py        # Qwen3-30B / Kimi-K2 dry_run 测试
+│   └── test_auto_detect.py             # 自动检测 & dispatch 测试（26 cases）
 ├── src/llm_grow/
-│   ├── expanders/
-│   │   ├── base.py                 # AbstractExpander 基类
-│   │   ├── depth/
-│   │   │   ├── llama_pro.py        # 恒等块插入（FP）
-│   │   │   ├── solar_dus.py        # 层重叠复制
-│   │   │   └── lesa.py             # SVD 插值
-│   │   ├── width/
-│   │   │   ├── msg.py              # 多维度掩码生长（FP）
-│   │   │   └── net2net.py          # Net2WiderNet（工具函数）
-│   │   └── sparse/
-│   │       ├── moe_upcycling.py    # Dense → MoE
-│   │       └── expert_upcycling.py # MoE 专家数扩展（M1）
-│   ├── initializers/
-│   │   ├── identity.py             # 零初始化输出投影
-│   │   ├── svd_interp.py           # SVD 插值工具
-│   │   └── symmetry_break.py       # 加噪 / Drop-Upcycling
-│   ├── training/
-│   │   ├── freeze.py               # 分阶段冻结/解冻
-│   │   ├── growth_scheduler.py     # MSG 掩码生长调度
-│   │   ├── distillation.py         # CE + KL 蒸馏损失
-│   │   └── load_balance.py         # MoE load-balance + z-loss
-│   ├── eval/
-│   │   ├── fp_verifier.py          # Function-Preserving 验证
-│   │   └── recovery_curve.py       # 精度恢复曲线追踪
-│   └── utils/
-│       ├── model_io.py             # HF 模型加载/保存
-│       ├── arch_info.py            # 架构解析 & 参数量对比报告
-│       └── param_counter.py
+│   ├── safetensor/                      # ★ Safetensor 直接扩增（无需加载模型）
+│   │   ├── detect.py                    # ModelProfile 自动检测（Dense/MoE 区分）
+│   │   ├── auto.py                      # auto_expand() 统一入口（自动选 expander）
+│   │   ├── base.py                      # SafetensorExpanderBase + TensorRecipe
+│   │   ├── utils.py                     # ShardIndex（单文件/多分片统一接口）
+│   │   ├── llama_pro.py                 # Dense 深度扩增
+│   │   ├── solar_dus.py                 # Dense 深度扩增（DUS）
+│   │   ├── msg.py                       # Dense 深度+FFN宽度扩增
+│   │   ├── moe_generic.py               # 通用 MoE 扩增（Qwen3MoE / KimiK2 / ...）
+│   │   └── longcat.py                   # LongCat-Flash 专用扩增
+│   ├── expanders/                       # 内存级扩增
+│   │   ├── base.py                      # AbstractExpander 基类
+│   │   ├── depth/  llama_pro / solar_dus / lesa
+│   │   ├── width/  msg / net2net
+│   │   └── sparse/ moe_upcycling / expert_upcycling
+│   ├── initializers/                    # 权重初始化策略
+│   │   ├── identity.py                  # 零初始化输出投影
+│   │   ├── svd_interp.py                # SVD 插值
+│   │   └── symmetry_break.py            # 加噪 / Drop-Upcycling
+│   ├── training/                        # 训练工具链
+│   │   ├── freeze.py  growth_scheduler.py  distillation.py  load_balance.py
+│   ├── eval/                            # 评估
+│   │   ├── fp_verifier.py               # FP 一致性验证
+│   │   └── recovery_curve.py            # 精度恢复曲线
+│   └── utils/  model_io.py  arch_info.py
 └── tests/
-    ├── test_expanders.py           # LLaMA-Pro / SOLAR DUS 单测（12 cases）
-    └── test_initializers.py        # Identity init / Symmetry break 单测
+    ├── test_expanders.py                # 12 unit tests
+    └── test_initializers.py
 ```
 
 ---
 
 ## 实测结果
 
-基于 **Qwen3-0.6B**（596M 参数，28 层，hidden=1024）在 CPU (Apple Silicon) 上的实测数据：
+### 内存级扩增（Qwen3-0.6B，596M，28层，CPU）
 
-| 方法 | 扩增后层数 | 扩增后参数量 | 倍率 | FP 验证 | 扩增耗时 |
+| 方法 | 层数 | 参数量 | 倍率 | FP 验证 | 耗时 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| LLaMA-Pro (+7块) | 28 → 35 | 596M → 706M | 1.19x | max\|Δlogit\|=**0.000** ✓ | 0.2s |
-| SOLAR DUS (overlap=8) | 28 → 40 | 596M → 785M | 1.32x | 非FP（跳过） | 0.2s |
-| LESA (+4层) | 28 → 32 | 596M → 659M | 1.11x | 近似FP ✓ | 0.05s |
-| MSG (+4层) | 28 → 32 | 596M → 659M | 1.11x | max\|Δlogit\|=**0.000** ✓ | 0.05s |
-| MoE Upcycling (×4 experts) | 28层→MoE | 596M → 1.39B | 2.33x | 非FP（跳过） | 6.1s |
-| Expert Upcycling (4→8 experts) | — | 1.39B → 2.45B | 1.76x | 需对称破坏 | 1.7s |
+| LLaMA-Pro (+7块) | 28→35 | 596M→706M | 1.19x | max\|Δ\|=**0.000** ✓ | 0.2s |
+| SOLAR DUS (overlap=8) | 28→40 | 596M→785M | 1.32x | 非FP（预期） | 0.2s |
+| LESA (+4层) | 28→32 | 596M→659M | 1.11x | 近似FP ✓ | 0.05s |
+| MSG (+4层) | 28→32 | 596M→659M | 1.11x | max\|Δ\|=**0.000** ✓ | 0.05s |
+| MoE Upcycling (×4 experts) | 28→MoE | 596M→1.39B | 2.33x | 非FP（预期） | 6.1s |
+| Expert Upcycling (4→8) | — | 1.39B→2.45B | 1.76x | 对称破坏后 ✓ | 1.7s |
 
-**生成文本一致性验证（LLaMA-Pro）**：
-
+生成文本一致性（LLaMA-Pro FP 验证）：
 ```
-Prompt   : "The key to learning programming is"
-Original : "...to understand the concept of variables and data types..."
-Expanded : "...to understand the concept of variables and data types..."  ← 逐字符相同 ✓
+Prompt  : "The key to learning programming is"
+原始模型 : "...to understand the concept of variables and data types..."
+扩增模型 : "...to understand the concept of variables and data types..."  ← 逐字符相同 ✓
 ```
 
-运行集成测试：
+### Safetensor 直接扩增（无权重，dry_run 验证）
 
+| 模型 | 方法 | 原始张量 | 输出张量 | 新增 | 耗时 |
+|------|------|:---:|:---:|:---:|:---:|
+| Qwen3-0.6B (Dense) | depth +4层 | 311 | 355 | 44 | 2.9s |
+| Qwen3-0.6B (Dense) | LLaMA-Pro +7块 | 311 | 388 | 77 | 2.9s |
+| Qwen3-0.6B (Dense) | SOLAR DUS | 311 | 443 | 132 | 4.0s |
+| Qwen3-0.6B (Dense) | MSG depth+FFN | 311 | 355 | 44 | 2.9s |
+| Qwen3-30B-A3B (MoE) | expert 128→256 | 18,867 | 37,299 | 18,432 | dry_run |
+| Qwen3-30B-A3B (MoE) | depth 48→56层 | 18,867 | 22,011 | 3,144 | dry_run |
+| Kimi-K2-Base (MoE+fp8) | expert 384→768 | 139,644 | 277,884 | 138,240 | dry_run |
+| Kimi-K2-Base (MoE+fp8) | depth 61→65层 | 139,644 | 148,952 | 9,308 | dry_run |
+
+FP 验证（Qwen3-0.6B safetensor，有权重）：
+```
+LLaMA-Pro: max|Δlogit| = 0.000e+00  ✓
+MSG:        max|Δlogit| = 0.000e+00  ✓
+SOLAR DUS:  max|Δlogit| = 1.211e+01  (预期，非FP方法)
+```
+
+运行所有测试：
 ```bash
-python scripts/test_real_model.py
-# All 7 tests passed!
+python -m pytest tests/ -q                  # 12 unit tests
+python scripts/test_real_model.py           # 7 integration tests (Qwen3-0.6B)
+python scripts/test_auto_detect.py          # 26 auto-detect + dispatch tests
+python scripts/test_longcat_dryrun.py       # LongCat dry_run (2 cases)
+python scripts/test_qwen3_kimi_dryrun.py    # Qwen3-30B + Kimi-K2 dry_run (4 cases)
 ```
 
 ---
