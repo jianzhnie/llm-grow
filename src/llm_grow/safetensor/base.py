@@ -238,6 +238,8 @@ class SafetensorExpanderBase(ABC):
         for new_idx, (src_idx, is_identity) in enumerate(layer_sequence):
             for suf in suffixes:
                 src_key = f"model.layers.{src_idx}.{suf}"
+                if src_key not in wmap:
+                    continue   # suffix absent for this layer (mixed-arch models)
                 new_key = f"model.layers.{new_idx}.{suf}"
                 zero = is_identity and suf in self.IDENTITY_ZERO_SUFFIXES
                 plan.add(new_key, TensorRecipe(

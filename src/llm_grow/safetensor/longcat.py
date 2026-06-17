@@ -245,6 +245,8 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         for new_idx, (src_idx, is_identity) in enumerate(sequence):
             for suf in suffixes:
                 src_key = f"model.layers.{src_idx}.{suf}"
+                if src_key not in wmap:
+                    continue
                 new_key = f"model.layers.{new_idx}.{suf}"
                 plan.add(new_key, TensorRecipe(
                     src_shard=wmap[src_key],
