@@ -86,16 +86,24 @@ def freeze_layers_by_index(
 
 def report_trainable(model: nn.Module) -> dict[str, int]:
     """统计可训练 vs 冻结参数量，返回字典。"""
-    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    frozen = sum(p.numel() for p in model.parameters() if not p.requires_grad)
+    trainable = 0
+    frozen = 0
+    for p in model.parameters():
+        if p.requires_grad:
+            trainable += p.numel()
+        else:
+            frozen += p.numel()
     total = trainable + frozen
-    logger.info(
-        "trainable=%s  frozen=%s  total=%s  (%.1f%% trainable)",
-        f"{trainable:,}",
-        f"{frozen:,}",
-        f"{total:,}",
-        100 * trainable / total,
-    )
+    if total > 0:
+        logger.info(
+            "trainable=%s  frozen=%s  total=%s  (%.1f%% trainable)",
+            f"{trainable:,}",
+            f"{frozen:,}",
+            f"{total:,}",
+            100 * trainable / total,
+        )
+    else:
+        logger.info("Model has no parameters.")
     return {"trainable": trainable, "frozen": frozen, "total": total}
 
 

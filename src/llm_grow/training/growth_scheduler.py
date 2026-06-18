@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import torch
 import torch.nn as nn
 
 
@@ -36,7 +35,6 @@ class GrowthScheduler:
 
     def __init__(self, config: GrowthScheduleConfig):
         self.config = config
-        self._masks: dict[str, torch.Tensor] = {}
 
     def get_unlock_ratio(self, step: int) -> float:
         """返回当前步数对应的新参数解锁比例 [0, 1]。"""

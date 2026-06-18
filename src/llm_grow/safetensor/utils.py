@@ -136,18 +136,23 @@ class ShardIndex:
 
     def num_hidden_layers(self) -> int:
         """Infer num_hidden_layers from tensor keys."""
-        indices = {
-            parse_layer_idx(k)
-            for k in self.weight_map
-            if parse_layer_idx(k) is not None
-        }
-        return max(indices) + 1 if indices else 0
+        max_idx = -1
+        for k in self.weight_map:
+            idx = parse_layer_idx(k)
+            if idx is not None and idx > max_idx:
+                max_idx = idx
+        return max_idx + 1 if max_idx >= 0 else 0
 
     # ── write helpers ────────────────────────────────────────────────────────
 
     def write_index_json(self, dst_dir: Path) -> None:
         """Write model.safetensors.index.json for multi-shard output."""
-        index = {"metadata": {"total_size": 0}, "weight_map": self.weight_map}
+        total_size = sum(
+            (dst_dir / sf).stat().st_size
+            for sf in set(self.weight_map.values())
+            if (dst_dir / sf).exists()
+        )
+        index = {"metadata": {"total_size": total_size}, "weight_map": self.weight_map}
         with open(dst_dir / self.INDEX_FILENAME, "w") as f:
             json.dump(index, f, indent=2)
 

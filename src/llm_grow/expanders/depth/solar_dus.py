@@ -50,10 +50,12 @@ class SolarDUSExpander(AbstractExpander):
         upper_end = num_layers - overlap
         lower_start = overlap
 
-        upper = [copy.deepcopy(layers[i]) for i in range(upper_end)]
-        lower = [copy.deepcopy(layers[i]) for i in range(lower_start, num_layers)]
+        new_layers = nn.ModuleList()
+        for i in range(upper_end):
+            new_layers.append(copy.deepcopy(layers[i]))
+        for i in range(lower_start, num_layers):
+            new_layers.append(copy.deepcopy(layers[i]))
 
-        new_layers = nn.ModuleList(upper + lower)
         _set_decoder_layers(model, new_layers)
         _update_num_hidden_layers(model, len(new_layers))
         return model

@@ -47,6 +47,11 @@ class DistillationLoss(nn.Module):
         teacher_logits: torch.Tensor,
         labels: torch.Tensor,
     ) -> torch.Tensor:
+        if student_logits.shape[-1] != teacher_logits.shape[-1]:
+            raise ValueError(
+                f"Vocab size mismatch: student={student_logits.shape[-1]}, "
+                f"teacher={teacher_logits.shape[-1]}."
+            )
         cfg = self.config
         vocab_size = student_logits.shape[-1]
 

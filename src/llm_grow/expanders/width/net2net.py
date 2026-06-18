@@ -80,9 +80,8 @@ class Net2NetExpander(AbstractExpander):
             copies += torch.randn_like(copies) * noise_std
         w_in_new = torch.cat([w_in, copies], dim=0)
 
-        scale = torch.ones(old_width, device=w_out.device)
-        for idx in indices:
-            scale[idx] += 1
+        counts = torch.bincount(indices, minlength=old_width)
+        scale = 1.0 + counts.float().to(w_out.device)
         scale_out = torch.cat([scale, torch.ones(extra, device=w_out.device)])
         w_out_new = w_out / scale_out.unsqueeze(0) if w_out.dim() == 2 else w_out
 

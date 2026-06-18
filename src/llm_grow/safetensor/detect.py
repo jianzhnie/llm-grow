@@ -134,7 +134,11 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
 
     arch_class = (cfg.get("architectures") or ["Unknown"])[0]
     model_type = cfg.get("model_type", "")
-    num_layers = cfg.get("num_hidden_layers") or cfg.get("num_layers") or 0
+    num_layers = cfg.get("num_hidden_layers")
+    if num_layers is None:
+        num_layers = cfg.get("num_layers")
+    if num_layers is None:
+        num_layers = 0
 
     # ── structural probes ────────────────────────────────────────────────────
     has_experts = any(_is_expert_key(k) for k in wmap)

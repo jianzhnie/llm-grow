@@ -65,6 +65,7 @@ class AbstractExpander(ABC):
         seq_len: int = 32,
         atol: float = 1e-4,
         device: str | None = None,
+        seed: int = 42,
     ) -> bool:
         """验证 function-preserving：随机输入下两个模型输出是否一致。
 
@@ -78,6 +79,7 @@ class AbstractExpander(ABC):
         expanded.eval().to(device)
 
         orig_vocab = _get_vocab_size(original)
+        torch.manual_seed(seed)
         input_ids = torch.randint(0, orig_vocab, (num_samples, seq_len), device=device)
 
         with torch.no_grad():
@@ -104,4 +106,7 @@ def _get_vocab_size(model: nn.Module) -> int:
     for name, param in model.named_parameters():
         if "embed" in name and param.dim() == 2:
             return param.shape[0]
-    return 32000
+    raise ValueError(
+        "Cannot determine vocab_size: no config.vocab_size "
+        "and no embedding parameter found."
+    )

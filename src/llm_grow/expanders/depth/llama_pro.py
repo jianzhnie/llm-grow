@@ -109,6 +109,12 @@ def _make_identity_block(
 
 
 def _compute_insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
+    if num_new <= 0:
+        return []
+    if num_new > num_orig:
+        raise ValueError(
+            f"num_new_layers ({num_new}) cannot exceed num_orig_layers ({num_orig})."
+        )
     if strategy == "uniform":
         step = num_orig / (num_new + 1)
         positions = sorted({round(step * (i + 1)) - 1 for i in range(num_new)})

@@ -147,13 +147,13 @@ class MSGSafetensorExpander(SafetensorExpanderBase):
 
 def _get_intermediate_size(src_index: ShardIndex) -> int:
     """Infer intermediate_size from gate_proj shape in layer 0."""
+    from llm_grow.safetensor.utils import read_safetensors_header
+
     for key in src_index.weight_map:
         if key.endswith("mlp.gate_proj.weight") and key.startswith("model.layers.0."):
-            # We need to peek at the tensor shape without loading full model
-            # Use safe_open mmap for a single tensor
-            from safetensors import safe_open
-
-            shard = src_index.model_dir / src_index.weight_map[key]
-            with safe_open(str(shard), framework="pt", device="cpu") as f:
-                return f.get_tensor(key).shape[0]
+            shard_path = src_index.model_dir / src_index.weight_map[key]
+            header = read_safetensors_header(shard_path)
+            if key in header:
+                _dtype, shape = header[key]
+                return shape[0]
     return 0

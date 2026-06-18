@@ -48,6 +48,8 @@ def _expert_idx(key: str) -> int:
 def _expert_key_offset(key: str, offset: int) -> str:
     """Rename expert index: experts.{i}.* → experts.{i+offset}.*"""
     m = _EXPERT_RE.match(key)
+    if m is None:
+        return key
     return f"{m.group(1)}{int(m.group(2)) + offset}{m.group(3)}"
 
 

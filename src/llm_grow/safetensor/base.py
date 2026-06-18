@@ -269,13 +269,18 @@ class SafetensorExpanderBase(ABC):
                 (via mmap), apply recipes, and write directly to the final
                 shard name — no temporary files, no renaming.
         """
+        from concurrent.futures import ThreadPoolExecutor
+
         from llm_grow.safetensor.utils import read_safetensors_header
 
         # ── Pass 1: header scan → shard assignment ────────────────────────────
-        src_headers: dict[str, dict[str, tuple[str, list[int]]]] = {
-            sf: read_safetensors_header(src_index.model_dir / sf)
-            for sf in src_index.shard_files
-        }
+        with ThreadPoolExecutor(max_workers=min(8, len(src_index.shard_files))) as pool:
+            src_headers: dict[str, dict[str, tuple[str, list[int]]]] = dict(
+                pool.map(
+                    lambda sf: (sf, read_safetensors_header(src_index.model_dir / sf)),
+                    src_index.shard_files,
+                )
+            )
 
         sorted_keys = sorted(plan.recipes.keys())
         shard_groups: list[list[str]] = [[]]
@@ -498,7 +503,7 @@ def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
     if recipe.dup_rows:
         noise = torch.randn_like(src) * recipe.dup_rows_noise_scale * src.float().std()
         dup = src + noise.to(src.dtype)
-        return torch.cat([src.clone(), dup], dim=0)
+        return torch.cat([src, dup], dim=0)
 
     # ── pad then optionally zero ──────────────────────────────────────────────
     if recipe.pad_rows > 0 or recipe.pad_cols > 0:
@@ -515,7 +520,7 @@ def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
         else:
             raise ValueError(f"Unsupported tensor dim {src.dim()} for padding")
     else:
-        t = src.clone()
+        t = src
 
     if recipe.zero_out:
         return torch.zeros_like(t)

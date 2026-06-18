@@ -151,8 +151,8 @@ def _get_hidden_size(model: nn.Module) -> int:
         for attr in ("hidden_size", "d_model", "n_embd"):
             if hasattr(cfg, attr):
                 return getattr(cfg, attr)
-    for _, param in model.named_parameters():
-        if param.dim() == 2:
+    for name, param in model.named_parameters():
+        if param.dim() == 2 and "embed" not in name:
             return min(param.shape)
     return 4096
 

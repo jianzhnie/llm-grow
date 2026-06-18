@@ -89,6 +89,8 @@ def _expand_width(model: nn.Module, config: MSGConfig) -> nn.Module:
         if not isinstance(module, nn.Linear):
             continue
         module_type = _classify_linear(name)
+        if module_type == "skip":
+            continue
         if module_type == "hidden_to_hidden" and dh > 0:
             _pad_linear(module, in_delta=dh, out_delta=dh)
         elif module_type == "hidden_to_inter" and di > 0:
@@ -135,6 +137,8 @@ def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
 
 def _classify_linear(name: str) -> str:
     """根据参数名称粗略分类线性层的语义角色。"""
+    if any(k in name for k in ("lm_head", "embed", "layernorm", "norm")):
+        return "skip"
     if any(k in name for k in ("gate_proj", "up_proj")):
         return "hidden_to_inter"
     if "down_proj" in name:
