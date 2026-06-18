@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 420" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="origG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4A90D9"/><stop offset="100%" stop-color="#357ABD"/></linearGradient>
+    <linearGradient id="newG"  x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#E8913A"/><stop offset="100%" stop-color="#D4792A"/></linearGradient>
+    <linearGradient id="arrowG" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#888"/><stop offset="100%" stop-color="#555"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.15"/></filter>
+  </defs>
+  <!-- Title -->
+  <text x="410" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">LLaMA-Pro: Identity Block Insertion</text>
+  <text x="410" y="54" text-anchor="middle" font-size="13" fill="#666">Function-Preserving depth expansion via zero-initialized blocks</text>
+  <!-- Original Model -->
+  <text x="145" y="85" text-anchor="middle" font-size="14" font-weight="600" fill="#357ABD">Original Model</text>
+  <g filter="url(#shadow)">
+    <rect x="70" y="95"  width="150" height="44" rx="6" fill="url(#origG)"/><text x="145" y="122" text-anchor="middle" font-size="13" fill="#fff" font-weight="500">Layer 0</text>
+    <rect x="70" y="145" width="150" height="44" rx="6" fill="url(#origG)"/><text x="145" y="172" text-anchor="middle" font-size="13" fill="#fff" font-weight="500">Layer 1</text>
+    <rect x="70" y="195" width="150" height="44" rx="6" fill="url(#origG)"/><text x="145" y="222" text-anchor="middle" font-size="13" fill="#fff" font-weight="500">Layer 2</text>
+    <rect x="70" y="245" width="150" height="44" rx="6" fill="url(#origG)"/><text x="145" y="272" text-anchor="middle" font-size="13" fill="#fff" font-weight="500">Layer 3</text>
+    <rect x="70" y="320" width="150" height="30" rx="6" fill="#aaa"/>
+    <text x="145" y="340" text-anchor="middle" font-size="12" fill="#fff">4 layers total</text>
+  </g>
+  <!-- Arrow -->
+  <g>
+    <line x1="250" y1="220" x2="360" y2="220" stroke="url(#arrowG)" stroke-width="2.5" stroke-dasharray="6,4"/>
+    <polygon points="358,214 374,220 358,226" fill="#555"/>
+    <text x="312" y="210" text-anchor="middle" font-size="12" fill="#555" font-weight="600">expand</text>
+  </g>
+  <!-- Expanded Model -->
+  <text x="520" y="85" text-anchor="middle" font-size="14" font-weight="600" fill="#357ABD">Expanded Model</text>
+  <g filter="url(#shadow)">
+    <rect x="445" y="95"  width="150" height="38" rx="6" fill="url(#origG)"/><text x="520" y="119" text-anchor="middle" font-size="12" fill="#fff">Layer 0</text>
+    <rect x="445" y="137" width="150" height="38" rx="6" fill="url(#newG)"/> <text x="520" y="161" text-anchor="middle" font-size="12" fill="#fff">Layer 1 (new)</text>
+    <rect x="445" y="179" width="150" height="38" rx="6" fill="url(#origG)"/><text x="520" y="203" text-anchor="middle" font-size="12" fill="#fff">Layer 2</text>
+    <rect x="445" y="221" width="150" height="38" rx="6" fill="url(#origG)"/><text x="520" y="245" text-anchor="middle" font-size="12" fill="#fff">Layer 3</text>
+    <rect x="445" y="263" width="150" height="38" rx="6" fill="url(#newG)"/> <text x="520" y="287" text-anchor="middle" font-size="12" fill="#fff">Layer 4 (new)</text>
+    <rect x="445" y="305" width="150" height="38" rx="6" fill="url(#origG)"/><text x="520" y="329" text-anchor="middle" font-size="12" fill="#fff">Layer 5</text>
+    <rect x="445" y="358" width="150" height="30" rx="6" fill="#aaa"/>
+    <text x="520" y="378" text-anchor="middle" font-size="12" fill="#fff">6 layers total</text>
+  </g>
+  <!-- Annotation -->
+  <line x1="600" y1="156" x2="640" y2="156" stroke="#D4792A" stroke-width="1.5"/>
+  <g transform="translate(648, 140)">
+    <rect width="160" height="50" rx="5" fill="#FFF3E0" stroke="#D4792A" stroke-width="1"/>
+    <text x="80" y="18" text-anchor="middle" font-size="11" fill="#D4792A" font-weight="600">Identity Block</text>
+    <text x="80" y="33" text-anchor="middle" font-size="10" fill="#888">o_proj = 0, down_proj = 0</text>
+    <text x="80" y="44" text-anchor="middle" font-size="10" fill="#888">Block(x) = 0 → out = x</text>
+  </g>
+  <!-- Legend -->
+  <rect x="648" y="210" width="14" height="14" rx="3" fill="url(#origG)"/>
+  <text x="668" y="222" font-size="11" fill="#555">Original (frozen)</text>
+  <rect x="648" y="232" width="14" height="14" rx="3" fill="url(#newG)"/>
+  <text x="668" y="244" font-size="11" fill="#555">New (trainable)</text>
+</svg>

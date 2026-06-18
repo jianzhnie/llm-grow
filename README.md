@@ -7,6 +7,7 @@
 ## 目录
 
 - [支持的扩增方法](#支持的扩增方法)
+  - [扩增方法原理图](#扩增方法原理图)
 - [安装](#安装)
 - [CLI 工具](#cli-工具)
 - [快速开始](#快速开始)
@@ -47,6 +48,32 @@
 | `msg` | Dense | 深度+FFN宽度 | ≤ 1 shard |
 
 > **FP**（Function-Preserving）= 扩增后模型输出与原始模型完全一致（zero-shot 精度零损失）。
+
+### 扩增方法原理图
+
+#### LLaMA-Pro — 恒等块插入（深度扩增）
+
+<p align="center"><img src="docs/images/llama_pro.svg" width="750"/></p>
+
+#### SOLAR DUS — 层重叠拼接（深度扩增）
+
+<p align="center"><img src="docs/images/solar_dus.svg" width="750"/></p>
+
+#### LESA — SVD 插值扩层（深度扩增）
+
+<p align="center"><img src="docs/images/lesa.svg" width="750"/></p>
+
+#### MSG — 多维掩码生长（深度 + 宽度扩增）
+
+<p align="center"><img src="docs/images/msg.svg" width="750"/></p>
+
+#### MoE Upcycling — Dense 转稀疏 MoE
+
+<p align="center"><img src="docs/images/moe_upcycling.svg" width="750"/></p>
+
+#### Expert Upcycling — MoE 专家数扩展
+
+<p align="center"><img src="docs/images/expert_upcycling.svg" width="750"/></p>
 
 ---
 
@@ -315,6 +342,8 @@ python scripts/verify_safetensor.py \
 
 ### LLaMA-Pro — 恒等块插入
 
+<p align="center"><img src="docs/images/llama_pro.svg" width="750"/></p>
+
 ```python
 from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
 
@@ -330,6 +359,8 @@ expanded = LlamaProExpander().expand(model, config)
 
 ### MSG — 多维度掩码生长
 
+<p align="center"><img src="docs/images/msg.svg" width="750"/></p>
+
 ```python
 from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
 
@@ -344,6 +375,8 @@ expanded = MSGExpander().expand(model, config)
 
 ### MoE Upcycling — Dense → 稀疏 MoE
 
+<p align="center"><img src="docs/images/moe_upcycling.svg" width="750"/></p>
+
 ```python
 from llm_grow.expanders.sparse.moe_upcycling import MoEUpcyclingConfig, MoEUpcyclingExpander
 from llm_grow.training.load_balance import combined_moe_loss
@@ -356,6 +389,8 @@ loss = combined_moe_loss(lm_loss, router_logits_list, num_experts=8, top_k=2)
 ```
 
 ### Expert Upcycling — MoE 专家数扩展
+
+<p align="center"><img src="docs/images/expert_upcycling.svg" width="750"/></p>
 
 ```python
 from llm_grow.expanders.sparse.expert_upcycling import (

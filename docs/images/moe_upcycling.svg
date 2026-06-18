@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 440" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="dG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5B9BD5"/><stop offset="100%" stop-color="#4080B0"/></linearGradient>
+    <linearGradient id="eG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#E67E22"/><stop offset="100%" stop-color="#D35400"/></linearGradient>
+    <linearGradient id="rG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8E44AD"/><stop offset="100%" stop-color="#7D3C98"/></linearGradient>
+    <filter id="s3"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.15"/></filter>
+  </defs>
+  <text x="430" y="30" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">MoE Upcycling: Dense → Sparse MoE</text>
+  <text x="430" y="50" text-anchor="middle" font-size="13" fill="#666">Copy FFN as experts + random router (non function-preserving)</text>
+  <!-- Dense layer -->
+  <text x="140" y="82" text-anchor="middle" font-size="14" font-weight="600" fill="#4080B0">Dense Layer</text>
+  <g filter="url(#s3)">
+    <rect x="40" y="95" width="200" height="44" rx="6" fill="url(#dG)"/>
+    <text x="140" y="122" text-anchor="middle" font-size="13" fill="#fff" font-weight="500">Self-Attention</text>
+    <rect x="40" y="150" width="200" height="100" rx="6" fill="url(#dG)"/>
+    <text x="140" y="185" text-anchor="middle" font-size="14" fill="#fff" font-weight="600">FFN (MLP)</text>
+    <text x="140" y="206" text-anchor="middle" font-size="11" fill="#dde8f4">gate + up + down proj</text>
+    <text x="140" y="240" text-anchor="middle" font-size="11" fill="#dde8f4">Single FFN path</text>
+    <rect x="40" y="270" width="200" height="28" rx="5" fill="#aaa"/>
+    <text x="140" y="289" text-anchor="middle" font-size="11" fill="#fff">Dense: 1 FFN per layer</text>
+  </g>
+  <!-- Arrow -->
+  <line x1="260" y1="195" x2="350" y2="195" stroke="#888" stroke-width="2.5" stroke-dasharray="6,4"/>
+  <polygon points="348,189 364,195 348,201" fill="#555"/>
+  <text x="310" y="185" text-anchor="middle" font-size="11" fill="#555" font-weight="600">upcycle</text>
+  <!-- MoE layer -->
+  <text x="590" y="82" text-anchor="middle" font-size="14" font-weight="600" fill="#D35400">MoE Layer</text>
+  <g filter="url(#s3)">
+    <rect x="380" y="95" width="420" height="44" rx="6" fill="url(#dG)"/>
+    <text x="590" y="122" text-anchor="middle" font-size="13" fill="#fff" font-weight="500">Self-Attention (unchanged)</text>
+    <!-- Router -->
+    <rect x="380" y="150" width="420" height="36" rx="6" fill="url(#rG)"/>
+    <text x="590" y="173" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">Router  (new, random init)  →  Top-K selection</text>
+    <!-- Experts -->
+    <g transform="translate(380, 196)">
+      <rect width="98" height="70" rx="5" fill="url(#eG)"/>
+      <text x="49" y="22" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Expert 0</text>
+      <text x="49" y="38" text-anchor="middle" font-size="9" fill="#fde8d0">copy of FFN</text>
+      <text x="49" y="54" text-anchor="middle" font-size="9" fill="#fde8d0">+ noise</text>
+    </g>
+    <g transform="translate(488, 196)">
+      <rect width="98" height="70" rx="5" fill="url(#eG)"/>
+      <text x="49" y="22" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Expert 1</text>
+      <text x="49" y="38" text-anchor="middle" font-size="9" fill="#fde8d0">copy of FFN</text>
+      <text x="49" y="54" text-anchor="middle" font-size="9" fill="#fde8d0">+ noise</text>
+    </g>
+    <g transform="translate(596, 196)">
+      <rect width="98" height="70" rx="5" fill="url(#eG)"/>
+      <text x="49" y="22" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">Expert 2</text>
+      <text x="49" y="38" text-anchor="middle" font-size="9" fill="#fde8d0">copy of FFN</text>
+      <text x="49" y="54" text-anchor="middle" font-size="9" fill="#fde8d0">+ noise</text>
+    </g>
+    <g transform="translate(704, 196)">
+      <rect width="92" height="70" rx="5" fill="url(#eG)" opacity="0.75"/>
+      <text x="46" y="22" text-anchor="middle" font-size="11" fill="#fff" font-weight="600">...</text>
+      <text x="46" y="42" text-anchor="middle" font-size="10" fill="#fde8d0">Expert N</text>
+    </g>
+    <rect x="380" y="278" width="420" height="28" rx="5" fill="#aaa"/>
+    <text x="590" y="297" text-anchor="middle" font-size="11" fill="#fff">MoE: N experts per layer, Top-K active</text>
+  </g>
+  <!-- Key insight -->
+  <g transform="translate(380, 325)">
+    <rect width="420" height="80" rx="8" fill="#FEF9E7" stroke="#F39C12" stroke-width="1.2"/>
+    <text x="210" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="#E67E22">Key Properties</text>
+    <text x="210" y="42" text-anchor="middle" font-size="11" fill="#555">Inference cost ~ unchanged (Top-1: same as single FFN)</text>
+    <text x="210" y="58" text-anchor="middle" font-size="11" fill="#555">Total params = N * original FFN size</text>
+    <text x="210" y="74" text-anchor="middle" font-size="11" fill="#888">Requires load-balance loss + 50-100B tokens CPT</text>
+  </g>
+</svg>

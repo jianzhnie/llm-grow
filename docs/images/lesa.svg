@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 400" font-family="'Segoe UI',system-ui,sans-serif">
+  <defs>
+    <linearGradient id="aG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5B9BD5"/><stop offset="100%" stop-color="#4080B0"/></linearGradient>
+    <linearGradient id="iG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#C0392B"/><stop offset="100%" stop-color="#A93226"/></linearGradient>
+    <filter id="s"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.15"/></filter>
+  </defs>
+  <text x="410" y="30" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">LESA: Learnable Expansion via SVD Interpolation</text>
+  <text x="410" y="50" text-anchor="middle" font-size="13" fill="#666">Insert interpolated layers between adjacent pairs (~80-90% FP)</text>
+  <!-- Original -->
+  <text x="120" y="78" text-anchor="middle" font-size="14" font-weight="600" fill="#4080B0">Original</text>
+  <g filter="url(#s)">
+    <rect x="45" y="90"  width="150" height="55" rx="6" fill="url(#aG)"/><text x="120" y="123" text-anchor="middle" font-size="13" fill="#fff">Layer A</text>
+    <rect x="45" y="155" width="150" height="55" rx="6" fill="url(#aG)"/><text x="120" y="188" text-anchor="middle" font-size="13" fill="#fff">Layer B</text>
+    <rect x="45" y="220" width="150" height="55" rx="6" fill="url(#aG)"/><text x="120" y="253" text-anchor="middle" font-size="13" fill="#fff">Layer C</text>
+  </g>
+  <!-- Arrow -->
+  <line x1="215" y1="188" x2="310" y2="188" stroke="#888" stroke-width="2.5" stroke-dasharray="6,4"/>
+  <polygon points="308,182 324,188 308,194" fill="#555"/>
+  <text x="270" y="178" text-anchor="middle" font-size="12" fill="#555" font-weight="600">interpolate</text>
+  <!-- Expanded -->
+  <text x="420" y="78" text-anchor="middle" font-size="14" font-weight="600" fill="#4080B0">Expanded</text>
+  <g filter="url(#s)">
+    <rect x="345" y="90"  width="150" height="44" rx="6" fill="url(#aG)"/><text x="420" y="117" text-anchor="middle" font-size="12" fill="#fff">Layer A</text>
+    <rect x="345" y="140" width="150" height="44" rx="6" fill="url(#iG)"/><text x="420" y="167" text-anchor="middle" font-size="12" fill="#fff">Layer A-B (new)</text>
+    <rect x="345" y="190" width="150" height="44" rx="6" fill="url(#aG)"/><text x="420" y="217" text-anchor="middle" font-size="12" fill="#fff">Layer B</text>
+    <rect x="345" y="240" width="150" height="44" rx="6" fill="url(#iG)"/><text x="420" y="267" text-anchor="middle" font-size="12" fill="#fff">Layer B-C (new)</text>
+    <rect x="345" y="290" width="150" height="44" rx="6" fill="url(#aG)"/><text x="420" y="317" text-anchor="middle" font-size="12" fill="#fff">Layer C</text>
+  </g>
+  <!-- Formula box -->
+  <g transform="translate(540, 108)">
+    <rect width="250" height="110" rx="8" fill="#FFF8F0" stroke="#C0392B" stroke-width="1.2"/>
+    <text x="125" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#C0392B">Interpolation Formula</text>
+    <text x="125" y="46" text-anchor="middle" font-size="12" fill="#444" font-style="italic">W_new = alpha * W_A + (1 - alpha) * W_B</text>
+    <text x="125" y="68" text-anchor="middle" font-size="11" fill="#888">alpha = 0.5  (arithmetic mean)</text>
+    <line x1="20" y1="80" x2="230" y2="80" stroke="#eee" stroke-width="1"/>
+    <text x="125" y="98" text-anchor="middle" font-size="11" fill="#888">Smoother transition than DUS</text>
+  </g>
+  <!-- Legend -->
+  <rect x="560" y="248" width="14" height="14" rx="3" fill="url(#aG)"/>
+  <text x="580" y="260" font-size="11" fill="#555">Original layers</text>
+  <rect x="560" y="270" width="14" height="14" rx="3" fill="url(#iG)"/>
+  <text x="580" y="282" font-size="11" fill="#555">Interpolated (new)</text>
+</svg>
