@@ -1,182 +1,333 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
-  <defs>
-    <!-- Core gradients -->
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0F0C29"/>
-      <stop offset="50%" stop-color="#302B63"/>
-      <stop offset="100%" stop-color="#24243E"/>
-    </linearGradient>
-    <linearGradient id="trunk" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0%" stop-color="#5D4037"/>
-      <stop offset="100%" stop-color="#8D6E63"/>
-    </linearGradient>
-    <linearGradient id="leaf1" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#43A047"/>
-      <stop offset="100%" stop-color="#66BB6A"/>
-    </linearGradient>
-    <linearGradient id="leaf2" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#2E7D32"/>
-      <stop offset="100%" stop-color="#4CAF50"/>
-    </linearGradient>
-    <linearGradient id="leaf3" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1B5E20"/>
-      <stop offset="100%" stop-color="#388E3C"/>
-    </linearGradient>
-    <linearGradient id="glow1" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#FFD54F"/>
-      <stop offset="100%" stop-color="#FFA726"/>
-    </linearGradient>
-    <linearGradient id="glow2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#42A5F5"/>
-      <stop offset="100%" stop-color="#1E88E5"/>
-    </linearGradient>
-    <linearGradient id="glow3" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#AB47BC"/>
-      <stop offset="100%" stop-color="#8E24AA"/>
-    </linearGradient>
-    <linearGradient id="chip" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#26C6DA"/>
-      <stop offset="50%" stop-color="#00ACC1"/>
-      <stop offset="100%" stop-color="#00838F"/>
-    </linearGradient>
-    <linearGradient id="circuit" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.6"/>
-      <stop offset="100%" stop-color="#00E5FF" stop-opacity="0.15"/>
-    </linearGradient>
-    <!-- Filters -->
-    <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="softShadow"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.3"/></filter>
-    <filter id="nodeGlow"><feGaussianBlur stdDeviation="5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520"
+     font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#0F0C29"/>
+    <stop offset="50%" stop-color="#302B63"/>
+    <stop offset="100%" stop-color="#24243E"/>
+  </linearGradient>
+  <linearGradient id="trk" x1="0" y1="1" x2="0" y2="0">
+    <stop offset="0%" stop-color="#5D4037"/>
+    <stop offset="100%" stop-color="#8D6E63"/>
+  </linearGradient>
+  <linearGradient id="c1" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#1B5E20"/>
+    <stop offset="100%" stop-color="#388E3C"/>
+  </linearGradient>
+  <linearGradient id="c2" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#2E7D32"/>
+    <stop offset="100%" stop-color="#4CAF50"/>
+  </linearGradient>
+  <linearGradient id="c3" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#43A047"/>
+    <stop offset="100%" stop-color="#81C784"/>
+  </linearGradient>
+  <linearGradient id="nb" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#42A5F5"/>
+    <stop offset="100%" stop-color="#1565C0"/>
+  </linearGradient>
+  <linearGradient id="ng" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#FFD54F"/>
+    <stop offset="100%" stop-color="#FF8F00"/>
+  </linearGradient>
+  <linearGradient id="np" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#CE93D8"/>
+    <stop offset="100%" stop-color="#8E24AA"/>
+  </linearGradient>
+  <linearGradient id="chp" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#26C6DA"/>
+    <stop offset="50%" stop-color="#00ACC1"/>
+    <stop offset="100%" stop-color="#00838F"/>
+  </linearGradient>
+  <linearGradient id="ci" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#00E5FF" stop-opacity=".55"/>
+    <stop offset="100%" stop-color="#00E5FF" stop-opacity=".1"/>
+  </linearGradient>
+  <filter id="gl">
+    <feGaussianBlur stdDeviation="3" result="b"/>
+    <feMerge><feMergeNode in="b"/>
+    <feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="ds">
+    <feDropShadow dx="0" dy="3" stdDeviation="5"
+                  flood-color="#000" flood-opacity=".28"/>
+  </filter>
+  <filter id="ngl">
+    <feGaussianBlur stdDeviation="4.5" result="b"/>
+    <feMerge><feMergeNode in="b"/>
+    <feMergeNode in="b"/>
+    <feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+</defs>
 
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="248" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="248" fill="none" stroke="#4A4A8A" stroke-width="2.5" opacity="0.5"/>
+<style>
+/* ===== Phase 0: base tree (existing model) — visible from start ===== */
+.base{ opacity:1 }
 
-  <!-- Subtle star particles -->
-  <circle cx="80" cy="100" r="1.2" fill="#fff" opacity="0.5"/>
-  <circle cx="420" cy="85" r="1" fill="#fff" opacity="0.4"/>
-  <circle cx="130" cy="180" r="0.8" fill="#fff" opacity="0.3"/>
-  <circle cx="400" cy="200" r="1.1" fill="#fff" opacity="0.35"/>
-  <circle cx="90" cy="300" r="0.9" fill="#fff" opacity="0.25"/>
-  <circle cx="440" cy="320" r="1" fill="#fff" opacity="0.3"/>
-  <circle cx="150" cy="80" r="1.3" fill="#fff" opacity="0.4"/>
-  <circle cx="370" cy="130" r="0.7" fill="#fff" opacity="0.35"/>
+/* ===== Phase 1 (0.6 s): trunk stretches upward ===== */
+.trunk-grow{
+  transform-origin:260px 400px;
+  transform:scaleY(.62);
+  animation:stretchY 1s cubic-bezier(.34,1.4,.64,1) .5s forwards;
+}
+@keyframes stretchY{
+  to{ transform:scaleY(1) }
+}
 
-  <!-- Root / Ground line -->
-  <ellipse cx="256" cy="405" rx="110" ry="12" fill="#3E2723" opacity="0.5"/>
+/* ===== Phase 2 (1.4 s): mid-canopy sprouts ===== */
+.grow-mid{
+  opacity:0;
+  transform-origin:260px 240px;
+  transform:scale(.25);
+  animation:pop 1s cubic-bezier(.22,1.2,.36,1) 1.3s forwards;
+}
 
-  <!-- Circuit traces from roots -->
-  <g stroke="url(#circuit)" stroke-width="1.5" fill="none" opacity="0.5">
-    <path d="M220,405 L200,430 L180,430"/>
-    <path d="M240,408 L230,440 L210,440"/>
-    <path d="M272,408 L282,440 L302,440"/>
-    <path d="M292,405 L312,430 L332,430"/>
-    <!-- Small nodes on circuit -->
-    <circle cx="180" cy="430" r="3" fill="#00E5FF" opacity="0.6"/>
-    <circle cx="210" cy="440" r="2.5" fill="#00E5FF" opacity="0.5"/>
-    <circle cx="302" cy="440" r="2.5" fill="#00E5FF" opacity="0.5"/>
-    <circle cx="332" cy="430" r="3" fill="#00E5FF" opacity="0.6"/>
+/* ===== Phase 3 (2.2 s): top-canopy blooms ===== */
+.grow-top{
+  opacity:0;
+  transform-origin:260px 170px;
+  transform:scale(.2);
+  animation:pop 1s cubic-bezier(.22,1.2,.36,1) 2.1s forwards;
+}
+
+@keyframes pop{
+  0%  { opacity:0; transform:scale(.2) }
+  55% { opacity:1; transform:scale(1.08) }
+  100%{ opacity:1; transform:scale(1) }
+}
+
+/* ===== Phase 4 (3 s): growth arrows + sparkles ===== */
+.arrows{
+  opacity:0;
+  animation:rise .7s ease-out 2.9s forwards;
+}
+@keyframes rise{
+  0%  { opacity:0; transform:translateY(6px) }
+  100%{ opacity:.8; transform:translateY(0) }
+}
+
+/* ===== Phase 5 (3.4 s): title ===== */
+.ttl{ opacity:0; animation:fadeIn .9s ease-out 3.3s forwards }
+.sub{ opacity:0; animation:fadeIn .9s ease-out 3.7s forwards }
+@keyframes fadeIn{ to{ opacity:1 } }
+
+/* ===== Continuous: pulsing top nodes ===== */
+.pulse{
+  animation:beat 2.4s ease-in-out 3s infinite;
+}
+@keyframes beat{
+  0%,100%{ r:8; opacity:.85 }
+  50%    { r:11; opacity:1 }
+}
+
+/* ===== Continuous: twinkling stars ===== */
+.st{ animation:tw 3.5s ease-in-out infinite alternate }
+.st:nth-child(2){ animation-delay:.6s }
+.st:nth-child(3){ animation-delay:1.3s }
+.st:nth-child(4){ animation-delay:.9s }
+.st:nth-child(5){ animation-delay:1.8s }
+.st:nth-child(6){ animation-delay:2.2s }
+.st:nth-child(7){ animation-delay:.3s }
+@keyframes tw{ 0%{opacity:.12} 100%{opacity:.6} }
+
+/* ===== Continuous: circuit pulse ===== */
+.cpulse{ animation:cg 2.2s ease-in-out infinite alternate }
+@keyframes cg{ 0%{opacity:.2} 100%{opacity:.65} }
+
+/* ===== Continuous: energy particles rising ===== */
+.particle{
+  opacity:0;
+  animation:float 3s ease-in infinite;
+}
+.particle:nth-child(2){ animation-delay:1s }
+.particle:nth-child(3){ animation-delay:2s }
+@keyframes float{
+  0%  { opacity:0; transform:translateY(0) scale(.5) }
+  20% { opacity:.7 }
+  80% { opacity:.3 }
+  100%{ opacity:0; transform:translateY(-80px) scale(1.2) }
+}
+</style>
+
+<!-- ============ BACKGROUND ============ -->
+<circle cx="260" cy="260" r="252" fill="url(#bg)"/>
+<circle cx="260" cy="260" r="252" fill="none"
+        stroke="#4A4A8A" stroke-width="2" opacity=".35"/>
+
+<!-- Stars -->
+<g>
+  <circle class="st" cx="78"  cy="98"  r="1.2" fill="#fff"/>
+  <circle class="st" cx="430" cy="84"  r="1"   fill="#fff"/>
+  <circle class="st" cx="138" cy="178" r=".9"  fill="#fff"/>
+  <circle class="st" cx="408" cy="200" r="1.1" fill="#fff"/>
+  <circle class="st" cx="88"  cy="310" r=".8"  fill="#fff"/>
+  <circle class="st" cx="445" cy="318" r="1"   fill="#fff"/>
+  <circle class="st" cx="158" cy="74"  r="1.2" fill="#fff"/>
+  <circle class="st" cx="378" cy="128" r=".7"  fill="#fff"/>
+  <circle class="st" cx="320" cy="70"  r=".9"  fill="#fff"/>
+  <circle class="st" cx="460" cy="150" r=".8"  fill="#fff"/>
+</g>
+
+<!-- ============ GROUND + CHIP (existing checkpoint) ============ -->
+<ellipse cx="260" cy="400" rx="108" ry="11"
+         fill="#3E2723" opacity=".4"/>
+
+<!-- Circuit traces -->
+<g class="cpulse" stroke="url(#ci)" stroke-width="1.5" fill="none">
+  <path d="M222,400 L204,428 L180,428"/>
+  <path d="M242,404 L232,436 L210,436"/>
+  <path d="M278,404 L288,436 L310,436"/>
+  <path d="M298,400 L316,428 L340,428"/>
+  <circle cx="180" cy="428" r="3"   fill="#00E5FF" opacity=".5"/>
+  <circle cx="210" cy="436" r="2.5" fill="#00E5FF" opacity=".4"/>
+  <circle cx="310" cy="436" r="2.5" fill="#00E5FF" opacity=".4"/>
+  <circle cx="340" cy="428" r="3"   fill="#00E5FF" opacity=".5"/>
+</g>
+
+<!-- Chip -->
+<g transform="translate(236,360)" class="base">
+  <rect width="48" height="34" rx="5" fill="url(#chp)" filter="url(#ngl)"/>
+  <rect x="-5" y="9"  width="6" height="4" rx="1" fill="#00E5FF" opacity=".7"/>
+  <rect x="-5" y="20" width="6" height="4" rx="1" fill="#00E5FF" opacity=".7"/>
+  <rect x="47" y="9"  width="6" height="4" rx="1" fill="#00E5FF" opacity=".7"/>
+  <rect x="47" y="20" width="6" height="4" rx="1" fill="#00E5FF" opacity=".7"/>
+  <rect x="12" y="-5" width="4" height="6" rx="1" fill="#00E5FF" opacity=".7"/>
+  <rect x="32" y="-5" width="4" height="6" rx="1" fill="#00E5FF" opacity=".7"/>
+  <rect x="12" y="33" width="4" height="6" rx="1" fill="#00E5FF" opacity=".7"/>
+  <rect x="32" y="33" width="4" height="6" rx="1" fill="#00E5FF" opacity=".7"/>
+  <text x="24" y="23" text-anchor="middle" font-size="11"
+        font-weight="700" fill="#E0F7FA" letter-spacing="1.5">LLM</text>
+</g>
+
+<!-- ============ TRUNK (grows taller) ============ -->
+<g class="trunk-grow" filter="url(#ds)">
+  <path d="M248,400 Q244,360 242,315 Q240,288 244,260
+           L260,195 L276,260
+           Q280,288 278,315 Q276,360 272,400 Z"
+        fill="url(#trk)"/>
+  <path d="M254,372 Q257,345 255,318" stroke="#4E342E"
+        stroke-width="1" fill="none" opacity=".3"/>
+  <path d="M265,378 Q263,350 266,322" stroke="#4E342E"
+        stroke-width="1" fill="none" opacity=".25"/>
+</g>
+
+<!-- ============ BASE CANOPY (existing model = always visible) ============ -->
+<g class="base">
+  <!-- branches -->
+  <g stroke="#8D6E63" stroke-width="2.8" fill="none"
+     stroke-linecap="round">
+    <path d="M250,282 Q224,266 196,258"/>
+    <path d="M270,282 Q296,266 324,258"/>
   </g>
+  <!-- leaves -->
+  <g filter="url(#ds)" opacity=".88">
+    <ellipse cx="198" cy="258" rx="46" ry="29" fill="url(#c1)"/>
+    <ellipse cx="322" cy="258" rx="46" ry="29" fill="url(#c1)"/>
+    <ellipse cx="260" cy="274" rx="40" ry="26" fill="url(#c1)"/>
+  </g>
+  <!-- neural nodes (blue = original layers) -->
+  <g filter="url(#ngl)">
+    <circle cx="198" cy="260" r="6.5" fill="url(#nb)"/>
+    <circle cx="260" cy="274" r="6.5" fill="url(#nb)"/>
+    <circle cx="322" cy="260" r="6.5" fill="url(#nb)"/>
+  </g>
+  <g stroke="#fff" stroke-width=".7" opacity=".2">
+    <line x1="198" y1="260" x2="260" y2="274"/>
+    <line x1="260" y1="274" x2="322" y2="260"/>
+    <line x1="198" y1="260" x2="322" y2="260"/>
+  </g>
+  <!-- "Base Model" label -->
+  <text x="260" y="308" text-anchor="middle"
+        font-size="9.5" fill="#81C784" opacity=".7"
+        letter-spacing="1.5" font-weight="600">BASE MODEL</text>
+</g>
 
-  <!-- Tree trunk -->
-  <g filter="url(#softShadow)">
-    <path d="M244,405 Q240,360 238,310 Q236,280 240,250 L256,200 L272,250 Q276,280 274,310 Q272,360 268,405 Z" fill="url(#trunk)"/>
-    <!-- Bark texture lines -->
-    <path d="M250,380 Q254,350 252,320" stroke="#4E342E" stroke-width="1" fill="none" opacity="0.4"/>
-    <path d="M260,390 Q258,355 262,325" stroke="#4E342E" stroke-width="1" fill="none" opacity="0.3"/>
+<!-- ============ GROWTH LAYER 1 — depth expansion ============ -->
+<g class="grow-mid">
+  <g stroke="#8D6E63" stroke-width="2.5" fill="none"
+     stroke-linecap="round">
+    <path d="M254,248 Q228,224 204,214"/>
+    <path d="M266,248 Q292,224 316,214"/>
   </g>
+  <g filter="url(#ds)" opacity=".92">
+    <ellipse cx="208" cy="216" rx="50" ry="32" fill="url(#c2)"/>
+    <ellipse cx="312" cy="216" rx="50" ry="32" fill="url(#c2)"/>
+    <ellipse cx="260" cy="234" rx="42" ry="27" fill="url(#c2)"/>
+  </g>
+  <g filter="url(#ngl)">
+    <circle cx="208" cy="216" r="7" fill="url(#ng)"/>
+    <circle cx="260" cy="230" r="7" fill="url(#ng)"/>
+    <circle cx="312" cy="216" r="7" fill="url(#ng)"/>
+  </g>
+  <g stroke="#fff" stroke-width=".7" opacity=".18">
+    <line x1="198" y1="260" x2="208" y2="216"/>
+    <line x1="198" y1="260" x2="260" y2="230"/>
+    <line x1="260" y1="274" x2="208" y2="216"/>
+    <line x1="260" y1="274" x2="260" y2="230"/>
+    <line x1="260" y1="274" x2="312" y2="216"/>
+    <line x1="322" y1="260" x2="260" y2="230"/>
+    <line x1="322" y1="260" x2="312" y2="216"/>
+  </g>
+</g>
 
-  <!-- Branches (subtle) -->
-  <g stroke="#8D6E63" stroke-width="3" fill="none" stroke-linecap="round">
-    <path d="M248,280 Q220,260 190,250"/>
-    <path d="M264,280 Q292,260 322,250"/>
-    <path d="M250,240 Q225,215 200,200"/>
-    <path d="M262,240 Q287,215 312,200"/>
-    <path d="M254,210 Q240,185 220,170"/>
-    <path d="M258,210 Q272,185 292,170"/>
-    <path d="M256,200 Q256,170 256,145"/>
+<!-- ============ GROWTH LAYER 2 — width / expert expansion ============ -->
+<g class="grow-top">
+  <g stroke="#8D6E63" stroke-width="2.5" fill="none"
+     stroke-linecap="round">
+    <path d="M256,212 Q240,190 224,176"/>
+    <path d="M264,212 Q280,190 296,176"/>
+    <path d="M260,208 Q260,182 260,155"/>
   </g>
+  <g filter="url(#ds)" opacity=".95">
+    <ellipse cx="226" cy="178" rx="42" ry="27" fill="url(#c3)"/>
+    <ellipse cx="294" cy="178" rx="42" ry="27" fill="url(#c3)"/>
+    <ellipse cx="260" cy="157" rx="50" ry="32" fill="url(#c3)"/>
+  </g>
+  <g filter="url(#ngl)">
+    <circle cx="226" cy="176" r="8" fill="url(#np)" class="pulse"/>
+    <circle cx="260" cy="154" r="9" fill="url(#np)" class="pulse"/>
+    <circle cx="294" cy="176" r="8" fill="url(#np)" class="pulse"/>
+  </g>
+  <g stroke="#fff" stroke-width=".7" opacity=".18">
+    <line x1="208" y1="216" x2="226" y2="176"/>
+    <line x1="208" y1="216" x2="260" y2="154"/>
+    <line x1="260" y1="230" x2="226" y2="176"/>
+    <line x1="260" y1="230" x2="260" y2="154"/>
+    <line x1="260" y1="230" x2="294" y2="176"/>
+    <line x1="312" y1="216" x2="260" y2="154"/>
+    <line x1="312" y1="216" x2="294" y2="176"/>
+  </g>
+</g>
 
-  <!-- Canopy - layered leaves (bottom to top = bigger to smaller model) -->
-  <!-- Bottom layer (largest, darkest) -->
-  <g filter="url(#softShadow)" opacity="0.9">
-    <ellipse cx="195" cy="255" rx="45" ry="30" fill="url(#leaf3)"/>
-    <ellipse cx="317" cy="255" rx="45" ry="30" fill="url(#leaf3)"/>
-  </g>
-  <!-- Middle layer -->
-  <g filter="url(#softShadow)" opacity="0.92">
-    <ellipse cx="205" cy="210" rx="50" ry="33" fill="url(#leaf2)"/>
-    <ellipse cx="307" cy="210" rx="50" ry="33" fill="url(#leaf2)"/>
-    <ellipse cx="256" cy="230" rx="42" ry="28" fill="url(#leaf2)"/>
-  </g>
-  <!-- Top layer (brightest, "grown") -->
-  <g filter="url(#softShadow)" opacity="0.95">
-    <ellipse cx="225" cy="175" rx="42" ry="28" fill="url(#leaf1)"/>
-    <ellipse cx="287" cy="175" rx="42" ry="28" fill="url(#leaf1)"/>
-    <ellipse cx="256" cy="155" rx="48" ry="32" fill="url(#leaf1)"/>
-  </g>
+<!-- ============ ENERGY PARTICLES (rising from base) ============ -->
+<g>
+  <circle class="particle" cx="240" cy="340" r="2.5"
+          fill="#69F0AE" opacity="0"/>
+  <circle class="particle" cx="260" cy="350" r="2"
+          fill="#B388FF" opacity="0"/>
+  <circle class="particle" cx="280" cy="335" r="2.5"
+          fill="#40C4FF" opacity="0"/>
+</g>
 
-  <!-- Neural network nodes on the tree (glowing) -->
-  <g filter="url(#nodeGlow)">
-    <!-- Layer 1 nodes (bottom) -->
-    <circle cx="195" cy="260" r="6" fill="url(#glow2)"/>
-    <circle cx="256" cy="270" r="6" fill="url(#glow2)"/>
-    <circle cx="317" cy="260" r="6" fill="url(#glow2)"/>
-    <!-- Layer 2 nodes (mid) -->
-    <circle cx="205" cy="210" r="7" fill="url(#glow1)"/>
-    <circle cx="256" cy="220" r="7" fill="url(#glow1)"/>
-    <circle cx="307" cy="210" r="7" fill="url(#glow1)"/>
-    <!-- Layer 3 nodes (top - new growth!) -->
-    <circle cx="225" cy="170" r="8" fill="url(#glow3)"/>
-    <circle cx="256" cy="150" r="9" fill="url(#glow3)"/>
-    <circle cx="287" cy="170" r="8" fill="url(#glow3)"/>
-  </g>
+<!-- ============ GROWTH ARROWS ============ -->
+<g class="arrows" filter="url(#gl)">
+  <path d="M260,132 L260,112 M253,122 L260,110 L267,122"
+        stroke="#CE93D8" stroke-width="2.5" fill="none"
+        stroke-linecap="round"/>
+  <path d="M216,160 L202,146 M210,154 L200,144 L212,146"
+        stroke="#CE93D8" stroke-width="2" fill="none"
+        stroke-linecap="round"/>
+  <path d="M304,160 L318,146 M310,154 L320,144 L308,146"
+        stroke="#CE93D8" stroke-width="2" fill="none"
+        stroke-linecap="round"/>
+</g>
 
-  <!-- Connections between nodes (neural net edges) -->
-  <g stroke="#fff" stroke-width="0.8" opacity="0.25">
-    <!-- Layer 1 → 2 -->
-    <line x1="195" y1="260" x2="205" y2="210"/>
-    <line x1="195" y1="260" x2="256" y2="220"/>
-    <line x1="256" y1="270" x2="205" y2="210"/>
-    <line x1="256" y1="270" x2="256" y2="220"/>
-    <line x1="256" y1="270" x2="307" y2="210"/>
-    <line x1="317" y1="260" x2="256" y2="220"/>
-    <line x1="317" y1="260" x2="307" y2="210"/>
-    <!-- Layer 2 → 3 -->
-    <line x1="205" y1="210" x2="225" y2="170"/>
-    <line x1="205" y1="210" x2="256" y2="150"/>
-    <line x1="256" y1="220" x2="225" y2="170"/>
-    <line x1="256" y1="220" x2="256" y2="150"/>
-    <line x1="256" y1="220" x2="287" y2="170"/>
-    <line x1="307" y1="210" x2="256" y2="150"/>
-    <line x1="307" y1="210" x2="287" y2="170"/>
-  </g>
+<!-- ============ TITLE ============ -->
+<text class="ttl" x="260" y="458" text-anchor="middle"
+      font-size="44" font-weight="800" fill="#E8E8F0"
+      letter-spacing="4" filter="url(#ds)">LLM-GROW</text>
+<text class="sub" x="260" y="486" text-anchor="middle"
+      font-size="12" fill="#9E9EC8" letter-spacing="2"
+      font-weight="400">EXPAND EXISTING MODELS, LAYER BY LAYER</text>
 
-  <!-- Growth arrows (upward, expanding) -->
-  <g filter="url(#glow)" opacity="0.7">
-    <path d="M256,130 L256,110 M250,118 L256,108 L262,118" stroke="#AB47BC" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-    <path d="M215,155 L200,140 M208,148 L198,138 L210,140" stroke="#AB47BC" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <path d="M297,155 L312,140 M304,148 L314,138 L302,140" stroke="#AB47BC" stroke-width="2" fill="none" stroke-linecap="round"/>
-  </g>
-
-  <!-- Chip/seed at the base of the tree -->
-  <g transform="translate(236, 365)">
-    <rect width="40" height="30" rx="5" fill="url(#chip)" filter="url(#nodeGlow)"/>
-    <!-- Chip pins -->
-    <rect x="-4" y="8"  width="6" height="3" rx="1" fill="#00E5FF" opacity="0.7"/>
-    <rect x="-4" y="18" width="6" height="3" rx="1" fill="#00E5FF" opacity="0.7"/>
-    <rect x="38" y="8"  width="6" height="3" rx="1" fill="#00E5FF" opacity="0.7"/>
-    <rect x="38" y="18" width="6" height="3" rx="1" fill="#00E5FF" opacity="0.7"/>
-    <rect x="10" y="-4" width="3" height="6" rx="1" fill="#00E5FF" opacity="0.7"/>
-    <rect x="27" y="-4" width="3" height="6" rx="1" fill="#00E5FF" opacity="0.7"/>
-    <rect x="10" y="28" width="3" height="6" rx="1" fill="#00E5FF" opacity="0.7"/>
-    <rect x="27" y="28" width="3" height="6" rx="1" fill="#00E5FF" opacity="0.7"/>
-    <!-- LLM text on chip -->
-    <text x="20" y="20" text-anchor="middle" font-size="10" font-weight="700" fill="#E0F7FA" letter-spacing="1">LLM</text>
-  </g>
-
-  <!-- Title text -->
-  <text x="256" y="462" text-anchor="middle" font-size="42" font-weight="800" fill="#E8E8F0" letter-spacing="3" filter="url(#softShadow)">LLM-GROW</text>
-  <text x="256" y="486" text-anchor="middle" font-size="13" fill="#9E9EC8" letter-spacing="2" font-weight="400">GROW YOUR LLM FROM SEED</text>
 </svg>

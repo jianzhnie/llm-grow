@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <em>Grow Your LLM from Seed</em>
+  <em>Expand Existing Models, Layer by Layer</em>
 </p>
 
 > 从已有 LLM checkpoint **生长**出更大模型的模块化工具库。
