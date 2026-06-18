@@ -32,6 +32,7 @@ The logger automatically displays format like:
 import logging
 import os
 import sys
+import typing
 from logging import Formatter, LogRecord
 from pathlib import Path
 
@@ -55,7 +56,7 @@ class ColorfulFormatter(Formatter):
         >>> handler.setFormatter(formatter)
     """
 
-    COLORS = {
+    COLORS: typing.ClassVar[dict[str, str]] = {
         "INFO": Fore.GREEN,
         "WARNING": Fore.YELLOW,
         "ERROR": Fore.RED,
@@ -109,12 +110,14 @@ def get_logger(
 
     Args:
         name: Logger name for identification and hierarchy
-        log_file: Path to the log file. If provided, logs will also be written to this file
-                 (only for rank 0 process in distributed training)
+        log_file: Path to the log file. If provided, logs
+                 will also be written to this file
+                 (only for rank 0 in distributed training)
         log_level: Logging level (e.g., logging.INFO, logging.DEBUG)
                   Note: Only rank 0 process uses this level; others use ERROR level
         file_mode: File opening mode ('w' for write, 'a' for append)
-        force_main_process: If True, only main process (rank 0) will log regardless of log_level
+        force_main_process: If True, only main process
+                 (rank 0) will log regardless of log_level
 
     Returns:
         A configured logging.Logger instance
@@ -165,7 +168,11 @@ def get_logger(
 
         # Configure formatter with rank information
         if is_main_process:
-            fmt = "%(asctime)s - [Rank %(rank)d] - %(name)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s"
+            fmt = (
+                "%(asctime)s - [Rank %(rank)d] - "
+                "%(name)s.%(funcName)s:%(lineno)d - "
+                "%(levelname)s - %(message)s"
+            )
         else:
             fmt = (
                 "%(asctime)s - [Rank %(rank)d] - %(name)s - %(levelname)s - %(message)s"

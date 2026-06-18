@@ -73,5 +73,6 @@ def cluster_aware_upcycling(
     """
     # TODO: 实现 Cluster-Aware Upcycling（需要外部 token 聚类结果）
     raise NotImplementedError(
-        "Cluster-Aware Upcycling 需要外部 token 聚类结果。请参考 arXiv:2604.13508 实现完整流程。"
+        "Cluster-Aware Upcycling 需要外部 token 聚类结果。"
+        "请参考 arXiv:2604.13508 实现完整流程。"
     )

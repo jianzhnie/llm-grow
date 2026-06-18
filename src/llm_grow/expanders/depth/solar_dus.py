@@ -26,8 +26,7 @@ logger = get_logger(__name__)
 class SolarDUSConfig(ExpansionConfig):
     num_overlap: int = 8
     """重叠层数。上段保留前 (L - num_overlap) 层；下段从第 num_overlap 层开始。
-    拼接后总层数 = 2 * L - 2 * num_overlap + 2 * num_overlap = 2L - num_overlap * 0...
-    实际: len(upper) + len(lower) = (L - num_overlap) + (L - num_overlap) = 2*(L-num_overlap)
+    实际: len(upper) + len(lower) = 2*(L - num_overlap)
     """
 
 

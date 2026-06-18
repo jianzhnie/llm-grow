@@ -56,7 +56,8 @@ def check_expert_upcycling():
         assert plan.recipes[k].dup_rows, "Classifier should have dup_rows=True"
     print("  [OK] Router classifier dup_rows=True")
 
-    # scale_moe_topk=False: moe_topk unchanged (matches original expand_experts.py default)
+    # scale_moe_topk=False: moe_topk unchanged
+    # (matches original expand_experts.py default)
     assert plan.config_patches.get("n_routed_experts") == 1024
     assert plan.config_patches.get("zero_expert_num") == 512
     assert "moe_topk" not in plan.config_patches
@@ -135,7 +136,8 @@ def check_depth_expansion():
     )
     non_layer_plan = sum(1 for k in plan.recipes if not k.startswith("model.layers."))
     print(
-        f"  [Check] Non-layer tensors: {non_layer_orig} (src) -> {non_layer_plan} (plan)"
+        f"  [Check] Non-layer tensors: "
+        f"{non_layer_orig} (src) -> {non_layer_plan} (plan)"
     )
     assert non_layer_orig == non_layer_plan, "Non-layer tensor count changed!"
     print("  [OK] All non-layer tensors (embed, norm, mtp) pass through")

@@ -272,7 +272,9 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
             for suf in suffixes:
                 src_key = f"model.layers.{src_idx}.{suf}"
                 if src_key not in wmap:
-                    continue  # suffix absent for this layer (e.g. expert suf in dense layer 0)
+                    # suffix absent for this layer
+                    # (e.g. expert suf in dense layer 0)
+                    continue
                 new_key = f"model.layers.{new_idx}.{suf}"
                 plan.add(
                     new_key,

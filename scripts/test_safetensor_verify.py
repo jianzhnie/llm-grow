@@ -110,7 +110,8 @@ def verify_fp_logits(
 
 def verify_config(dst_dir: str, expected_patches: dict, label: str) -> bool:
     """Check that config.json contains expected patches."""
-    cfg = json.load(open(Path(dst_dir) / "config.json"))
+    with open(Path(dst_dir) / "config.json") as f:
+        cfg = json.load(f)
     mismatches = []
     for k, v in expected_patches.items():
         if cfg.get(k) != v:
@@ -357,9 +358,8 @@ def test_dup_rows_router_split():
 
 def test_dryrun_plans():
     label = "dryrun_plans"
-    print(
-        f"\n{'=' * 60}\n  {label}: Plan verification for MoE models (no weights)\n{'=' * 60}"
-    )
+    header = f"{label}: Plan verification for MoE models (no weights)"
+    print(f"\n{'=' * 60}\n  {header}\n{'=' * 60}")
 
     from llm_grow.safetensor.detect import detect_model
 

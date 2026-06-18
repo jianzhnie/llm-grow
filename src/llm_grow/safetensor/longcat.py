@@ -185,9 +185,13 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
                 # For expand_factor > 2, log a warning but proceed with ×2 semantics.
                 if cfg.expand_factor > 2:
                     raise NotImplementedError(
-                        f"expand_factor={cfg.expand_factor} > 2 for router classifier "
-                        "requires multi-pass duplication; only expand_factor=2 is supported. "
-                        "Use the standalone expand_moe_experts.py for arbitrary factors."
+                        f"expand_factor={cfg.expand_factor} > 2 "
+                        "for router classifier requires "
+                        "multi-pass duplication; only "
+                        "expand_factor=2 is supported. "
+                        "Use the standalone "
+                        "expand_moe_experts.py for "
+                        "arbitrary factors."
                     )
                 plan.add(
                     key,
@@ -253,7 +257,8 @@ class LongcatDepthConfig:
     """'uniform' | 'front' | 'rear'"""
 
     noise_scale: float = 0.0
-    """Optional noise for non-zero tensors in identity blocks (default 0 = exact copy)."""
+    """Optional noise for non-zero tensors in identity blocks
+    (default 0 = exact copy)."""
 
 
 class LongcatDepthExpander(SafetensorExpanderBase):

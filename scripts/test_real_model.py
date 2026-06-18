@@ -86,12 +86,12 @@ def test_llama_pro():
     trainable = sum(p.numel() for p in expanded.parameters() if p.requires_grad)
 
     print(f"  Layers : {orig_layers} → {exp_layers}  (+{exp_layers - orig_layers})")
+    ratio = exp_params / orig_params
     print(
-        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
+        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({ratio:.3f}x)"
     )
-    print(
-        f"  Trainable params: {trainable / 1e6:.1f}M  ({100 * trainable / exp_params:.1f}%)"
-    )
+    train_pct = 100 * trainable / exp_params
+    print(f"  Trainable params: {trainable / 1e6:.1f}M  ({train_pct:.1f}%)")
     print(f"  Expand time: {elapsed:.2f}s")
     quick_fp_check(orig, expanded)
     return True
@@ -118,8 +118,9 @@ def test_solar_dus():
     expected = 2 * (orig_layers - config.num_overlap)
 
     print(f"  Layers : {orig_layers} → {exp_layers}  (expected {expected})")
+    ratio = exp_params / orig_params
     print(
-        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
+        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({ratio:.3f}x)"
     )
     print(f"  Expand time: {elapsed:.2f}s")
     assert exp_layers == expected, f"Layer count mismatch: {exp_layers} != {expected}"
@@ -178,8 +179,9 @@ def test_msg():
     exp_layers = len(expanded.model.layers)
     exp_params = count_params(expanded)
     print(f"  Layers : {orig_layers} → {exp_layers}")
+    ratio = exp_params / orig_params
     print(
-        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
+        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({ratio:.3f}x)"
     )
     print(f"  Expand time: {elapsed:.2f}s")
     quick_fp_check(orig, expanded)
@@ -205,8 +207,9 @@ def test_moe_upcycling():
     elapsed = time.time() - t0
 
     exp_params = count_params(expanded)
+    ratio = exp_params / orig_params
     print(
-        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({exp_params / orig_params:.3f}x)"
+        f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M  ({ratio:.3f}x)"
     )
     print(f"  Expand time: {elapsed:.2f}s")
 
@@ -255,8 +258,10 @@ def test_expert_upcycling():
     elapsed = time.time() - t0
 
     final_params = count_params(expanded)
+    ratio = final_params / moe_params
     print(
-        f"  Params : {moe_params / 1e6:.1f}M → {final_params / 1e6:.1f}M  ({final_params / moe_params:.3f}x)"
+        f"  Params : {moe_params / 1e6:.1f}M → "
+        f"{final_params / 1e6:.1f}M  ({ratio:.3f}x)"
     )
     print(f"  Expand time: {elapsed:.2f}s")
 

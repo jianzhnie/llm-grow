@@ -2,9 +2,12 @@
 
 Usage::
 
-    llm-grow expand --method depth --src /path/to/model --dst ./output --num-new-layers 4
-    llm-grow expand --method expert --src /path/to/moe --dst ./output --expand-factor 2
-    llm-grow expand --method width --src /path/to/model --dst ./output --ffn-size-expansion 1024
+    llm-grow expand --method depth --src /path/to/model \\
+        --dst ./output --num-new-layers 4
+    llm-grow expand --method expert --src /path/to/moe \\
+        --dst ./output --expand-factor 2
+    llm-grow expand --method width --src /path/to/model \\
+        --dst ./output --ffn-size-expansion 1024
     llm-grow verify --src /path/to/original --dst /path/to/expanded
     llm-grow info --src /path/to/model
 """

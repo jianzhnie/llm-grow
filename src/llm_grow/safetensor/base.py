@@ -224,10 +224,12 @@ class SafetensorExpanderBase(ABC):
 
         _log(f"[dry_run] {type(self).__name__}  src={src_dir}")
         _log(
-            f"  source:  {len(src_index.all_keys)} tensors, {len(src_index.shard_files)} shard(s)"
+            f"  source:  {len(src_index.all_keys)} tensors, "
+            f"{len(src_index.shard_files)} shard(s)"
         )
         _log(
-            f"  output:  {len(plan.recipes)} tensors, num_hidden_layers → {plan.new_num_hidden_layers}"
+            f"  output:  {len(plan.recipes)} tensors, "
+            f"num_hidden_layers → {plan.new_num_hidden_layers}"
         )
         _log(f"  config patches: {plan.config_patches}")
 
@@ -319,7 +321,8 @@ class SafetensorExpanderBase(ABC):
                 if verbose:
                     size_mb = (dst_dir / shard_name).stat().st_size / 1e6
                     _log(
-                        f"  wrote {shard_name}  ({len(tensors)} tensors, {size_mb:.0f} MB)"
+                        f"  wrote {shard_name}  "
+                        f"({len(tensors)} tensors, {size_mb:.0f} MB)"
                     )
 
         dst_index = ShardIndex(dst_dir, weight_map)

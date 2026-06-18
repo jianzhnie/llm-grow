@@ -25,7 +25,9 @@ class StructuralVerifier:
 
     Usage::
 
-        verifier = StructuralVerifier(src_dir="/models/orig", dst_dir="/models/expanded")
+        verifier = StructuralVerifier(
+            src_dir="/models/orig", dst_dir="/models/expanded",
+        )
         results = verifier.run_all()
         assert all(results.values())
     """

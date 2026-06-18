@@ -13,11 +13,11 @@ class TestLESAExpander:
     def test_layer_count_increases(self):
         model = self._make_model(8)
         config = LESAConfig(insert_between=[(1, 2), (4, 5)])
-        expanded = LESAExpander().expand(model, config)
+        LESAExpander().expand(model, config)
         assert len(model.layers) == 10
 
     def test_insert_between_single(self):
         model = self._make_model(8)
         config = LESAConfig(insert_between=[(3, 4)])
-        expanded = LESAExpander().expand(model, config)
+        LESAExpander().expand(model, config)
         assert len(model.layers) == 9

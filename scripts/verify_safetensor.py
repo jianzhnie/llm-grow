@@ -73,12 +73,12 @@ def check_config(src_dir: Path, dst_dir: Path) -> bool:
 
 def check_tensor_counts(src_idx: ShardIndex, dst_idx: ShardIndex) -> bool:
     print("\n[Tensor counts]")
-    print(
-        f"  src: {len(src_idx.all_keys)} tensors across {len(src_idx.shard_files)} shard(s)"
-    )
-    print(
-        f"  dst: {len(dst_idx.all_keys)} tensors across {len(dst_idx.shard_files)} shard(s)"
-    )
+    src_n = len(src_idx.all_keys)
+    src_s = len(src_idx.shard_files)
+    print(f"  src: {src_n} tensors across {src_s} shard(s)")
+    dst_n = len(dst_idx.all_keys)
+    dst_s = len(dst_idx.shard_files)
+    print(f"  dst: {dst_n} tensors across {dst_s} shard(s)")
     src_layers = src_idx.num_hidden_layers()
     dst_layers = dst_idx.num_hidden_layers()
     per_layer = len(src_idx.layer_suffixes())
@@ -132,13 +132,16 @@ def check_original_weights_preserved(
         if best_idx == -1:
             # Width expansion changed shapes — just report the nearest candidate
             print(
-                f"  [~] layer {orig_idx}: all dst shapes differ (width expansion applied)"
+                f"  [~] layer {orig_idx}: all dst shapes "
+                f"differ (width expansion applied)"
             )
         else:
             ok = best_diff < 1e-6
             icon = "✓" if ok else "✗"
             print(
-                f"  [{icon}] orig layer {orig_idx} → dst layer {best_idx}  max|Δ|={best_diff:.2e}"
+                f"  [{icon}] orig layer {orig_idx} → "
+                f"dst layer {best_idx}  "
+                f"max|Δ|={best_diff:.2e}"
             )
             all_ok = all_ok and ok
     return all_ok
@@ -167,7 +170,8 @@ def check_identity_blocks_zeroed(dst_idx: ShardIndex) -> bool:
         print("  [~] No zeroed projections found (non-FP method or no identity blocks)")
     else:
         print(
-            f"  [✓] Found {total_zero} zeroed projection(s), {total_nonzero} non-zero (original layers)"
+            f"  [✓] Found {total_zero} zeroed projection(s), "
+            f"{total_nonzero} non-zero (original layers)"
         )
     return True
 

@@ -146,8 +146,9 @@ def _build_expander(
     if method == "width":
         if profile.is_moe:
             raise NotImplementedError(
-                "method='width' (FFN size expansion) is not yet supported for MoE models. "
-                "Use method='expert' to increase expert count instead."
+                "method='width' (FFN size expansion) is not yet "
+                "supported for MoE models. "
+                "Use method='expert' to increase expert count."
             )
         from llm_grow.safetensor.msg import MSGSafetensorConfig, MSGSafetensorExpander
 
