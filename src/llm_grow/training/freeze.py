@@ -23,6 +23,40 @@ def freeze_original_layers(model: nn.Module) -> int:
     return frozen
 
 
+def mark_new_params(model: nn.Module, original_param_ids: set[int]) -> int:
+    """根据扩增前的参数快照，标记所有新增参数。
+
+    Args:
+        model: 扩增后的模型。
+        original_param_ids: 扩增前通过 ``snapshot_param_ids(model)`` 获取的
+            参数 id 集合。
+
+    Returns:
+        被标记的新增参数元素数量。
+    """
+    count = 0
+    for param in model.parameters():
+        if id(param) not in original_param_ids:
+            param._is_new_growth = True
+            count += param.numel()
+    return count
+
+
+def snapshot_param_ids(model: nn.Module) -> set[int]:
+    """获取模型当前所有参数的 id 集合。扩增前调用以建立快照。
+
+    用法::
+
+        from llm_grow.training.freeze import snapshot_param_ids, mark_new_params
+
+        original_ids = snapshot_param_ids(model)
+        expander.expand(model, config)
+        mark_new_params(model, original_ids)
+        freeze_original_layers(model)
+    """
+    return {id(p) for p in model.parameters()}
+
+
 def unfreeze_all(model: nn.Module) -> int:
     """解冻全部参数，用于 Phase-2 全量微调。
 

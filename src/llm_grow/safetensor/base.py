@@ -1,5 +1,29 @@
 """Base class for safetensor-level model expansion.
 
+Architecture
+------------
+This is the **safetensor-level** expansion layer of llm-grow.  It operates
+directly on serialized ``.safetensors`` files without instantiating any
+``nn.Module``, making it suitable for 100B+ parameter models that cannot
+fit in RAM.
+
+For models that can be loaded in memory, use the in-memory expanders at
+``llm_grow.expanders.base.AbstractExpander`` instead — they offer richer
+integration with training, verification, and optimizer workflows.
+
+Both layers share the same mathematical algorithms (LLaMA-Pro identity
+insertion, expert duplication, etc.) but operate at different abstraction
+levels:
+
+  +-----------------------+----------------------------+
+  | In-Memory (expanders) | Safetensor (this module)   |
+  +-----------------------+----------------------------+
+  | nn.Module in/out      | .safetensors dir in/out    |
+  | Peak = full model     | Peak ≈ 1 output shard      |
+  | FP verify: yes        | FP verify: structural only |
+  | Training-ready        | Needs reload for training  |
+  +-----------------------+----------------------------+
+
 Core design
 -----------
 Each expander subclass produces an ``ExpansionPlan``: a mapping from every

@@ -37,7 +37,11 @@ class MoEUpcyclingConfig(ExpansionConfig):
 
 
 class MoELayer(nn.Module):
-    """替换 Dense FFN 的 MoE 层。"""
+    """替换 Dense FFN 的 MoE 层。
+
+    使用 scatter-gather 批量分发策略：将 token 按路由结果分组后批量送入
+    对应专家，避免 per-token Python 循环，显著提升训练和推理吞吐。
+    """
 
     def __init__(
         self,
@@ -54,24 +58,32 @@ class MoELayer(nn.Module):
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         bsz, seq_len, hidden = hidden_states.shape
-        flat = hidden_states.view(-1, hidden)
+        num_tokens = bsz * seq_len
+        flat = hidden_states.view(num_tokens, hidden)
 
         router_logits = self.router(flat)
         scores = F.softmax(router_logits, dim=-1)
         topk_weights, topk_ids = torch.topk(scores, self.top_k, dim=-1)
         topk_weights = topk_weights / topk_weights.sum(dim=-1, keepdim=True)
 
-        output = torch.zeros_like(flat)
-        for k in range(self.top_k):
-            expert_ids = topk_ids[:, k]
-            weights = topk_weights[:, k].unsqueeze(-1)
-            for expert_idx in range(self.num_experts):
-                mask = expert_ids == expert_idx
-                if mask.any():
-                    expert_out = self.experts[expert_idx](flat[mask])
-                    output[mask] += weights[mask] * expert_out
+        flat_ids = topk_ids.view(-1)
+        flat_weights = topk_weights.view(-1, 1)
+        token_indices = torch.arange(num_tokens, device=flat.device).unsqueeze(1)
+        token_indices = token_indices.expand(-1, self.top_k).reshape(-1)
 
-        return output.view(bsz, seq_len, hidden)
+        expert_outputs = torch.zeros(num_tokens, hidden, dtype=flat.dtype, device=flat.device)
+
+        for expert_idx in range(self.num_experts):
+            mask = flat_ids == expert_idx
+            if not mask.any():
+                continue
+            selected_tokens = token_indices[mask]
+            expert_input = flat[selected_tokens]
+            expert_out = self.experts[expert_idx](expert_input)
+            weighted_out = flat_weights[mask] * expert_out
+            expert_outputs.index_add_(0, selected_tokens, weighted_out)
+
+        return expert_outputs.view(bsz, seq_len, hidden)
 
 
 class MoEUpcyclingExpander(AbstractExpander):

@@ -72,14 +72,40 @@ class GrowthScheduler:
                 if hasattr(param, "_growth_scale"):
                     param._growth_scale = unlock_ratio
 
-    def register_new_params(self, model: nn.Module) -> int:
-        """标记模型中所有 requires_grad=True 且未被冻结的参数为"新增"参数。
+    def register_new_params(self, model: nn.Module, original_param_ids: set[int] | None = None) -> int:
+        """标记模型中的新增参数为"新增"（设置 ``_is_new_growth = True``）。
 
-        应在扩增后、冻结原始参数前调用。
+        使用参数 ``id()`` 快照来精确区分新旧参数：仅标记扩增后新增的参数，
+        而非所有 ``requires_grad=True`` 的参数。
+
+        Args:
+            model: 扩增后的模型。
+            original_param_ids: 扩增前通过 ``snapshot_param_ids(model)`` 获取的
+                参数 id 集合。如果为 None，则退化为标记所有已设置
+                ``_is_new_growth`` 的参数（即依赖扩增步骤中的标记）。
+
+        Returns:
+            被标记的新增参数元素数量。
         """
         count = 0
         for param in model.parameters():
-            if param.requires_grad:
-                param._is_new_growth = True
-                count += param.numel()
+            if original_param_ids is not None:
+                if id(param) not in original_param_ids:
+                    param._is_new_growth = True
+                    count += param.numel()
+            else:
+                if getattr(param, "_is_new_growth", False):
+                    count += param.numel()
         return count
+
+    @staticmethod
+    def snapshot_param_ids(model: nn.Module) -> set[int]:
+        """在扩增前调用，获取所有参数的 id 集合作为快照。
+
+        用法::
+
+            original_ids = GrowthScheduler.snapshot_param_ids(model)
+            expander.expand(model, config)
+            scheduler.register_new_params(model, original_ids)
+        """
+        return {id(p) for p in model.parameters()}

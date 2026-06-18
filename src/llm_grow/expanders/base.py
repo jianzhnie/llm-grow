@@ -23,11 +23,29 @@ class ExpansionConfig:
 
 
 class AbstractExpander(ABC):
-    """所有扩增算法的统一接口。
+    """所有 **in-memory** 模型扩增算法的统一接口。
+
+    llm-grow 提供两层扩增体系，适用于不同场景：
+
+    1. **In-Memory Expanders** (本模块 ``expanders/``)
+       - 输入：已加载到 RAM/GPU 的 ``nn.Module``。
+       - 输出：原地或拷贝修改后的 ``nn.Module``。
+       - 场景：模型可以完整加载时（<= 单机显存或 CPU 内存）。
+       - 优点：可直接进行 function-preserving 验证、配合 training 流程。
+
+    2. **Safetensor Expanders** (``safetensor/base.SafetensorExpanderBase``)
+       - 输入：磁盘上的 ``.safetensors`` 文件目录。
+       - 输出：新的 ``.safetensors`` 文件目录。
+       - 场景：模型太大无法一次性加载（100B+ 参数），或仅需产出权重文件。
+       - 优点：峰值内存 ≈ 单个输出 shard（~4GB），支持并行写入。
+
+    两者共享相同的数学算法，但操作层级不同：
+      - In-Memory 操作 ``nn.Module`` 的 Python 对象和 ``nn.Parameter``。
+      - Safetensor 操作序列化的 tensor 字节流，不实例化 ``nn.Module``。
 
     子类须实现：
-      - expand(model, config) -> nn.Module
-      - verify(original, expanded) -> bool
+      - ``expand(model, config) -> nn.Module``
+      - 可选覆盖 ``verify(original, expanded) -> bool``
     """
 
     def __call__(self, model: nn.Module, config: ExpansionConfig) -> nn.Module:

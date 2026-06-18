@@ -94,8 +94,11 @@ def _make_identity_block(
     attn_proj_names: list[str],
     mlp_proj_names: list[str],
 ) -> nn.Module:
+    """创建恒等块（deep copy + zero projections），并标记所有参数为新增。"""
     block = copy.deepcopy(source_block)
     zero_output_projections(block, attn_proj_names, mlp_proj_names)
+    for param in block.parameters():
+        param._is_new_growth = True
     return block
 
 

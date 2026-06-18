@@ -102,7 +102,10 @@ def _expand_width(model: nn.Module, config: MSGConfig) -> nn.Module:
 
 
 def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
-    """在行（out）和列（in）方向零填充权重矩阵，保持 function-preserving。"""
+    """在行（out）和列（in）方向零填充权重矩阵，保持 function-preserving。
+
+    新创建的参数会被标记 ``_is_new_growth = True``，以便后续 freeze 机制识别。
+    """
     old_w = module.weight.data
     old_out, old_in = old_w.shape
 
@@ -111,7 +114,9 @@ def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
     new_w = torch.zeros(new_out, new_in, dtype=old_w.dtype, device=old_w.device)
     new_w[:old_out, :old_in] = old_w
 
-    module.weight = nn.Parameter(new_w)
+    new_param = nn.Parameter(new_w)
+    new_param._is_new_growth = True
+    module.weight = new_param
     module.out_features = new_out
     module.in_features = new_in
 
@@ -119,7 +124,9 @@ def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
         old_b = module.bias.data
         new_b = torch.zeros(new_out, dtype=old_b.dtype, device=old_b.device)
         new_b[:old_out] = old_b
-        module.bias = nn.Parameter(new_b)
+        new_bias_param = nn.Parameter(new_b)
+        new_bias_param._is_new_growth = True
+        module.bias = new_bias_param
 
 
 def _classify_linear(name: str) -> str:
