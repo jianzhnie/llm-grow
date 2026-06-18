@@ -7,6 +7,10 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class RecoveryPoint:
@@ -39,7 +43,7 @@ class RecoveryCurveTracker:
     def set_baseline(self, scores: dict[str, float]) -> None:
         """记录原始模型的 baseline 分数（扩增前）。"""
         self.baseline = scores
-        print(f"[Recovery] Baseline set: {scores}")
+        logger.info("Baseline set: %s", scores)
 
     def log(
         self,
@@ -69,17 +73,33 @@ class RecoveryCurveTracker:
                 for k, v in scores.items()
                 if k in self.baseline and self.baseline[k] > 0
             }
-            print(f"[Recovery] step={step} tokens={tokens_seen:,}  {scores}  recovery={recovery}")
+            logger.info(
+                "step=%d tokens=%s  %s  recovery=%s",
+                step,
+                f"{tokens_seen:,}",
+                scores,
+                recovery,
+            )
 
     def summary(self) -> None:
         if not self.points:
-            print("[Recovery] No data logged yet.")
+            logger.info("No data logged yet.")
             return
         last = self.points[-1]
-        print(f"\n[Recovery Summary] {len(self.points)} checkpoints logged.")
-        print(f"  Latest @ step={last.step}, tokens={last.tokens_seen:,}")
+        logger.info(
+            "%d checkpoints logged. Latest @ step=%d, tokens=%s",
+            len(self.points),
+            last.step,
+            f"{last.tokens_seen:,}",
+        )
         if self.baseline:
             for k, v in last.scores.items():
                 base = self.baseline.get(k, None)
                 if base:
-                    print(f"  {k}: {v:.4f}  (baseline={base:.4f}, recovery={v / base * 100:.1f}%)")
+                    logger.info(
+                        "  %s: %.4f  (baseline=%.4f, recovery=%.1f%%)",
+                        k,
+                        v,
+                        base,
+                        v / base * 100,
+                    )

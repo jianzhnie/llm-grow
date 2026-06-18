@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from tests.conftest import FakeModel
-
 from llm_grow.expanders.depth.lesa import LESAConfig, LESAExpander
+from tests.conftest import FakeModel
 
 
 class TestLESAExpander:

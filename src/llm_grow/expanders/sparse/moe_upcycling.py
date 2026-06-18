@@ -71,7 +71,9 @@ class MoELayer(nn.Module):
         token_indices = torch.arange(num_tokens, device=flat.device).unsqueeze(1)
         token_indices = token_indices.expand(-1, self.top_k).reshape(-1)
 
-        expert_outputs = torch.zeros(num_tokens, hidden, dtype=flat.dtype, device=flat.device)
+        expert_outputs = torch.zeros(
+            num_tokens, hidden, dtype=flat.dtype, device=flat.device
+        )
 
         for expert_idx in range(self.num_experts):
             mask = flat_ids == expert_idx
@@ -103,7 +105,9 @@ class MoEUpcyclingExpander(AbstractExpander):
             if not _is_ffn_module(module):
                 continue
 
-            experts = nn.ModuleList([copy.deepcopy(module) for _ in range(config.num_experts)])
+            experts = nn.ModuleList(
+                [copy.deepcopy(module) for _ in range(config.num_experts)]
+            )
             add_noise_to_experts(experts, std=config.noise_std)
 
             moe_layer = MoELayer(
@@ -136,7 +140,9 @@ class MoEUpcyclingExpander(AbstractExpander):
 def _is_ffn_module(module: nn.Module) -> bool:
     """判断是否是叶子 FFN 模块（含 gate_proj / up_proj 的 SwiGLU MLP）。"""
     child_names = {n for n, _ in module.named_children()}
-    return bool({"gate_proj", "up_proj", "down_proj"} & child_names) or bool({"fc1", "fc2"} & child_names)
+    return bool({"gate_proj", "up_proj", "down_proj"} & child_names) or bool(
+        {"fc1", "fc2"} & child_names
+    )
 
 
 def _get_hidden_size(model: nn.Module) -> int:

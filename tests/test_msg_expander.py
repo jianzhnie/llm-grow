@@ -6,9 +6,8 @@ import copy
 
 import torch
 
-from tests.conftest import FakeModel
-
 from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
+from tests.conftest import FakeModel
 
 
 class TestMSGExpander:

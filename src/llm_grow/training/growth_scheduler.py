@@ -72,7 +72,9 @@ class GrowthScheduler:
                 if hasattr(param, "_growth_scale"):
                     param._growth_scale = unlock_ratio
 
-    def register_new_params(self, model: nn.Module, original_param_ids: set[int] | None = None) -> int:
+    def register_new_params(
+        self, model: nn.Module, original_param_ids: set[int] | None = None
+    ) -> int:
         """标记模型中的新增参数为"新增"（设置 ``_is_new_growth = True``）。
 
         使用参数 ``id()`` 快照来精确区分新旧参数：仅标记扩增后新增的参数，

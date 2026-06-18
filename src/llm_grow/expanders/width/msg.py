@@ -42,8 +42,12 @@ class MSGConfig(ExpansionConfig):
     - 'linear'   : 按训练步数线性解锁（需配合 GrowthScheduler）
     """
 
-    attn_output_proj_names: list[str] = field(default_factory=lambda: ["o_proj", "out_proj"])
-    mlp_output_proj_names: list[str] = field(default_factory=lambda: ["down_proj", "fc2"])
+    attn_output_proj_names: list[str] = field(
+        default_factory=lambda: ["o_proj", "out_proj"]
+    )
+    mlp_output_proj_names: list[str] = field(
+        default_factory=lambda: ["down_proj", "fc2"]
+    )
 
     def __post_init__(self):
         if self.depth_expansion is not None:

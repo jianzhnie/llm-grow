@@ -223,7 +223,11 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
     @staticmethod
     def _count_experts_per_layer(wmap: dict[str, str]) -> int:
         """Count distinct expert indices in layer 0."""
-        indices = {_expert_idx(k) for k in wmap if k.startswith("model.layers.0.") and _is_expert_key(k)}
+        indices = {
+            _expert_idx(k)
+            for k in wmap
+            if k.startswith("model.layers.0.") and _is_expert_key(k)
+        }
         return len(indices)
 
     @staticmethod
@@ -301,7 +305,9 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         wmap = src_index.weight_map
         suffixes = src_index.layer_suffixes()
 
-        positions = set(_insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy))
+        positions = set(
+            _insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
+        )
         sequence: list[tuple[int, bool]] = []
         for i in range(num_orig):
             sequence.append((i, False))

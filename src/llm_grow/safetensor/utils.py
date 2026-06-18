@@ -109,7 +109,9 @@ class ShardIndex:
 
     @property
     def is_single_shard(self) -> bool:
-        return len(self.shard_files) == 1 and self.shard_files[0] == self.SINGLE_FILENAME
+        return (
+            len(self.shard_files) == 1 and self.shard_files[0] == self.SINGLE_FILENAME
+        )
 
     def total_size_bytes(self) -> int:
         return sum((self.model_dir / sf).stat().st_size for sf in self.shard_files)
@@ -119,7 +121,8 @@ class ShardIndex:
     def open_all_shards(self) -> dict[str, safe_open]:
         """Open all shards with mmap.  Caller responsible for resource lifecycle."""
         return {
-            sf: safe_open(str(self.model_dir / sf), framework="pt", device="cpu") for sf in self.shard_files
+            sf: safe_open(str(self.model_dir / sf), framework="pt", device="cpu")
+            for sf in self.shard_files
         }
 
     def layer_suffixes(self) -> list[str]:
@@ -133,7 +136,11 @@ class ShardIndex:
 
     def num_hidden_layers(self) -> int:
         """Infer num_hidden_layers from tensor keys."""
-        indices = {parse_layer_idx(k) for k in self.weight_map if parse_layer_idx(k) is not None}
+        indices = {
+            parse_layer_idx(k)
+            for k in self.weight_map
+            if parse_layer_idx(k) is not None
+        }
         return max(indices) + 1 if indices else 0
 
     # ── write helpers ────────────────────────────────────────────────────────
@@ -199,7 +206,9 @@ def read_safetensors_header(path: Path) -> dict[str, tuple[str, list[int]]]:
     with open(path, "rb") as f:
         header_len = int.from_bytes(f.read(8), "little")
         header = json.loads(f.read(header_len))
-    return {k: (v["dtype"], v["shape"]) for k, v in header.items() if k != "__metadata__"}
+    return {
+        k: (v["dtype"], v["shape"]) for k, v in header.items() if k != "__metadata__"
+    }
 
 
 def nbytes_from_header(dtype: str, shape: list[int]) -> int:
@@ -216,10 +225,16 @@ def auto_detect_shard_size(model_dir: Path, shard_files: list[str]) -> int:
 
     Falls back to 4 GB if no shard files are present on disk.
     """
-    sizes = [(model_dir / sf).stat().st_size for sf in shard_files if (model_dir / sf).exists()]
+    sizes = [
+        (model_dir / sf).stat().st_size
+        for sf in shard_files
+        if (model_dir / sf).exists()
+    ]
     if sizes:
         avg = int(sum(sizes) / len(sizes))
-        logger.info("Auto shard size: %.2f GB (mean of %d shards)", avg / 1e9, len(sizes))
+        logger.info(
+            "Auto shard size: %.2f GB (mean of %d shards)", avg / 1e9, len(sizes)
+        )
         return avg
     logger.info("No shard files found on disk — using 4 GB default")
     return 4 * 1024**3

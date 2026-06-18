@@ -5,6 +5,10 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 def verify_fp(
     original: nn.Module | str,
@@ -61,12 +65,17 @@ def verify_fp(
     passed = overall_max < atol
 
     if verbose:
-        status = "✓ PASSED" if passed else "✗ FAILED"
-        print(
-            f"[FP Verify] {status}\n"
-            f"  max |Δlogit|  = {overall_max:.4e}  (threshold={atol})\n"
-            f"  mean |Δlogit| = {overall_mean:.4e}\n"
-            f"  samples={num_samples}, seq_len={seq_len}, device={device}"
+        status = "PASSED" if passed else "FAILED"
+        logger.info(
+            "[FP Verify] %s  max|Δlogit|=%.4e (threshold=%s)  "
+            "mean|Δlogit|=%.4e  samples=%d seq_len=%d device=%s",
+            status,
+            overall_max,
+            atol,
+            overall_mean,
+            num_samples,
+            seq_len,
+            device,
         )
     return passed
 

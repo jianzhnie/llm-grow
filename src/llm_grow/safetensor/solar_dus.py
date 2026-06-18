@@ -41,7 +41,9 @@ class SolarDUSSafetensorExpander(SafetensorExpanderBase):
         overlap = self.config.num_overlap
 
         if overlap >= num_orig:
-            raise ValueError(f"num_overlap ({overlap}) must be < num_hidden_layers ({num_orig}).")
+            raise ValueError(
+                f"num_overlap ({overlap}) must be < num_hidden_layers ({num_orig})."
+            )
 
         upper_end = num_orig - overlap  # upper copy: layers 0 .. upper_end-1
         lower_start = overlap  # lower copy: layers lower_start .. num_orig-1

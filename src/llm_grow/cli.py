@@ -28,24 +28,47 @@ def main() -> None:
     expand_p.add_argument("--src", required=True, help="Source model directory")
     expand_p.add_argument("--dst", required=True, help="Output directory")
     expand_p.add_argument(
-        "--method", default="depth", choices=["depth", "expert", "width"],
+        "--method",
+        default="depth",
+        choices=["depth", "expert", "width"],
         help="Expansion method (default: depth)",
     )
-    expand_p.add_argument("--num-new-layers", type=int, default=4, help="[depth/width] Layers to insert")
-    expand_p.add_argument("--insert-strategy", default="uniform", choices=["uniform", "front", "rear"])
-    expand_p.add_argument("--expand-factor", type=int, default=2, help="[expert] Expert count multiplier")
-    expand_p.add_argument("--noise-scale", type=float, default=1e-6, help="[expert] Router noise scale")
-    expand_p.add_argument("--ffn-size-expansion", type=int, default=0, help="[width] intermediate_size increment")
-    expand_p.add_argument("--target-shard-gb", type=float, default=4.0, help="Output shard size in GB")
-    expand_p.add_argument("--workers", type=int, default=1, help="Parallel writer processes")
-    expand_p.add_argument("--dry-run", action="store_true", help="Plan only, no file writes")
+    expand_p.add_argument(
+        "--num-new-layers", type=int, default=4, help="[depth/width] Layers to insert"
+    )
+    expand_p.add_argument(
+        "--insert-strategy", default="uniform", choices=["uniform", "front", "rear"]
+    )
+    expand_p.add_argument(
+        "--expand-factor", type=int, default=2, help="[expert] Expert count multiplier"
+    )
+    expand_p.add_argument(
+        "--noise-scale", type=float, default=1e-6, help="[expert] Router noise scale"
+    )
+    expand_p.add_argument(
+        "--ffn-size-expansion",
+        type=int,
+        default=0,
+        help="[width] intermediate_size increment",
+    )
+    expand_p.add_argument(
+        "--target-shard-gb", type=float, default=4.0, help="Output shard size in GB"
+    )
+    expand_p.add_argument(
+        "--workers", type=int, default=1, help="Parallel writer processes"
+    )
+    expand_p.add_argument(
+        "--dry-run", action="store_true", help="Plan only, no file writes"
+    )
     expand_p.add_argument("--quiet", action="store_true")
 
     # ── verify ────────────────────────────────────────────────────────────────
     verify_p = subparsers.add_parser("verify", help="Verify an expanded model")
     verify_p.add_argument("--src", required=True, help="Original model directory")
     verify_p.add_argument("--dst", required=True, help="Expanded model directory")
-    verify_p.add_argument("--fp", action="store_true", help="Run full FP logit check (loads models)")
+    verify_p.add_argument(
+        "--fp", action="store_true", help="Run full FP logit check (loads models)"
+    )
     verify_p.add_argument("--fp-atol", type=float, default=1e-4)
 
     # ── info ──────────────────────────────────────────────────────────────────
@@ -97,7 +120,11 @@ def _cmd_verify(args) -> None:
         from llm_grow.eval.structural import check_fp
 
         results["fp_logit_check"] = check_fp(
-            Path(args.src), Path(args.dst), seq_len=32, samples=4, atol=args.fp_atol,
+            Path(args.src),
+            Path(args.dst),
+            seq_len=32,
+            samples=4,
+            atol=args.fp_atol,
         )
 
     all_ok = all(results.values())

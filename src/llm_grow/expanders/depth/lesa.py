@@ -19,6 +19,9 @@ from llm_grow.expanders.depth.llama_pro import (
     _set_decoder_layers,
     _update_num_hidden_layers,
 )
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -66,7 +69,7 @@ class LESAExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print("[FP verify] LESA is approximately FP (~80-90%) — running output diff check.")
+        logger.info("LESA is approximately FP (~80-90%%) — running output diff check.")
         return super().verify(original, expanded, atol=0.5, **kwargs)
 
 
@@ -91,18 +94,3 @@ def _interpolate_layers(
             if name in state_b and state_a[name].shape == state_b[name].shape:
                 param.copy_(alpha * state_a[name] + (1 - alpha) * state_b[name])
     return new_layer
-
-
-class LayerPredictor(nn.Module):
-    """轻量 MLP，根据相邻层 SVD 特征预测新层参数（完整 LESA 实现占位）。"""
-
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, output_dim),
-        )
-
-    def forward(self, feat_a: torch.Tensor, feat_b: torch.Tensor) -> torch.Tensor:
-        return self.net(torch.cat([feat_a, feat_b], dim=-1))

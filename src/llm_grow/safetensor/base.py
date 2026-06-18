@@ -106,7 +106,7 @@ class ExpansionPlan:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExpansionPlan":
+    def from_dict(cls, data: dict[str, Any]) -> ExpansionPlan:
         """Deserialize plan from a dict (as produced by ``to_dict``)."""
         plan = cls(
             new_num_hidden_layers=data["new_num_hidden_layers"],
@@ -125,12 +125,14 @@ class ExpansionPlan:
         logger.info("Expansion plan saved to %s (%d recipes)", path, len(self.recipes))
 
     @classmethod
-    def load_json(cls, path: str | Path) -> "ExpansionPlan":
+    def load_json(cls, path: str | Path) -> ExpansionPlan:
         """Load plan from a JSON file."""
         with open(path) as f:
             data = json.load(f)
         plan = cls.from_dict(data)
-        logger.info("Expansion plan loaded from %s (%d recipes)", path, len(plan.recipes))
+        logger.info(
+            "Expansion plan loaded from %s (%d recipes)", path, len(plan.recipes)
+        )
         return plan
 
 
@@ -199,7 +201,9 @@ class SafetensorExpanderBase(ABC):
                 f"new num_hidden_layers={plan.new_num_hidden_layers}"
             )
 
-        self._write_shards(src_index, dst_dir, plan, target_shard_bytes, verbose, workers)
+        self._write_shards(
+            src_index, dst_dir, plan, target_shard_bytes, verbose, workers
+        )
         self._write_config(src_dir, dst_dir, plan)
         src_index.copy_non_weight_files(dst_dir)
 
@@ -219,13 +223,21 @@ class SafetensorExpanderBase(ABC):
         plan = self._build_plan(src_index)
 
         _log(f"[dry_run] {type(self).__name__}  src={src_dir}")
-        _log(f"  source:  {len(src_index.all_keys)} tensors, {len(src_index.shard_files)} shard(s)")
-        _log(f"  output:  {len(plan.recipes)} tensors, num_hidden_layers → {plan.new_num_hidden_layers}")
+        _log(
+            f"  source:  {len(src_index.all_keys)} tensors, {len(src_index.shard_files)} shard(s)"
+        )
+        _log(
+            f"  output:  {len(plan.recipes)} tensors, num_hidden_layers → {plan.new_num_hidden_layers}"
+        )
         _log(f"  config patches: {plan.config_patches}")
 
         zero_keys = [k for k, r in plan.recipes.items() if r.zero_out]
         dup_keys = [k for k, r in plan.recipes.items() if r.dup_rows]
-        padded_keys = [k for k, r in plan.recipes.items() if (r.pad_rows or r.pad_cols) and not r.zero_out]
+        padded_keys = [
+            k
+            for k, r in plan.recipes.items()
+            if (r.pad_rows or r.pad_cols) and not r.zero_out
+        ]
         new_keys = [k for k in plan.recipes if k not in src_index.weight_map]
 
         _log(f"  zero-out tensors : {len(zero_keys)}")
@@ -259,7 +271,8 @@ class SafetensorExpanderBase(ABC):
 
         # ── Pass 1: header scan → shard assignment ────────────────────────────
         src_headers: dict[str, dict[str, tuple[str, list[int]]]] = {
-            sf: read_safetensors_header(src_index.model_dir / sf) for sf in src_index.shard_files
+            sf: read_safetensors_header(src_index.model_dir / sf)
+            for sf in src_index.shard_files
         }
 
         sorted_keys = sorted(plan.recipes.keys())
@@ -285,11 +298,17 @@ class SafetensorExpanderBase(ABC):
 
         # ── Pass 2: write output shards ───────────────────────────────────────
         if workers > 1:
-            self._write_shards_parallel(src_index, dst_dir, plan, shard_groups, weight_map, verbose, workers)
+            self._write_shards_parallel(
+                src_index, dst_dir, plan, shard_groups, weight_map, verbose, workers
+            )
         else:
             src_handles = src_index.open_all_shards()
             for i, group_keys in enumerate(shard_groups):
-                shard_name = "model.safetensors" if n == 1 else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
+                shard_name = (
+                    "model.safetensors"
+                    if n == 1
+                    else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
+                )
                 tensors: dict[str, torch.Tensor] = {}
                 for new_key in group_keys:
                     recipe = plan.recipes[new_key]
@@ -299,7 +318,9 @@ class SafetensorExpanderBase(ABC):
                 save_file(tensors, str(dst_dir / shard_name))
                 if verbose:
                     size_mb = (dst_dir / shard_name).stat().st_size / 1e6
-                    _log(f"  wrote {shard_name}  ({len(tensors)} tensors, {size_mb:.0f} MB)")
+                    _log(
+                        f"  wrote {shard_name}  ({len(tensors)} tensors, {size_mb:.0f} MB)"
+                    )
 
         dst_index = ShardIndex(dst_dir, weight_map)
         if n > 1:
@@ -323,7 +344,11 @@ class SafetensorExpanderBase(ABC):
         n = len(shard_groups)
         tasks = []
         for i, group_keys in enumerate(shard_groups):
-            shard_name = "model.safetensors" if n == 1 else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
+            shard_name = (
+                "model.safetensors"
+                if n == 1
+                else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
+            )
             # Gather (src_shard_path, src_key, out_key, recipe_tuple) per group
             items = []
             for new_key in group_keys:
@@ -460,7 +485,9 @@ def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
     if recipe.dup_rows and recipe.router_split > 0:
         real = src[: recipe.router_split]
         zeros = src[recipe.router_split :]
-        noise = torch.randn_like(real) * recipe.dup_rows_noise_scale * real.float().std()
+        noise = (
+            torch.randn_like(real) * recipe.dup_rows_noise_scale * real.float().std()
+        )
         real_dup = real + noise.to(real.dtype)
         return torch.cat([real, real_dup, zeros, zeros.clone()], dim=0)
 

@@ -87,7 +87,9 @@ class AbstractExpander(ABC):
         max_err = (out_orig - out_exp).abs().max().item()
         passed = max_err < atol
         status = "PASSED" if passed else "FAILED"
-        logger.info("[FP verify] max |Δlogit| = %.2e  %s (atol=%s)", max_err, status, atol)
+        logger.info(
+            "[FP verify] max |Δlogit| = %.2e  %s (atol=%s)", max_err, status, atol
+        )
         return passed
 
     @staticmethod

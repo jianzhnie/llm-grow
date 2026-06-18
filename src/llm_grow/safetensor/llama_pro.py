@@ -23,8 +23,12 @@ class LlamaProSafetensorConfig:
     insert_strategy: str = "uniform"
     """'uniform' | 'front' | 'rear'"""
 
-    attn_zero_suffixes: list[str] = field(default_factory=lambda: ["self_attn.o_proj.weight"])
-    mlp_zero_suffixes: list[str] = field(default_factory=lambda: ["mlp.down_proj.weight"])
+    attn_zero_suffixes: list[str] = field(
+        default_factory=lambda: ["self_attn.o_proj.weight"]
+    )
+    mlp_zero_suffixes: list[str] = field(
+        default_factory=lambda: ["mlp.down_proj.weight"]
+    )
 
     def __post_init__(self):
         if self.num_new_blocks is not None:

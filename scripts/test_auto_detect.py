@@ -88,7 +88,9 @@ def main():
         actual = getter(profiles[model_name])
         ok = actual == expected
         icon = "✓" if ok else "✗"
-        print(f"  [{icon}] {model_name}.{check_name}: {actual!r} (expected {expected!r})")
+        print(
+            f"  [{icon}] {model_name}.{check_name}: {actual!r} (expected {expected!r})"
+        )
         results[f"check/{model_name}.{check_name}"] = ok
 
     # ── 3. auto_expand dispatch ───────────────────────────────────────────────

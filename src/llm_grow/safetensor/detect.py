@@ -65,8 +65,12 @@ class ModelProfile:
     has_dual_dense_mlp: bool = False  # LongCat mlps.0 / mlps.1
 
     # ── identity-block zero suffixes ─────────────────────────────────────────
-    attn_zero_suffixes: list[str] = field(default_factory=lambda: ["self_attn.o_proj.weight"])
-    dense_mlp_zero_suffixes: list[str] = field(default_factory=lambda: ["mlp.down_proj.weight"])
+    attn_zero_suffixes: list[str] = field(
+        default_factory=lambda: ["self_attn.o_proj.weight"]
+    )
+    dense_mlp_zero_suffixes: list[str] = field(
+        default_factory=lambda: ["mlp.down_proj.weight"]
+    )
 
     @property
     def family(self) -> str:
@@ -237,7 +241,9 @@ def _count_experts(wmap: dict, num_layers: int) -> tuple[int, list[int]]:
     dense_layers: list[int] = []
     for layer_id in range(num_layers):
         prefix = f"model.layers.{layer_id}."
-        idxs = {_expert_idx(k) for k in wmap if k.startswith(prefix) and _is_expert_key(k)}
+        idxs = {
+            _expert_idx(k) for k in wmap if k.startswith(prefix) and _is_expert_key(k)
+        }
         if idxs:
             max_experts = max(max_experts, len(idxs))
         else:
@@ -249,11 +255,19 @@ def _count_experts(wmap: dict, num_layers: int) -> tuple[int, list[int]]:
 def _detect_config_keys(cfg: dict) -> tuple[str, str]:
     """Return (expert_count_key, topk_key) that actually exist in config."""
     expert_key = next(
-        (k for k in ("num_experts", "n_routed_experts", "num_routed_experts") if k in cfg),
+        (
+            k
+            for k in ("num_experts", "n_routed_experts", "num_routed_experts")
+            if k in cfg
+        ),
         "num_experts",
     )
     topk_key = next(
-        (k for k in ("num_experts_per_tok", "moe_topk", "num_experts_per_token") if k in cfg),
+        (
+            k
+            for k in ("num_experts_per_tok", "moe_topk", "num_experts_per_token")
+            if k in cfg
+        ),
         "num_experts_per_tok",
     )
     return expert_key, topk_key

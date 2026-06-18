@@ -68,12 +68,16 @@ class StructuralVerifier:
         src_layers = self.src_idx.num_hidden_layers()
         dst_layers = self.dst_idx.num_hidden_layers()
         per_layer = len(self.src_idx.layer_suffixes())
-        expected = len(self.src_idx.all_keys) - src_layers * per_layer + dst_layers * per_layer
+        expected = (
+            len(self.src_idx.all_keys) - src_layers * per_layer + dst_layers * per_layer
+        )
         actual = len(self.dst_idx.all_keys)
         ok = actual == expected
         logger.info(
             "Tensor counts: src=%d, dst=%d (expected %d) %s",
-            len(self.src_idx.all_keys), actual, expected,
+            len(self.src_idx.all_keys),
+            actual,
+            expected,
             "OK" if ok else "MISMATCH",
         )
         return ok
@@ -117,7 +121,10 @@ class StructuralVerifier:
                 ok = best_diff < 1e-6
                 logger.info(
                     "  orig layer %d -> dst layer %d  max|diff|=%.2e %s",
-                    orig_idx, best_idx, best_diff, "OK" if ok else "FAIL",
+                    orig_idx,
+                    best_idx,
+                    best_diff,
+                    "OK" if ok else "FAIL",
                 )
                 all_ok = all_ok and ok
         return all_ok
@@ -139,11 +146,14 @@ class StructuralVerifier:
                     total_nonzero += 1
 
         if total_zero == 0:
-            logger.info("Identity blocks: none found (non-FP method or no identity blocks)")
+            logger.info(
+                "Identity blocks: none found (non-FP method or no identity blocks)"
+            )
         else:
             logger.info(
                 "Identity blocks: %d zeroed, %d non-zero (original layers)",
-                total_zero, total_nonzero,
+                total_zero,
+                total_nonzero,
             )
         return True
 
@@ -165,7 +175,9 @@ def check_fp(
     orig = AutoModelForCausalLM.from_pretrained(str(src_dir), torch_dtype=torch.float32)
     logger.info("Loading expanded model from %s", dst_dir)
     try:
-        exp = AutoModelForCausalLM.from_pretrained(str(dst_dir), torch_dtype=torch.float32)
+        exp = AutoModelForCausalLM.from_pretrained(
+            str(dst_dir), torch_dtype=torch.float32
+        )
     except Exception as exc:
         logger.error("Cannot load expanded model: %s", exc)
         return False
@@ -184,7 +196,12 @@ def check_fp(
             max_err = max(max_err, (lo - le).abs().max().item())
 
     ok = max_err < atol
-    logger.info("FP check: max|delta_logit| = %.3e (atol=%.1e) %s", max_err, atol, "PASS" if ok else "FAIL")
+    logger.info(
+        "FP check: max|delta_logit| = %.3e (atol=%.1e) %s",
+        max_err,
+        atol,
+        "PASS" if ok else "FAIL",
+    )
     return ok
 
 

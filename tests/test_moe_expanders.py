@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import copy
-
-import torch.nn as nn
-
-from tests.conftest import FakeModel, FakeMoEModel
-
 from llm_grow.expanders.sparse.expert_upcycling import (
     ExpertSelectionStrategy,
     ExpertUpcyclingConfig,
     ExpertUpcyclingExpander,
 )
-from llm_grow.expanders.sparse.moe_upcycling import MoELayer, MoEUpcyclingConfig, MoEUpcyclingExpander
+from llm_grow.expanders.sparse.moe_upcycling import (
+    MoELayer,
+    MoEUpcyclingConfig,
+    MoEUpcyclingExpander,
+)
+from tests.conftest import FakeModel, FakeMoEModel
 
 
 class TestMoEUpcyclingExpander:
@@ -24,7 +23,9 @@ class TestMoEUpcyclingExpander:
         model = self._make_model(4)
         config = MoEUpcyclingConfig(num_experts=4, top_k=2)
         expanded = MoEUpcyclingExpander().expand(model, config)
-        moe_count = sum(1 for _, m in expanded.named_modules() if isinstance(m, MoELayer))
+        moe_count = sum(
+            1 for _, m in expanded.named_modules() if isinstance(m, MoELayer)
+        )
         assert moe_count == 4
 
     def test_expert_count(self):

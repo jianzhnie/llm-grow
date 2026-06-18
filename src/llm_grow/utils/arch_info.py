@@ -49,7 +49,9 @@ def parse_arch_info(model: nn.Module) -> ArchInfo:
 
 def count_params(model: nn.Module, trainable_only: bool = False) -> int:
     """统计模型参数量（默认统计全部参数）。"""
-    return sum(p.numel() for p in model.parameters() if not trainable_only or p.requires_grad)
+    return sum(
+        p.numel() for p in model.parameters() if not trainable_only or p.requires_grad
+    )
 
 
 def param_diff_report(
@@ -64,16 +66,22 @@ def param_diff_report(
     orig_info = parse_arch_info(original)
     exp_info = parse_arch_info(expanded)
 
-    print("\n" + "=" * 55)
-    print("  Parameter Expansion Report")
-    print("=" * 55)
+    logger.info("=" * 55)
+    logger.info("  Parameter Expansion Report")
+    logger.info("=" * 55)
     logger.info("Original  total  : %15s  (%.2fB)", f"{orig_total:,}", orig_total / 1e9)
     logger.info("Expanded  total  : %15s  (%.2fB)", f"{exp_total:,}", exp_total / 1e9)
-    logger.info("Expanded trainable: %14s  (%.2fB)", f"{exp_trainable:,}", exp_trainable / 1e9)
+    logger.info(
+        "Expanded trainable: %14s  (%.2fB)", f"{exp_trainable:,}", exp_trainable / 1e9
+    )
     logger.info("Expansion ratio  : %.3fx", exp_total / orig_total)
     if orig_info.num_hidden_layers and exp_info.num_hidden_layers:
-        logger.info("Layers: %d → %d", orig_info.num_hidden_layers, exp_info.num_hidden_layers)
+        logger.info(
+            "Layers: %d → %d", orig_info.num_hidden_layers, exp_info.num_hidden_layers
+        )
     if orig_info.hidden_size and exp_info.hidden_size:
         logger.info("Hidden: %d → %d", orig_info.hidden_size, exp_info.hidden_size)
     if orig_info.intermediate_size and exp_info.intermediate_size:
-        logger.info("FFN:    %d → %d", orig_info.intermediate_size, exp_info.intermediate_size)
+        logger.info(
+            "FFN:    %d → %d", orig_info.intermediate_size, exp_info.intermediate_size
+        )

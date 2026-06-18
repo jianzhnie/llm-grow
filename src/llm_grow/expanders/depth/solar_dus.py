@@ -44,7 +44,9 @@ class SolarDUSExpander(AbstractExpander):
         overlap = config.num_overlap
 
         if overlap >= num_layers:
-            raise ValueError(f"num_overlap ({overlap}) must be < num_layers ({num_layers}).")
+            raise ValueError(
+                f"num_overlap ({overlap}) must be < num_layers ({num_layers})."
+            )
 
         upper_end = num_layers - overlap
         lower_start = overlap

@@ -50,6 +50,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from llm_grow.safetensor.detect import ModelProfile, detect_model
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 # ── public API ────────────────────────────────────────────────────────────────
 
@@ -92,8 +95,7 @@ def auto_expand(
     profile = detect_model(src_dir)
 
     if verbose:
-        print(profile.summary())
-        print()
+        logger.info("\n%s\n", profile.summary())
 
     expander = _build_expander(
         method,
@@ -156,7 +158,9 @@ def _build_expander(
         )
         return MSGSafetensorExpander(cfg)
 
-    raise ValueError(f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'.")
+    raise ValueError(
+        f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'."
+    )
 
 
 def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: str):
@@ -206,7 +210,9 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
     )
 
 
-def _build_expert_expander(profile: ModelProfile, expand_factor: int, noise_scale: float):
+def _build_expert_expander(
+    profile: ModelProfile, expand_factor: int, noise_scale: float
+):
     """Select and configure the correct expert upcycling expander."""
 
     if profile.has_dual_attn:
@@ -234,7 +240,9 @@ def _build_expert_expander(profile: ModelProfile, expand_factor: int, noise_scal
             expand_factor=expand_factor,
             noise_scale=noise_scale,
             router_weight_suffixes=[profile.router_weight_suffix],
-            router_bias_suffixes=([profile.router_bias_suffix] if profile.router_bias_suffix else []),
+            router_bias_suffixes=(
+                [profile.router_bias_suffix] if profile.router_bias_suffix else []
+            ),
             config_expert_count_key=profile.expert_count_config_key,
             config_topk_key=profile.topk_config_key,
         )

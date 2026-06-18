@@ -73,8 +73,12 @@ def check_config(src_dir: Path, dst_dir: Path) -> bool:
 
 def check_tensor_counts(src_idx: ShardIndex, dst_idx: ShardIndex) -> bool:
     print("\n[Tensor counts]")
-    print(f"  src: {len(src_idx.all_keys)} tensors across {len(src_idx.shard_files)} shard(s)")
-    print(f"  dst: {len(dst_idx.all_keys)} tensors across {len(dst_idx.shard_files)} shard(s)")
+    print(
+        f"  src: {len(src_idx.all_keys)} tensors across {len(src_idx.shard_files)} shard(s)"
+    )
+    print(
+        f"  dst: {len(dst_idx.all_keys)} tensors across {len(dst_idx.shard_files)} shard(s)"
+    )
     src_layers = src_idx.num_hidden_layers()
     dst_layers = dst_idx.num_hidden_layers()
     per_layer = len(src_idx.layer_suffixes())
@@ -85,7 +89,9 @@ def check_tensor_counts(src_idx: ShardIndex, dst_idx: ShardIndex) -> bool:
     return ok
 
 
-def check_original_weights_preserved(src_idx: ShardIndex, dst_idx: ShardIndex, sample: int = 4) -> bool:
+def check_original_weights_preserved(
+    src_idx: ShardIndex, dst_idx: ShardIndex, sample: int = 4
+) -> bool:
     """Spot-check that original layer tensors survived unchanged.
 
     Scans dst layers to find the exact new index for each sampled src layer
@@ -125,11 +131,15 @@ def check_original_weights_preserved(src_idx: ShardIndex, dst_idx: ShardIndex, s
 
         if best_idx == -1:
             # Width expansion changed shapes — just report the nearest candidate
-            print(f"  [~] layer {orig_idx}: all dst shapes differ (width expansion applied)")
+            print(
+                f"  [~] layer {orig_idx}: all dst shapes differ (width expansion applied)"
+            )
         else:
             ok = best_diff < 1e-6
             icon = "✓" if ok else "✗"
-            print(f"  [{icon}] orig layer {orig_idx} → dst layer {best_idx}  max|Δ|={best_diff:.2e}")
+            print(
+                f"  [{icon}] orig layer {orig_idx} → dst layer {best_idx}  max|Δ|={best_diff:.2e}"
+            )
             all_ok = all_ok and ok
     return all_ok
 
@@ -156,14 +166,18 @@ def check_identity_blocks_zeroed(dst_idx: ShardIndex) -> bool:
     if total_zero == 0:
         print("  [~] No zeroed projections found (non-FP method or no identity blocks)")
     else:
-        print(f"  [✓] Found {total_zero} zeroed projection(s), {total_nonzero} non-zero (original layers)")
+        print(
+            f"  [✓] Found {total_zero} zeroed projection(s), {total_nonzero} non-zero (original layers)"
+        )
     return True
 
 
 # ── FP check ───────────────────────────────────────────────────────────────────
 
 
-def check_fp(src_dir: Path, dst_dir: Path, seq_len: int, samples: int, atol: float) -> bool:
+def check_fp(
+    src_dir: Path, dst_dir: Path, seq_len: int, samples: int, atol: float
+) -> bool:
     print("\n[Function-Preserving logit check]")
     from transformers import AutoModelForCausalLM
 
