@@ -93,6 +93,46 @@ class ExpansionPlan:
         """Add a tensor that is copied unchanged."""
         self.add(key, TensorRecipe(src_shard=shard, src_key=key))
 
+    # ── serialization ─────────────────────────────────────────────────────────
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize plan to a JSON-compatible dict."""
+        from dataclasses import asdict
+
+        return {
+            "new_num_hidden_layers": self.new_num_hidden_layers,
+            "config_patches": self.config_patches,
+            "recipes": {k: asdict(r) for k, r in self.recipes.items()},
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExpansionPlan":
+        """Deserialize plan from a dict (as produced by ``to_dict``)."""
+        plan = cls(
+            new_num_hidden_layers=data["new_num_hidden_layers"],
+            config_patches=data.get("config_patches", {}),
+        )
+        for key, recipe_data in data.get("recipes", {}).items():
+            plan.add(key, TensorRecipe(**recipe_data))
+        return plan
+
+    def save_json(self, path: str | Path) -> None:
+        """Save plan to a JSON file for offline review or resume."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+        logger.info("Expansion plan saved to %s (%d recipes)", path, len(self.recipes))
+
+    @classmethod
+    def load_json(cls, path: str | Path) -> "ExpansionPlan":
+        """Load plan from a JSON file."""
+        with open(path) as f:
+            data = json.load(f)
+        plan = cls.from_dict(data)
+        logger.info("Expansion plan loaded from %s (%d recipes)", path, len(plan.recipes))
+        return plan
+
 
 # ── base expander ─────────────────────────────────────────────────────────────
 

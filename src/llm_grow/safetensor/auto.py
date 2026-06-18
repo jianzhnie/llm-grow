@@ -149,7 +149,11 @@ def _build_expander(
             )
         from llm_grow.safetensor.msg import MSGSafetensorConfig, MSGSafetensorExpander
 
-        cfg = MSGSafetensorConfig(ffn_size_expansion=ffn_size_expansion)
+        cfg = MSGSafetensorConfig(
+            num_new_layers=num_new_layers,
+            insert_strategy=insert_strategy,
+            ffn_size_expansion=ffn_size_expansion,
+        )
         return MSGSafetensorExpander(cfg)
 
     raise ValueError(f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'.")
