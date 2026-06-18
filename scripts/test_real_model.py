@@ -24,7 +24,7 @@ DTYPE = torch.float32  # CPU 测试用 fp32，避免 bfloat16 精度误差干扰
 
 
 def load_fresh():
-    model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, dtype=DTYPE)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, torch_dtype=DTYPE)
     return model.to(DEVICE)
 
 
@@ -75,7 +75,7 @@ def test_llama_pro():
     orig_params = count_params(model)
 
     config = LlamaProConfig(
-        num_new_blocks=7, insert_strategy="uniform", freeze_original=True
+        num_new_layers=7, insert_strategy="uniform", freeze_original=True
     )
     t0 = time.time()
     expanded = LlamaProExpander().expand(model, config)
@@ -167,7 +167,7 @@ def test_msg():
     orig_params = count_params(model)
 
     config = MSGConfig(
-        depth_expansion=4,
+        num_new_layers=4,
         hidden_size_expansion=0,
         intermediate_size_expansion=0,
         freeze_original=False,
@@ -290,7 +290,7 @@ def test_generation():
     model_orig = load_fresh()
     model_exp = copy.deepcopy(model_orig)
     LlamaProExpander().expand(
-        model_exp, LlamaProConfig(num_new_blocks=7, freeze_original=False)
+        model_exp, LlamaProConfig(num_new_layers=7, freeze_original=False)
     )
 
     print(f"  Prompt: {prompt!r}")

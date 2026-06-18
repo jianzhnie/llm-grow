@@ -94,8 +94,8 @@ def verify_fp_logits(
     """Load both models and compare logits on random input."""
     from transformers import AutoModelForCausalLM
 
-    orig = AutoModelForCausalLM.from_pretrained(src_dir, dtype=torch.float32)
-    exp = AutoModelForCausalLM.from_pretrained(dst_dir, dtype=torch.float32)
+    orig = AutoModelForCausalLM.from_pretrained(src_dir, torch_dtype=torch.float32)
+    exp = AutoModelForCausalLM.from_pretrained(dst_dir, torch_dtype=torch.float32)
     orig.eval()
     exp.eval()
     ids = torch.randint(0, orig.config.vocab_size, (2, 32))
@@ -138,7 +138,7 @@ def test_llama_pro():
     )
 
     with tempfile.TemporaryDirectory() as dst:
-        LlamaProSafetensorExpander(LlamaProSafetensorConfig(num_new_blocks=7)).expand(
+        LlamaProSafetensorExpander(LlamaProSafetensorConfig(num_new_layers=7)).expand(
             src_dir=QWEN3_06B, dst_dir=dst, verbose=False
         )
 
@@ -230,7 +230,7 @@ def test_msg():
 
     with tempfile.TemporaryDirectory() as dst:
         MSGSafetensorExpander(
-            MSGSafetensorConfig(depth_expansion=4, ffn_size_expansion=512)
+            MSGSafetensorConfig(num_new_layers=4, ffn_size_expansion=512)
         ).expand(src_dir=QWEN3_06B, dst_dir=dst, verbose=False)
 
         verify_config(dst, {"num_hidden_layers": 32, "intermediate_size": 3584}, label)

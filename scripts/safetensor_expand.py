@@ -203,7 +203,7 @@ def main() -> None:
             method="expert",
             expand_factor=args.expand_factor,
             noise_scale=args.noise_scale,
-            target_shard_gb=args.target_shard_gb,
+            target_shard_gb=args.target_shard_gb or 4.0,
             verbose=verbose,
             dry_run=args.dry_run,
         )

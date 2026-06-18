@@ -42,6 +42,10 @@ Router weight 形状：[512+256, 6144] = [768, 6144]
 | 方案 | 方法 | 专家变化 | moe_topk | 参考配置 |
 |------|------|:---:|:---:|------|
 | **专家扩增 2x** ★ | expert_upcycling | 512→1024 (256+256 zero → 512+512 zero) | 12→24 | `configs/LongCat-Flash-Chat/expert_upcycling.yaml` |
+
+> **注**：`moe_topk` 默认**不会**自动翻倍（`scale_moe_topk=False` 是默认值）。
+> 上表中 `moe_topk: 12→24` 需要在配置中显式设置 `scale_moe_topk=True`，
+> 否则扩增后 `moe_topk` 仍保持为 12。
 | 深度扩增 | depth | 28→32 层 | 不变 | `configs/LongCat-Flash-Chat/depth.yaml` |
 
 ---
@@ -84,6 +88,8 @@ python scripts/safetensor_expand.py auto \
   brand-new keys   : 43008   ← 新增 512 专家/层 × 28 层 × 3 张量
   config patches: {n_routed_experts: 1024, zero_expert_num: 512, moe_topk: 24}
 ```
+
+> 上述 `moe_topk: 24` 仅在 `scale_moe_topk=True` 时出现；默认 `scale_moe_topk=False` 时 `moe_topk` 保持为 12。
 
 **零专家处理说明**：
 

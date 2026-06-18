@@ -8,6 +8,7 @@
 
 - [支持的扩增方法](#支持的扩增方法)
 - [安装](#安装)
+- [CLI 工具](#cli-工具)
 - [快速开始](#快速开始)
 - [Safetensor 直接扩增](#safetensor-直接扩增)
 - [内存级扩增 API](#内存级扩增-api)
@@ -62,6 +63,36 @@ pip install -e ".[dev]"         # 开发环境（pytest、ruff、mypy）
 
 ---
 
+## CLI 工具
+
+`llm-grow` 安装后提供命令行入口：
+
+```bash
+# 扩增模型
+llm-grow expand --src /path/to/model --dst ./output \
+    --method depth --num-new-layers 4
+
+# 验证扩增结果（结构 + FP 一致性）
+llm-grow verify --src /path/to/original --dst /path/to/expanded --fp
+
+# 查看模型架构信息
+llm-grow info /path/to/model
+```
+
+### ExpansionPlan 序列化
+
+扩增方案可通过 `ExpansionPlan` 持久化，方便复现和审查：
+
+```python
+from llm_grow.safetensor.base import ExpansionPlan
+
+plan = expander.plan(src_dir, dst_dir)
+plan.save_json("my_plan.json")       # 保存方案到 JSON
+plan = ExpansionPlan.load_json("my_plan.json")  # 从 JSON 恢复
+```
+
+---
+
 ## 快速开始
 
 ### Safetensor 直接扩增（推荐用于大模型）
@@ -97,7 +128,7 @@ model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-8B", dtype="auto")
 original = copy.deepcopy(model)
 
 expanded = LlamaProExpander().expand(
-    model, LlamaProConfig(num_new_blocks=9, freeze_original=True)
+    model, LlamaProConfig(num_new_layers=9, freeze_original=True)
 )
 LlamaProExpander().verify(original, expanded)  # max|Δlogit| 应为 0
 ```
@@ -288,7 +319,7 @@ python scripts/verify_safetensor.py \
 from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
 
 config = LlamaProConfig(
-    num_new_blocks=9,           # 插入块数，建议 = 原层数 // 4
+    num_new_layers=9,           # 插入块数，建议 = 原层数 // 4
     insert_strategy="uniform",  # "uniform" | "front" | "rear"
     freeze_original=True,       # Phase-1 仅训练新块
 )
@@ -303,11 +334,10 @@ expanded = LlamaProExpander().expand(model, config)
 from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
 
 config = MSGConfig(
-    depth_expansion=10,
+    num_new_layers=10,
     hidden_size_expansion=512,
     intermediate_size_expansion=3072,
     freeze_original=True,
-    growth_schedule="linear",
 )
 expanded = MSGExpander().expand(model, config)
 ```

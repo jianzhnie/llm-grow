@@ -4,7 +4,7 @@
 用法:
     python scripts/expand_llama_pro.py \
         --model Qwen/Qwen3-8B \
-        --num-new-blocks 9 \
+        --num-new-layers 9 \
         --output-dir ./expanded_llama_pro \
         --verify
 """
@@ -23,7 +23,13 @@ from llm_grow.utils.model_io import load_model, load_tokenizer, save_model
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="LLaMA-Pro block expansion")
     p.add_argument("--model", required=True, help="原始模型路径或 HuggingFace model id")
-    p.add_argument("--num-new-blocks", type=int, default=8, help="插入的恒等块数量")
+    p.add_argument(
+        "--num-new-layers",
+        "--num-new-blocks",
+        type=int,
+        default=8,
+        help="插入的恒等块数量",
+    )
     p.add_argument(
         "--insert-strategy", default="uniform", choices=["uniform", "front", "rear"]
     )
@@ -52,7 +58,7 @@ def main() -> None:
         original_for_verify = copy.deepcopy(model)
 
     config = LlamaProConfig(
-        num_new_blocks=args.num_new_blocks,
+        num_new_layers=args.num_new_layers,
         insert_strategy=args.insert_strategy,
         freeze_original=not args.no_freeze,
     )

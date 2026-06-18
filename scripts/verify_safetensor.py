@@ -186,10 +186,12 @@ def check_fp(
     from transformers import AutoModelForCausalLM
 
     print("  Loading original model …")
-    orig = AutoModelForCausalLM.from_pretrained(str(src_dir), dtype=torch.float32)
+    orig = AutoModelForCausalLM.from_pretrained(str(src_dir), torch_dtype=torch.float32)
     print("  Loading expanded model …")
     try:
-        exp = AutoModelForCausalLM.from_pretrained(str(dst_dir), dtype=torch.float32)
+        exp = AutoModelForCausalLM.from_pretrained(
+            str(dst_dir), torch_dtype=torch.float32
+        )
     except Exception as e:
         print(f"  [✗] Cannot load expanded model: {e}")
         return False
