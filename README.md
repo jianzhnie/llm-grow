@@ -1,5 +1,13 @@
 # llm-grow
 
+<p align="center">
+  <img src="docs/images/logo.svg" width="280"/>
+</p>
+
+<p align="center">
+  <em>Grow Your LLM from Seed</em>
+</p>
+
 > 从已有 LLM checkpoint **生长**出更大模型的模块化工具库。
 > 同时支持 **内存级扩增**（加载模型后修改）和 **Safetensor 直接扩增**（无需加载权重，适合超大模型）。
 > 覆盖 Dense / MoE-Standard / DeepSeek-MoE / LongCat 四类架构，全部通过实测验证。
