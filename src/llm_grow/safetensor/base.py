@@ -520,7 +520,7 @@ def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
         else:
             raise ValueError(f"Unsupported tensor dim {src.dim()} for padding")
     else:
-        t = src
+        t = src.clone()  # must clone: mmap views share storage → save_file fails
 
     if recipe.zero_out:
         return torch.zeros_like(t)
