@@ -7,6 +7,10 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 def load_model(
     model_name_or_path: str,
@@ -18,7 +22,7 @@ def load_model(
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name_or_path,
-        dtype=dtype,
+        torch_dtype=dtype,
         device_map=device_map,
     )
     return model
@@ -43,7 +47,7 @@ def save_model(
     model.save_pretrained(str(output_dir), safe_serialization=safe_serialization)
     if tokenizer is not None:
         tokenizer.save_pretrained(str(output_dir))
-    print(f"[ModelIO] Model saved to {output_dir}")
+    logger.info("Model saved to %s", output_dir)
 
 
 def verify_state_dict_keys(
@@ -59,6 +63,6 @@ def verify_state_dict_keys(
     exp_keys = set(expanded.state_dict().keys())
     new_keys = exp_keys - orig_keys
     missing_keys = orig_keys - exp_keys
-    print(f"[ModelIO] New keys in expanded: {len(new_keys)}")
-    print(f"[ModelIO] Missing keys (orig→exp): {len(missing_keys)}")
+    logger.info("New keys in expanded: %d", len(new_keys))
+    logger.info("Missing keys (orig→exp): %d", len(missing_keys))
     return new_keys, missing_keys

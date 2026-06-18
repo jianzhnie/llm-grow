@@ -17,8 +17,13 @@ from llm_grow.initializers.identity import zero_output_projections
 
 @dataclass
 class LlamaProConfig(ExpansionConfig):
-    num_new_blocks: int = 8
-    """插入的新块数量。建议 = 原层数 // 4。"""
+    num_new_layers: int = 8
+    """插入的新层数量。建议 = 原层数 // 4。
+    向后兼容：也可使用 num_new_blocks 传参（等效别名）。
+    """
+
+    num_new_blocks: int | None = None
+    """Deprecated alias for num_new_layers. 优先使用 num_new_layers。"""
 
     insert_strategy: str = "uniform"
     """插入策略：
@@ -33,6 +38,11 @@ class LlamaProConfig(ExpansionConfig):
     attn_output_proj_names: list[str] = field(default_factory=lambda: ["o_proj", "out_proj"])
     mlp_output_proj_names: list[str] = field(default_factory=lambda: ["down_proj", "fc2"])
 
+    def __post_init__(self):
+        if self.num_new_blocks is not None:
+            self.num_new_layers = self.num_new_blocks
+        self.num_new_blocks = self.num_new_layers
+
 
 class LlamaProExpander(AbstractExpander):
     """恒等块插入扩增器。
@@ -42,7 +52,7 @@ class LlamaProExpander(AbstractExpander):
         from llm_grow import LlamaProExpander
         from llm_grow.expanders.depth.llama_pro import LlamaProConfig
 
-        config = LlamaProConfig(num_new_blocks=9)
+        config = LlamaProConfig(num_new_layers=9)
         expander = LlamaProExpander()
         expanded_model = expander(original_model, config)
         expander.verify(original_model, expanded_model)
@@ -51,11 +61,10 @@ class LlamaProExpander(AbstractExpander):
     def expand(self, model: nn.Module, config: LlamaProConfig) -> nn.Module:
         layers = _get_decoder_layers(model)
         num_orig = len(layers)
-        insert_positions = _compute_insert_positions(num_orig, config.num_new_blocks, config.insert_strategy)
+        insert_positions = _compute_insert_positions(num_orig, config.num_new_layers, config.insert_strategy)
 
         new_layers = nn.ModuleList()
         insert_set = set(insert_positions)
-        insert_idx = 0
 
         for i, layer in enumerate(layers):
             new_layers.append(layer)
@@ -69,7 +78,6 @@ class LlamaProExpander(AbstractExpander):
                     for param in layer.parameters():
                         param.requires_grad_(False)
                 new_layers.append(identity_block)
-                insert_idx += 1
 
         _set_decoder_layers(model, new_layers)
         _update_num_hidden_layers(model, len(new_layers))
@@ -94,7 +102,16 @@ def _make_identity_block(
 def _compute_insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
     if strategy == "uniform":
         step = num_orig / (num_new + 1)
-        return sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
+        positions = sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
+        if len(positions) < num_new:
+            import warnings
+
+            warnings.warn(
+                f"Uniform insertion produced {len(positions)} unique positions "
+                f"(requested {num_new}). Consider reducing num_new_layers.",
+                stacklevel=2,
+            )
+        return positions
     if strategy == "front":
         return list(range(num_new))
     if strategy == "rear":

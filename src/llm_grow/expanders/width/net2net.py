@@ -38,9 +38,14 @@ class Net2NetExpander(AbstractExpander):
 
     注意：直接在 LLM 上使用时效果受限（SwiGLU / GQA 的非线性使严格 FP 需额外适配），
     建议优先使用 MSG（更完整的 LLM 宽度扩增实现）。
+
+    .. warning::
+        ``expand()`` 尚未实现完整的模型级 Net2WiderNet 变换。
+        当前仅提供底层 ``wider()`` 工具函数作为构建组件。
     """
 
     def expand(self, model: nn.Module, config: Net2NetConfig) -> nn.Module:
+        # TODO: 实现完整的模型级 Net2WiderNet 逻辑（需适配 SwiGLU/GQA 结构）
         raise NotImplementedError(
             "Net2NetExpander.expand() 需要针对具体架构实现列复制逻辑。"
             "对于 Transformer LLM，建议直接使用 MSGExpander。"

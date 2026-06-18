@@ -14,14 +14,22 @@ from llm_grow.safetensor.utils import ShardIndex
 
 @dataclass
 class LlamaProSafetensorConfig:
-    num_new_blocks: int = 8
+    num_new_layers: int = 8
     """Number of identity blocks to insert."""
+
+    num_new_blocks: int | None = None
+    """Deprecated alias for num_new_layers."""
 
     insert_strategy: str = "uniform"
     """'uniform' | 'front' | 'rear'"""
 
     attn_zero_suffixes: list[str] = field(default_factory=lambda: ["self_attn.o_proj.weight"])
     mlp_zero_suffixes: list[str] = field(default_factory=lambda: ["mlp.down_proj.weight"])
+
+    def __post_init__(self):
+        if self.num_new_blocks is not None:
+            self.num_new_layers = self.num_new_blocks
+        self.num_new_blocks = self.num_new_layers
 
 
 class LlamaProSafetensorExpander(SafetensorExpanderBase):
@@ -32,7 +40,7 @@ class LlamaProSafetensorExpander(SafetensorExpanderBase):
         from llm_grow.safetensor.llama_pro import (
             LlamaProSafetensorConfig, LlamaProSafetensorExpander,
         )
-        cfg = LlamaProSafetensorConfig(num_new_blocks=7)
+        cfg = LlamaProSafetensorConfig(num_new_layers=7)
         LlamaProSafetensorExpander(cfg).expand(
             src_dir="Qwen/Qwen3-8B",
             dst_dir="./outputs/qwen3_llama_pro",
@@ -50,7 +58,7 @@ class LlamaProSafetensorExpander(SafetensorExpanderBase):
         num_orig = src_index.num_hidden_layers()
         cfg = self.config
 
-        positions = _insert_positions(num_orig, cfg.num_new_blocks, cfg.insert_strategy)
+        positions = _insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
         pos_set = set(positions)
 
         # Build ordered layer sequence: (src_orig_idx, is_identity)

@@ -16,6 +16,9 @@ import torch.nn.functional as F
 
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
 from llm_grow.initializers.symmetry_break import add_noise_to_experts
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -31,9 +34,6 @@ class MoEUpcyclingConfig(ExpansionConfig):
 
     ffn_module_pattern: str = "mlp"
     """用于定位 FFN 模块的名称模式（前缀匹配）。"""
-
-    router_init: str = "random"
-    """Router 初始化方式：'random' | 'uniform_noise'。"""
 
 
 class MoELayer(nn.Module):
@@ -103,14 +103,16 @@ class MoEUpcyclingExpander(AbstractExpander):
             _replace_submodule(model, name, moe_layer)
             replaced += 1
 
-        print(
-            f"[MoEUpcycling] Replaced {replaced} FFN layers with MoE layers "
-            f"({config.num_experts} experts, top-{config.top_k})."
+        logger.info(
+            "Replaced %d FFN layers with MoE layers (%d experts, top-%d).",
+            replaced,
+            config.num_experts,
+            config.top_k,
         )
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print("[FP verify] MoE Upcycling is NOT function-preserving — skipping.")
+        logger.info("MoE Upcycling is NOT function-preserving — skipping.")
         return False
 
 

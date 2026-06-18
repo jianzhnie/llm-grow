@@ -9,6 +9,10 @@ from pathlib import Path
 
 from safetensors import safe_open
 
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
+
 # ── dtype → bytes per element (mirrors safetensors dtype strings) ─────────────
 DTYPE_SIZES: dict[str, int] = {
     "F64": 8,
@@ -175,9 +179,9 @@ class ShardIndex:
                 other_files.append(src_file.name)
 
         if py_files:
-            print(f"[ShardIndex] copied Python files (modeling/config code): {py_files}")
+            logger.info("Copied Python files (modeling/config code): %s", py_files)
         if other_files:
-            print(f"[ShardIndex] copied auxiliary files: {other_files}")
+            logger.info("Copied auxiliary files: %s", other_files)
 
 
 # ── header-only safetensors utilities ────────────────────────────────────────
@@ -215,7 +219,7 @@ def auto_detect_shard_size(model_dir: Path, shard_files: list[str]) -> int:
     sizes = [(model_dir / sf).stat().st_size for sf in shard_files if (model_dir / sf).exists()]
     if sizes:
         avg = int(sum(sizes) / len(sizes))
-        print(f"[ShardIndex] auto shard size: {avg / 1e9:.2f} GB (mean of {len(sizes)} shards)")
+        logger.info("Auto shard size: %.2f GB (mean of %d shards)", avg / 1e9, len(sizes))
         return avg
-    print("[ShardIndex] no shard files found on disk — using 4 GB default")
+    logger.info("No shard files found on disk — using 4 GB default")
     return 4 * 1024**3

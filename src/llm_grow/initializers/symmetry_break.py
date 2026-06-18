@@ -63,11 +63,15 @@ def cluster_aware_upcycling(
     完整实现需要先对训练数据做 token 聚类，再让不同副本在不同
     cluster 的子集上微调。此处仅做接口预留。
 
+    .. warning::
+        此函数尚未实现，调用将抛出 NotImplementedError。
+
     Args:
         experts:             专家模块列表。
         cluster_assignments: 每个副本分配的 cluster id 列表。
         skip_first:          是否跳过第一个专家。
     """
+    # TODO: 实现 Cluster-Aware Upcycling（需要外部 token 聚类结果）
     raise NotImplementedError(
         "Cluster-Aware Upcycling 需要外部 token 聚类结果。请参考 arXiv:2604.13508 实现完整流程。"
     )

@@ -8,6 +8,10 @@ from typing import Any
 import torch
 import torch.nn as nn
 
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class ExpansionConfig:
@@ -64,8 +68,8 @@ class AbstractExpander(ABC):
 
         max_err = (out_orig - out_exp).abs().max().item()
         passed = max_err < atol
-        status = "✓ PASSED" if passed else "✗ FAILED"
-        print(f"[FP verify] max |Δlogit| = {max_err:.2e}  {status} (atol={atol})")
+        status = "PASSED" if passed else "FAILED"
+        logger.info("[FP verify] max |Δlogit| = %.2e  %s (atol=%s)", max_err, status, atol)
         return passed
 
     @staticmethod

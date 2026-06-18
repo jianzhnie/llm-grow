@@ -27,6 +27,9 @@ import torch
 from safetensors.torch import save_file
 
 from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 # ── data classes ─────────────────────────────────────────────────────────────
 
@@ -332,9 +335,11 @@ class SafetensorExpanderBase(ABC):
             if not (dst_dir / module_name).exists():
                 missing.append(module_name)
         if missing:
-            print(
-                f"[_write_config] WARNING: auto_map references missing files in {dst_dir}: "
-                f"{missing}. Run expand() (not dry_run) to copy them automatically."
+            logger.warning(
+                "auto_map references missing files in %s: %s. "
+                "Run expand() (not dry_run) to copy them automatically.",
+                dst_dir,
+                missing,
             )
 
     # ── shared plan-building helpers ──────────────────────────────────────────
@@ -379,14 +384,6 @@ class SafetensorExpanderBase(ABC):
                 plan.passthrough(key, shard)
 
         return plan
-
-    @staticmethod
-    def uniform_insert_positions(num_orig: int, num_new: int) -> list[int]:
-        """Positions (original layer indices) after which to insert identity blocks."""
-        if num_new == 0:
-            return []
-        step = num_orig / (num_new + 1)
-        return sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
 
 
 # ── tensor transform ──────────────────────────────────────────────────────────
@@ -447,7 +444,8 @@ def _predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe)
     if recipe.zero_out:
         return src_bytes  # same shape, just zeroed
     if recipe.dup_rows:
-        return src_bytes * 2  # always doubles row count (expand_factor=2)
+        # dup_rows doubles the row count; with router_split the total is still 2x
+        return src_bytes * 2
     if recipe.pad_rows > 0 or recipe.pad_cols > 0:
         ndim = len(shape)
         if ndim == 2:
@@ -514,4 +512,4 @@ def _worker_write_shard(
 
 
 def _log(msg: str) -> None:
-    print(f"[SafetensorExpand] {msg}")
+    logger.info(msg)

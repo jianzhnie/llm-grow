@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import torch.nn as nn
 
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 def freeze_original_layers(model: nn.Module) -> int:
     """冻结所有非新增层（没有 _is_new_growth 标记的参数）。
@@ -51,9 +55,12 @@ def report_trainable(model: nn.Module) -> dict[str, int]:
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     frozen = sum(p.numel() for p in model.parameters() if not p.requires_grad)
     total = trainable + frozen
-    print(
-        f"[Params] trainable={trainable:,}  frozen={frozen:,}  total={total:,}  "
-        f"({100 * trainable / total:.1f}% trainable)"
+    logger.info(
+        "trainable=%s  frozen=%s  total=%s  (%.1f%% trainable)",
+        f"{trainable:,}",
+        f"{frozen:,}",
+        f"{total:,}",
+        100 * trainable / total,
     )
     return {"trainable": trainable, "frozen": frozen, "total": total}
 

@@ -7,6 +7,10 @@ from typing import Any
 
 import torch.nn as nn
 
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class ArchInfo:
@@ -63,14 +67,13 @@ def param_diff_report(
     print("\n" + "=" * 55)
     print("  Parameter Expansion Report")
     print("=" * 55)
-    print(f"  Original  total  : {orig_total:>15,}  ({orig_total / 1e9:.2f}B)")
-    print(f"  Expanded  total  : {exp_total:>15,}  ({exp_total / 1e9:.2f}B)")
-    print(f"  Expanded trainable: {exp_trainable:>14,}  ({exp_trainable / 1e9:.2f}B)")
-    print(f"  Expansion ratio  : {exp_total / orig_total:.3f}x")
+    logger.info("Original  total  : %15s  (%.2fB)", f"{orig_total:,}", orig_total / 1e9)
+    logger.info("Expanded  total  : %15s  (%.2fB)", f"{exp_total:,}", exp_total / 1e9)
+    logger.info("Expanded trainable: %14s  (%.2fB)", f"{exp_trainable:,}", exp_trainable / 1e9)
+    logger.info("Expansion ratio  : %.3fx", exp_total / orig_total)
     if orig_info.num_hidden_layers and exp_info.num_hidden_layers:
-        print(f"  Layers: {orig_info.num_hidden_layers} → {exp_info.num_hidden_layers}")
+        logger.info("Layers: %d → %d", orig_info.num_hidden_layers, exp_info.num_hidden_layers)
     if orig_info.hidden_size and exp_info.hidden_size:
-        print(f"  Hidden: {orig_info.hidden_size} → {exp_info.hidden_size}")
+        logger.info("Hidden: %d → %d", orig_info.hidden_size, exp_info.hidden_size)
     if orig_info.intermediate_size and exp_info.intermediate_size:
-        print(f"  FFN:    {orig_info.intermediate_size} → {exp_info.intermediate_size}")
-    print("=" * 55 + "\n")
+        logger.info("FFN:    %d → %d", orig_info.intermediate_size, exp_info.intermediate_size)

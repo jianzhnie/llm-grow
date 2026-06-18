@@ -21,17 +21,17 @@ from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
 
 @dataclass
 class MSGConfig(ExpansionConfig):
-    depth_expansion: int = 0
+    num_new_layers: int = 0
     """新增层数（均匀插入恒等块）。"""
+
+    depth_expansion: int | None = None
+    """Deprecated alias for num_new_layers."""
 
     hidden_size_expansion: int = 0
     """hidden_size 增量（需为 head_dim 的整数倍）。"""
 
     intermediate_size_expansion: int = 0
     """intermediate_size（FFN 宽度）增量。"""
-
-    num_heads_expansion: int = 0
-    """新增注意力头数（需整除 head_dim）。"""
 
     freeze_original: bool = True
     """是否冻结原始参数。"""
@@ -45,6 +45,11 @@ class MSGConfig(ExpansionConfig):
     attn_output_proj_names: list[str] = field(default_factory=lambda: ["o_proj", "out_proj"])
     mlp_output_proj_names: list[str] = field(default_factory=lambda: ["down_proj", "fc2"])
 
+    def __post_init__(self):
+        if self.depth_expansion is not None:
+            self.num_new_layers = self.depth_expansion
+        self.depth_expansion = self.num_new_layers
+
 
 class MSGExpander(AbstractExpander):
     """Masked Structural Growth 多维度扩增器。
@@ -57,7 +62,7 @@ class MSGExpander(AbstractExpander):
         if config.hidden_size_expansion > 0 or config.intermediate_size_expansion > 0:
             model = _expand_width(model, config)
 
-        if config.depth_expansion > 0:
+        if config.num_new_layers > 0:
             model = _expand_depth(model, config)
 
         if config.freeze_original:
@@ -138,7 +143,7 @@ def _expand_depth(model: nn.Module, config: MSGConfig) -> nn.Module:
     )
 
     sub_config = LlamaProConfig(
-        num_new_blocks=config.depth_expansion,
+        num_new_layers=config.num_new_layers,
         insert_strategy="uniform",
         freeze_original=False,
         attn_output_proj_names=config.attn_output_proj_names,

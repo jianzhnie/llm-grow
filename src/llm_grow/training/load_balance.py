@@ -32,7 +32,6 @@ def load_balance_loss(
     probs = F.softmax(router_logits, dim=-1)
     _, indices = torch.topk(router_logits, top_k, dim=-1)
 
-    router_logits.shape[0]
     dispatch_mask = torch.zeros_like(probs)
     dispatch_mask.scatter_(1, indices, 1.0)
 

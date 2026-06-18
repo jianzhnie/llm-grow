@@ -27,9 +27,10 @@ MoE-longcat:
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from llm_grow.safetensor.longcat import _expert_idx, _is_expert_key
 
 # ── data class ────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
     num_layers = cfg.get("num_hidden_layers") or cfg.get("num_layers") or 0
 
     # ── structural probes ────────────────────────────────────────────────────
-    has_experts = any(_EXPERT_RE.search(k) for k in wmap)
+    has_experts = any(_is_expert_key(k) for k in wmap)
     has_fp8 = any(k.endswith("weight_scale_inv") for k in wmap)
     has_mla = any("q_a_proj" in k or "kv_a_proj" in k for k in wmap)
     has_dual_attn = any("self_attn.0." in k for k in wmap)
@@ -180,19 +181,21 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
 
 # ── internal helpers ──────────────────────────────────────────────────────────
 
-_EXPERT_RE = re.compile(r"\.mlp\.experts\.(\d+)\.")
-
 
 def _load_config(src_dir: Path) -> dict:
     p = src_dir / "config.json"
-    return json.load(open(p)) if p.exists() else {}
+    if not p.exists():
+        return {}
+    with open(p) as f:
+        return json.load(f)
 
 
 def _load_weight_map(src_dir: Path) -> dict[str, str]:
     index_path = src_dir / "model.safetensors.index.json"
     single_path = src_dir / "model.safetensors"
     if index_path.exists():
-        return json.load(open(index_path))["weight_map"]
+        with open(index_path) as f:
+            return json.load(f)["weight_map"]
     if single_path.exists():
         from safetensors import safe_open
 
@@ -234,11 +237,10 @@ def _count_experts(wmap: dict, num_layers: int) -> tuple[int, list[int]]:
     dense_layers: list[int] = []
     for layer_id in range(num_layers):
         prefix = f"model.layers.{layer_id}."
-        idxs = {int(m.group(1)) for k in wmap if k.startswith(prefix) for m in [_EXPERT_RE.search(k)] if m}
+        idxs = {_expert_idx(k) for k in wmap if k.startswith(prefix) and _is_expert_key(k)}
         if idxs:
             max_experts = max(max_experts, len(idxs))
         else:
-            # Check if layer has any keys at all (vs just missing from index)
             if any(k.startswith(prefix) for k in wmap):
                 dense_layers.append(layer_id)
     return max_experts, dense_layers

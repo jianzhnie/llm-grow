@@ -17,6 +17,9 @@ from llm_grow.expanders.depth.llama_pro import (
     _set_decoder_layers,
     _update_num_hidden_layers,
 )
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -55,5 +58,5 @@ class SolarDUSExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print("[FP verify] SOLAR DUS is NOT function-preserving — skipping output check.")
+        logger.info("SOLAR DUS is NOT function-preserving — skipping output check.")
         return False

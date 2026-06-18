@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 from dataclasses import dataclass
 from enum import Enum
 
@@ -19,6 +20,9 @@ from llm_grow.initializers.symmetry_break import (
     add_noise_to_experts,
     drop_upcycling,
 )
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class ExpertSelectionStrategy(str, Enum):
@@ -62,9 +66,9 @@ class ExpertUpcyclingExpander(AbstractExpander):
     def expand(self, model: nn.Module, config: ExpertUpcyclingConfig) -> nn.Module:
         expanded_count = 0
         for _name, module in model.named_modules():
-            if type(module).__name__ != config.moe_layer_cls_name and (
-                not hasattr(module, "experts") or not hasattr(module, "router")
-            ):
+            is_target_cls = type(module).__name__ == config.moe_layer_cls_name
+            has_moe_interface = hasattr(module, "experts") and hasattr(module, "router")
+            if not is_target_cls and not has_moe_interface:
                 continue
 
             new_experts, new_router_weight = _expand_experts(module, config)
@@ -72,15 +76,17 @@ class ExpertUpcyclingExpander(AbstractExpander):
             _update_router(module, new_router_weight)
             expanded_count += 1
 
-        print(
-            f"[ExpertUpcycling] Expanded {expanded_count} MoE layers, "
-            f"factor={config.expand_factor}x, strategy={config.selection_strategy}."
+        logger.info(
+            "Expanded %d MoE layers, factor=%dx, strategy=%s.",
+            expanded_count,
+            config.expand_factor,
+            config.selection_strategy,
         )
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        print(
-            "[FP verify] Expert Upcycling requires symmetry breaking — "
+        logger.info(
+            "Expert Upcycling requires symmetry breaking — "
             "output will differ; skipping strict FP check."
         )
         return False

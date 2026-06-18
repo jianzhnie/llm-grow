@@ -27,8 +27,11 @@ _FFN_IN_SUFFIXES = frozenset({"mlp.down_proj.weight"})
 @dataclass
 class MSGSafetensorConfig:
     # ── depth ────────────────────────────────────────────────────────────────
-    depth_expansion: int = 0
-    """Number of identity blocks to insert (0 = depth only disabled)."""
+    num_new_layers: int = 0
+    """Number of identity blocks to insert (0 = depth disabled)."""
+
+    depth_expansion: int | None = None
+    """Deprecated alias for num_new_layers."""
 
     insert_strategy: str = "uniform"
     """Insertion strategy: 'uniform' | 'front' | 'rear'."""
@@ -41,18 +44,23 @@ class MSGSafetensorConfig:
     attn_zero_suffixes: list[str] = field(default_factory=lambda: ["self_attn.o_proj.weight"])
     mlp_zero_suffixes: list[str] = field(default_factory=lambda: ["mlp.down_proj.weight"])
 
+    def __post_init__(self):
+        if self.depth_expansion is not None:
+            self.num_new_layers = self.depth_expansion
+        self.depth_expansion = self.num_new_layers
+
 
 class MSGSafetensorExpander(SafetensorExpanderBase):
     """MSG-style safetensor expander combining depth and FFN-width growth.
 
     Example — depth only::
 
-        MSGSafetensorExpander(MSGSafetensorConfig(depth_expansion=4)).expand(...)
+        MSGSafetensorExpander(MSGSafetensorConfig(num_new_layers=4)).expand(...)
 
     Example — depth + wider FFN::
 
         MSGSafetensorExpander(MSGSafetensorConfig(
-            depth_expansion=4, ffn_size_expansion=1024,
+            num_new_layers=4, ffn_size_expansion=1024,
         )).expand(...)
     """
 
@@ -69,8 +77,8 @@ class MSGSafetensorExpander(SafetensorExpanderBase):
         suffixes = src_index.layer_suffixes()
 
         # ── depth: build layer sequence ──────────────────────────────────────
-        if cfg.depth_expansion > 0:
-            positions = set(_insert_positions(num_orig, cfg.depth_expansion, cfg.insert_strategy))
+        if cfg.num_new_layers > 0:
+            positions = set(_insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy))
         else:
             positions = set()
 
@@ -93,6 +101,8 @@ class MSGSafetensorExpander(SafetensorExpanderBase):
         for new_idx, (src_idx, is_identity) in enumerate(sequence):
             for suf in suffixes:
                 src_key = f"model.layers.{src_idx}.{suf}"
+                if src_key not in wmap:
+                    continue
                 new_key = f"model.layers.{new_idx}.{suf}"
 
                 zero = is_identity and suf in self.IDENTITY_ZERO_SUFFIXES

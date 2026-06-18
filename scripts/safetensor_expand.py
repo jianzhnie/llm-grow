@@ -121,7 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    target_bytes = int(args.target_shard_gb * 1024**3)
+    target_bytes = int(args.target_shard_gb * 1024**3) if args.target_shard_gb is not None else None
     verbose = not args.quiet
 
     # ── auto mode: detect + dispatch ─────────────────────────────────────────
@@ -153,7 +153,7 @@ def main() -> None:
 
         expander = LlamaProSafetensorExpander(
             LlamaProSafetensorConfig(
-                num_new_blocks=args.num_new_layers,
+                num_new_layers=args.num_new_layers,
                 insert_strategy=args.insert_strategy,
             )
         )
@@ -171,7 +171,7 @@ def main() -> None:
 
         expander = MSGSafetensorExpander(
             MSGSafetensorConfig(
-                depth_expansion=args.num_new_layers,
+                num_new_layers=args.num_new_layers,
                 insert_strategy=args.insert_strategy,
                 ffn_size_expansion=args.ffn_size_expansion,
             )

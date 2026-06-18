@@ -185,7 +185,10 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
         import json
 
         p = model_dir / "config.json"
-        return json.load(open(p)) if p.exists() else {}
+        if not p.exists():
+            return {}
+        with open(p) as f:
+            return json.load(f)
 
 
 # ── Depth Expansion ───────────────────────────────────────────────────────────
