@@ -66,7 +66,7 @@
 
 /* ===== Phase 1 (0.6 s): trunk stretches upward ===== */
 .trunk-grow{
-  transform-origin:260px 400px;
+  transform-origin:260px 395px;
   transform:scaleY(.62);
   animation:stretchY 1s cubic-bezier(.34,1.4,.64,1) .5s forwards;
 }
@@ -168,47 +168,47 @@
   <circle class="st" cx="460" cy="150" r=".8"  fill="#fff"/>
 </g>
 
-<!-- ============ GROUND + CHIP (existing checkpoint) ============ -->
-<ellipse cx="260" cy="400" rx="108" ry="11"
-         fill="#3E2723" opacity=".4"/>
-
-<!-- Circuit traces -->
-<g class="cpulse" stroke="url(#ci)" stroke-width="1.5" fill="none">
-  <path d="M222,400 L204,428 L180,428"/>
-  <path d="M242,404 L232,436 L210,436"/>
-  <path d="M278,404 L288,436 L310,436"/>
-  <path d="M298,400 L316,428 L340,428"/>
-  <circle cx="180" cy="428" r="3"   fill="#00E5FF" opacity=".5"/>
-  <circle cx="210" cy="436" r="2.5" fill="#00E5FF" opacity=".4"/>
-  <circle cx="310" cy="436" r="2.5" fill="#00E5FF" opacity=".4"/>
-  <circle cx="340" cy="428" r="3"   fill="#00E5FF" opacity=".5"/>
-</g>
-
-<!-- Chip -->
-<g transform="translate(236,360)" class="base">
-  <rect width="48" height="34" rx="5" fill="url(#chp)" filter="url(#ngl)"/>
-  <rect x="-5" y="9"  width="6" height="4" rx="1" fill="#00E5FF" opacity=".7"/>
-  <rect x="-5" y="20" width="6" height="4" rx="1" fill="#00E5FF" opacity=".7"/>
-  <rect x="47" y="9"  width="6" height="4" rx="1" fill="#00E5FF" opacity=".7"/>
-  <rect x="47" y="20" width="6" height="4" rx="1" fill="#00E5FF" opacity=".7"/>
-  <rect x="12" y="-5" width="4" height="6" rx="1" fill="#00E5FF" opacity=".7"/>
-  <rect x="32" y="-5" width="4" height="6" rx="1" fill="#00E5FF" opacity=".7"/>
-  <rect x="12" y="33" width="4" height="6" rx="1" fill="#00E5FF" opacity=".7"/>
-  <rect x="32" y="33" width="4" height="6" rx="1" fill="#00E5FF" opacity=".7"/>
-  <text x="24" y="23" text-anchor="middle" font-size="11"
-        font-weight="700" fill="#E0F7FA" letter-spacing="1.5">LLM</text>
-</g>
-
-<!-- ============ TRUNK (grows taller) ============ -->
+<!-- ============ TRUNK (grows taller — drawn first so chip sits on top) ============ -->
 <g class="trunk-grow" filter="url(#ds)">
-  <path d="M248,400 Q244,360 242,315 Q240,288 244,260
+  <path d="M249,395 Q245,360 242,315 Q240,288 244,260
            L260,195 L276,260
-           Q280,288 278,315 Q276,360 272,400 Z"
+           Q280,288 278,315 Q275,360 271,395 Z"
         fill="url(#trk)"/>
   <path d="M254,372 Q257,345 255,318" stroke="#4E342E"
         stroke-width="1" fill="none" opacity=".3"/>
   <path d="M265,378 Q263,350 266,322" stroke="#4E342E"
         stroke-width="1" fill="none" opacity=".25"/>
+</g>
+
+<!-- ============ GROUND + CHIP (existing checkpoint — on top of trunk) ============ -->
+<ellipse cx="260" cy="404" rx="108" ry="11"
+         fill="#3E2723" opacity=".4"/>
+
+<!-- Circuit traces -->
+<g class="cpulse" stroke="url(#ci)" stroke-width="1.5" fill="none">
+  <path d="M222,406 L204,432 L180,432"/>
+  <path d="M242,410 L232,440 L210,440"/>
+  <path d="M278,410 L288,440 L310,440"/>
+  <path d="M298,406 L316,432 L340,432"/>
+  <circle cx="180" cy="432" r="3"   fill="#00E5FF" opacity=".5"/>
+  <circle cx="210" cy="440" r="2.5" fill="#00E5FF" opacity=".4"/>
+  <circle cx="310" cy="440" r="2.5" fill="#00E5FF" opacity=".4"/>
+  <circle cx="340" cy="432" r="3"   fill="#00E5FF" opacity=".5"/>
+</g>
+
+<!-- Chip (sits in front of trunk base, clearly visible) -->
+<g transform="translate(234,390)" class="base">
+  <rect width="52" height="36" rx="6" fill="url(#chp)" filter="url(#ngl)"/>
+  <rect x="-6" y="9"  width="7" height="4" rx="1.5" fill="#00E5FF" opacity=".75"/>
+  <rect x="-6" y="22" width="7" height="4" rx="1.5" fill="#00E5FF" opacity=".75"/>
+  <rect x="51" y="9"  width="7" height="4" rx="1.5" fill="#00E5FF" opacity=".75"/>
+  <rect x="51" y="22" width="7" height="4" rx="1.5" fill="#00E5FF" opacity=".75"/>
+  <rect x="12" y="-6" width="4" height="7" rx="1.5" fill="#00E5FF" opacity=".75"/>
+  <rect x="36" y="-6" width="4" height="7" rx="1.5" fill="#00E5FF" opacity=".75"/>
+  <rect x="12" y="35" width="4" height="7" rx="1.5" fill="#00E5FF" opacity=".75"/>
+  <rect x="36" y="35" width="4" height="7" rx="1.5" fill="#00E5FF" opacity=".75"/>
+  <text x="26" y="24" text-anchor="middle" font-size="12"
+        font-weight="700" fill="#E0F7FA" letter-spacing="1.5">LLM</text>
 </g>
 
 <!-- ============ BASE CANOPY (existing model = always visible) ============ -->
