@@ -134,10 +134,7 @@ class StructuralVerifier:
                     all_ok = all_ok and ok
             return all_ok
         finally:
-            for h in src_handles.values():
-                h.close()
-            for h in dst_handles.values():
-                h.close()
+            del src_handles, dst_handles  # release mmap handles
 
     def check_identity_blocks_zeroed(self) -> bool:
         """Verify that identity blocks have zeroed output projections."""
@@ -174,8 +171,7 @@ class StructuralVerifier:
                 )
             return True
         finally:
-            for h in dst_handles.values():
-                h.close()
+            del dst_handles  # release mmap handles
 
 
 def check_fp(

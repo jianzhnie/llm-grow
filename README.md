@@ -111,7 +111,7 @@ llm-grow expand --src /path/to/model --dst ./output \
 llm-grow verify --src /path/to/original --dst /path/to/expanded --fp
 
 # 查看模型架构信息
-llm-grow info /path/to/model
+llm-grow info --src /path/to/model
 ```
 
 ### ExpansionPlan 序列化
