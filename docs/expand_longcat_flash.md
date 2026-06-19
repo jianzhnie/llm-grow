@@ -23,7 +23,7 @@ auto_map：引用 configuration_longcat_flash.py / modeling_longcat_flash.py
 **核心特性——零专家（zero_expert）**：
 
 LongCat 独有设计：512 路由专家中，256 个是真实专家，256 个是"零专家"（预初始化为恒等映射）。
-这是 IdentityGraft 思路在 MoE 上的直接实现——零专家在训练过程中逐步学习，无训练代价的容量扩展。
+这是 ZeroBlockInsert 思路在 MoE 上的直接实现——零专家在训练过程中逐步学习，无训练代价的容量扩展。
 
 ```
 专家布局（扩增前）：
@@ -177,7 +177,7 @@ LongcatExpertUpcyclingExpander(cfg).expand(
 
 ---
 
-## 深度扩增方案（IdentityGraft 风格）
+## 深度扩增方案（ZeroBlockInsert 风格）
 
 若希望增加层数而非专家数：
 

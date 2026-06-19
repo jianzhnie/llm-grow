@@ -22,8 +22,8 @@
 
 - **两层扩增体系** — 内存级（`nn.Module` 原地修改）和 Safetensor 级（mmap 流式，峰值内存 ≤ 4 GB）
 - **四类架构全覆盖** — Dense / MoE-Standard / DeepSeek-MoE / LongCat，自动检测自动选择
-- **六种扩增算法** — IdentityGraft、OverlapSplit、InterpGraft、MultiAxisGrow、DenseToMoE、ExpertClone
-- **Function-Preserving** — IdentityGraft / MultiAxisGrow 扩增后 zero-shot 精度零损失
+- **六种扩增算法** — ZeroBlockInsert、OverlapCopy、SVDInterpInsert、MultiAxisPad、DenseToMoE、ExpertClone
+- **Function-Preserving** — ZeroBlockInsert / MultiAxisPad 扩增后 zero-shot 精度零损失
 - **完整训练工具链** — 冻结训练、知识蒸馏、渐进式掩码生长、MoE 负载均衡
 
 ---
@@ -103,18 +103,18 @@ auto_expand(
 import copy
 from transformers import AutoModelForCausalLM
 from llm_grow.expanders.depth.llama_pro import (
-    IdentityGraftConfig, IdentityGraftExpander,
+    ZeroBlockInsertConfig, ZeroBlockInsertExpander,
 )
 
 model = AutoModelForCausalLM.from_pretrained(
     "Qwen/Qwen3-8B", torch_dtype="auto",
 )
 original = copy.deepcopy(model)
-expanded = IdentityGraftExpander().expand(
+expanded = ZeroBlockInsertExpander().expand(
     model,
-    IdentityGraftConfig(num_new_layers=9, freeze_original=True),
+    ZeroBlockInsertConfig(num_new_layers=9, freeze_original=True),
 )
-IdentityGraftExpander().verify(original, expanded)
+ZeroBlockInsertExpander().verify(original, expanded)
 ```
 
 ---
@@ -125,10 +125,10 @@ IdentityGraftExpander().verify(original, expanded)
 
 | 方法 | FP | 扩展方向 | 即时精度 | 推荐 CPT | 推理延迟 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| **IdentityGraft** | yes | 深度 | **100%** | 8-16B tokens | +线性 |
-| **OverlapSplit** | no | 深度 | 50-80% | 100B+ tokens | +线性 |
-| **InterpGraft** | ~yes | 深度 | 80-90% | <50B tokens | +线性 |
-| **MultiAxisGrow** | yes | 深度+宽度 | **100%** | 30-60B tokens | ~1.4x |
+| **ZeroBlockInsert** | yes | 深度 | **100%** | 8-16B tokens | +线性 |
+| **OverlapCopy** | no | 深度 | 50-80% | 100B+ tokens | +线性 |
+| **SVDInterpInsert** | ~yes | 深度 | 80-90% | <50B tokens | +线性 |
+| **MultiAxisPad** | yes | 深度+宽度 | **100%** | 30-60B tokens | ~1.4x |
 | **DenseToMoE** | no | Dense->MoE | 70-85% | 50-100B tokens | ~不变 |
 | **ExpertClone** | ~yes | MoE 专家 | -- | 节省 32-67% | ~不变 |
 
@@ -136,25 +136,25 @@ IdentityGraftExpander().verify(original, expanded)
 
 ### 原理图
 
-#### IdentityGraft -- 恒等块嫁接
+#### ZeroBlockInsert -- 恒等块嫁接
 
 在均匀间隔处插入 identity block（`o_proj` / `down_proj` 置零），残差连接保证 `output = x + 0 = x`。
 
 <p align="center"><img src="docs/images/llama_pro.svg" width="720"/></p>
 
-#### OverlapSplit -- 层重叠拼接
+#### OverlapCopy -- 层重叠拼接
 
 将原模型分为 upper / lower 两段（重叠区保证平滑），拼接后层数倍增。非 FP，需大量 CPT。
 
 <p align="center"><img src="docs/images/solar_dus.svg" width="720"/></p>
 
-#### InterpGraft -- SVD 插值嫁接
+#### SVDInterpInsert -- SVD 插值嫁接
 
 对相邻层权重做算术平均插值，新层从有意义的初始化出发，收敛速度优于 DUS。
 
 <p align="center"><img src="docs/images/lesa.svg" width="720"/></p>
 
-#### MultiAxisGrow -- 多维掩码生长
+#### MultiAxisPad -- 多维掩码生长
 
 同时扩增深度（identity block）和宽度（零填充 hidden / FFN 维度），所有新参数初始化为零，严格 FP。
 
@@ -188,9 +188,9 @@ IdentityGraftExpander().verify(original, expanded)
 |       +-- 深度扩增（层数增加）      llm-grow expand --method depth
 |
 +-- 中小模型（可加载进内存）--> 内存级扩增
-    +-- 精度最优先，数据有限   --> IdentityGraft（FP, 8-16B tokens）
-    +-- 精确 2x，控制延迟     --> MultiAxisGrow（深度+宽度, ~1.4x 延迟）
-    +-- 最简实现，数据充足     --> OverlapSplit
+    +-- 精度最优先，数据有限   --> ZeroBlockInsert（FP, 8-16B tokens）
+    +-- 精确 2x，控制延迟     --> MultiAxisPad（深度+宽度, ~1.4x 延迟）
+    +-- 最简实现，数据充足     --> OverlapCopy
     +-- 推理延迟不能增加       --> DenseToMoE（top-1 激活量不变）
     +-- 基座已是 MoE           --> ExpertClone
 ```
@@ -280,28 +280,28 @@ plan = ExpansionPlan.load_json("my_plan.json")
 
 ### 内存级扩增
 
-#### IdentityGraft
+#### ZeroBlockInsert
 
 ```python
 from llm_grow.expanders.depth.llama_pro import (
-    IdentityGraftConfig, IdentityGraftExpander,
+    ZeroBlockInsertConfig, ZeroBlockInsertExpander,
 )
 
-expanded = IdentityGraftExpander().expand(model, IdentityGraftConfig(
+expanded = ZeroBlockInsertExpander().expand(model, ZeroBlockInsertConfig(
     num_new_layers=9,           # 建议 = 原层数 // 4
     insert_strategy="uniform",  # "uniform" | "front" | "rear"
     freeze_original=True,       # Phase-1 仅训练新块
 ))
 ```
 
-#### MultiAxisGrow
+#### MultiAxisPad
 
 ```python
 from llm_grow.expanders.width.msg import (
-    MultiAxisGrowConfig, MultiAxisGrowExpander,
+    MultiAxisPadConfig, MultiAxisPadExpander,
 )
 
-expanded = MultiAxisGrowExpander().expand(model, MultiAxisGrowConfig(
+expanded = MultiAxisPadExpander().expand(model, MultiAxisPadConfig(
     num_new_layers=10,
     hidden_size_expansion=512,
     intermediate_size_expansion=3072,
@@ -434,10 +434,10 @@ tracker.summary()
 
 | 方法 | 层数 | 参数量 | 倍率 | FP 验证 | 耗时 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| IdentityGraft (+7) | 28->35 | 596M->706M | 1.19x | max\|d\|=**0.000** | 0.2s |
-| OverlapSplit (overlap=8) | 28->40 | 596M->785M | 1.32x | 非FP（预期） | 0.2s |
-| InterpGraft (+4) | 28->32 | 596M->659M | 1.11x | 近似FP | 0.05s |
-| MultiAxisGrow (+4) | 28->32 | 596M->659M | 1.11x | max\|d\|=**0.000** | 0.05s |
+| ZeroBlockInsert (+7) | 28->35 | 596M->706M | 1.19x | max\|d\|=**0.000** | 0.2s |
+| OverlapCopy (overlap=8) | 28->40 | 596M->785M | 1.32x | 非FP（预期） | 0.2s |
+| SVDInterpInsert (+4) | 28->32 | 596M->659M | 1.11x | 近似FP | 0.05s |
+| MultiAxisPad (+4) | 28->32 | 596M->659M | 1.11x | max\|d\|=**0.000** | 0.05s |
 | DenseToMoE (x4) | 28->MoE | 596M->1.39B | 2.33x | 非FP（预期） | 6.1s |
 | ExpertClone (4->8) | -- | 1.39B->2.45B | 1.76x | 对称破坏后通过 | 1.7s |
 
@@ -446,7 +446,7 @@ tracker.summary()
 | 模型 | 方法 | 原始张量 | 输出张量 | 新增 |
 |------|------|:---:|:---:|:---:|
 | Qwen3-0.6B | depth +4 层 | 311 | 355 | 44 |
-| Qwen3-0.6B | IdentityGraft +7 | 311 | 388 | 77 |
+| Qwen3-0.6B | ZeroBlockInsert +7 | 311 | 388 | 77 |
 | Qwen3-30B-A3B | expert 128->256 | 18,867 | 37,299 | 18,432 |
 | Qwen3-30B-A3B | depth 48->56 | 18,867 | 22,011 | 3,144 |
 | Kimi-K2-Base | expert 384->768 | 139,644 | 277,884 | 138,240 |
@@ -482,8 +482,8 @@ llm-grow/
 |   |   +-- utils.py            #   ShardIndex / header 扫描
 |   +-- expanders/              # 内存级扩增
 |   |   +-- base.py             #   AbstractExpander 基类
-|   |   +-- depth/              #   IdentityGraft / OverlapSplit / InterpGraft
-|   |   +-- width/              #   MultiAxisGrow / Net2Net
+|   |   +-- depth/              #   ZeroBlockInsert / OverlapCopy / SVDInterpInsert
+|   |   +-- width/              #   MultiAxisPad / Net2Net
 |   |   +-- sparse/             #   DenseToMoE / ExpertClone
 |   +-- initializers/           # 权重初始化（identity, SVD, 对称破坏）
 |   +-- training/               # 冻结 / 蒸馏 / 调度 / 负载均衡
@@ -500,8 +500,8 @@ llm-grow/
 
 ```
 configs/
-+-- Qwen3-0.6B/        identity_graft.yaml  overlap_split.yaml  multi_axis_grow.yaml
-+-- Qwen3-8B/          identity_graft.yaml  multi_axis_grow.yaml  dense_to_moe.yaml
++-- Qwen3-0.6B/        zero_block_insert.yaml  overlap_copy.yaml  multi_axis_pad.yaml
++-- Qwen3-8B/          zero_block_insert.yaml  multi_axis_pad.yaml  dense_to_moe.yaml
 +-- Qwen3-30B-A3B/     expert_clone.yaml  depth.yaml
 +-- Kimi-K2-Base/      expert_clone.yaml  depth.yaml
 +-- LongCat-Flash-Chat/  expert_clone.yaml  depth.yaml

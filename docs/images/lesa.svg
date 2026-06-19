@@ -4,7 +4,7 @@
     <linearGradient id="iG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#C0392B"/><stop offset="100%" stop-color="#A93226"/></linearGradient>
     <filter id="s"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.15"/></filter>
   </defs>
-  <text x="410" y="30" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">InterpGraft: SVD Interpolation Expansion</text>
+  <text x="410" y="30" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">SVDInterpInsert: SVD Interpolation Expansion</text>
   <text x="410" y="50" text-anchor="middle" font-size="13" fill="#666">Insert interpolated layers between adjacent pairs (~80-90% FP)</text>
   <!-- Original -->
   <text x="120" y="78" text-anchor="middle" font-size="14" font-weight="600" fill="#4080B0">Original</text>

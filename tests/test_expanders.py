@@ -1,4 +1,4 @@
-"""Tests for IdentityGraftExpander and OverlapSplitExpander."""
+"""Tests for ZeroBlockInsertExpander and OverlapCopyExpander."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ import copy
 import torch
 import torch.nn as nn
 
-from llm_grow.expanders.depth.identity_graft import (
-    IdentityGraftConfig,
-    IdentityGraftExpander,
+from llm_grow.expanders.depth.overlap_copy import (
+    OverlapCopyConfig,
+    OverlapCopyExpander,
 )
-from llm_grow.expanders.depth.overlap_split import (
-    OverlapSplitConfig,
-    OverlapSplitExpander,
+from llm_grow.expanders.depth.zero_block_insert import (
+    ZeroBlockInsertConfig,
+    ZeroBlockInsertExpander,
 )
 
 # ---------------------------------------------------------------------------
@@ -85,23 +85,23 @@ class FakeModel(nn.Module):
 # ---------------------------------------------------------------------------
 
 
-class TestIdentityGraftExpander:
+class TestZeroBlockInsertExpander:
     def _make_model(self, num_layers=8):
         return FakeModel(num_layers=num_layers, d=32)
 
     def test_layer_count_increases(self):
         model = self._make_model(8)
-        config = IdentityGraftConfig(num_new_blocks=4, insert_strategy="uniform")
-        IdentityGraftExpander().expand(model, config)
+        config = ZeroBlockInsertConfig(num_new_blocks=4, insert_strategy="uniform")
+        ZeroBlockInsertExpander().expand(model, config)
         assert len(model.layers) == 12
 
     def test_function_preserving(self):
         model = self._make_model(8)
         original = copy.deepcopy(model)
-        config = IdentityGraftConfig(
+        config = ZeroBlockInsertConfig(
             num_new_blocks=4, insert_strategy="uniform", freeze_original=False
         )
-        expanded = IdentityGraftExpander().expand(model, config)
+        expanded = ZeroBlockInsertExpander().expand(model, config)
 
         input_ids = torch.randint(0, 256, (2, 16))
         original.eval()
@@ -115,13 +115,13 @@ class TestIdentityGraftExpander:
 
     def test_num_hidden_layers_updated(self):
         model = self._make_model(8)
-        IdentityGraftExpander().expand(model, IdentityGraftConfig(num_new_blocks=2))
+        ZeroBlockInsertExpander().expand(model, ZeroBlockInsertConfig(num_new_blocks=2))
         assert model.config.num_hidden_layers == 10
 
     def test_freeze_original_works(self):
         model = self._make_model(8)
-        IdentityGraftExpander().expand(
-            model, IdentityGraftConfig(num_new_blocks=2, freeze_original=True)
+        ZeroBlockInsertExpander().expand(
+            model, ZeroBlockInsertConfig(num_new_blocks=2, freeze_original=True)
         )
         trainable = [p for p in model.parameters() if p.requires_grad]
         frozen = [p for p in model.parameters() if not p.requires_grad]
@@ -134,16 +134,16 @@ class TestIdentityGraftExpander:
 # ---------------------------------------------------------------------------
 
 
-class TestOverlapSplitExpander:
+class TestOverlapCopyExpander:
     def test_layer_count(self):
         model = FakeModel(num_layers=8)
-        config = OverlapSplitConfig(num_overlap=2)
-        OverlapSplitExpander().expand(model, config)
+        config = OverlapCopyConfig(num_overlap=2)
+        OverlapCopyExpander().expand(model, config)
         assert len(model.layers) == 12  # 2*(8-2) = 12
 
     def test_verify_returns_false(self):
         model = FakeModel(num_layers=8)
         original = copy.deepcopy(model)
         expanded = copy.deepcopy(model)
-        result = OverlapSplitExpander().verify(original, expanded)
+        result = OverlapCopyExpander().verify(original, expanded)
         assert result is False

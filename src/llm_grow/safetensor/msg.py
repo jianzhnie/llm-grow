@@ -7,7 +7,7 @@ Supports two orthogonal expansion axes:
 Both are function-preserving: all new parameters start at zero.
 hidden_size / attention-head expansion is NOT implemented here because it
 requires touching every linear projection + embedding, making the recipe
-much more complex; use the in-memory MultiAxisGrowExpander for that case.
+much more complex; use the in-memory MultiAxisPadExpander for that case.
 """
 
 from __future__ import annotations

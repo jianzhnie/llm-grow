@@ -15,9 +15,9 @@ import argparse
 
 import torch
 
-from llm_grow.expanders.depth.identity_graft import (
-    IdentityGraftConfig,
-    IdentityGraftExpander,
+from llm_grow.expanders.depth.zero_block_insert import (
+    ZeroBlockInsertConfig,
+    ZeroBlockInsertExpander,
 )
 from llm_grow.utils.arch_info import param_diff_report
 from llm_grow.utils.model_io import load_model, load_tokenizer, save_model
@@ -60,13 +60,13 @@ def main() -> None:
 
         original_for_verify = copy.deepcopy(model)
 
-    config = IdentityGraftConfig(
+    config = ZeroBlockInsertConfig(
         num_new_layers=args.num_new_layers,
         insert_strategy=args.insert_strategy,
         freeze_original=not args.no_freeze,
     )
 
-    expander = IdentityGraftExpander()
+    expander = ZeroBlockInsertExpander()
     expanded = expander.expand(model, config)
 
     param_diff_report(original_for_verify if args.verify else model, expanded)

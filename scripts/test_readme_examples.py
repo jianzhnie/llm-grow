@@ -62,8 +62,8 @@ def main():
     run(
         "import/llama_pro",
         """
-from llm_grow.expanders.depth.identity_graft import (
-    IdentityGraftConfig, IdentityGraftExpander,
+from llm_grow.expanders.depth.zero_block_insert import (
+    ZeroBlockInsertConfig, ZeroBlockInsertExpander,
 )
 """,
     )
@@ -89,8 +89,8 @@ from llm_grow.safetensor.moe_generic import make_qwen3moe_upcycling
     run(
         "import/msg",
         """
-from llm_grow.expanders.width.multi_axis_grow import (
-    MultiAxisGrowConfig, MultiAxisGrowExpander,
+from llm_grow.expanders.width.multi_axis_pad import (
+    MultiAxisPadConfig, MultiAxisPadExpander,
 )
 """,
     )
@@ -345,10 +345,10 @@ assert profile.has_fp8 is False
     run(
         "inmem/llama_pro_config",
         """
-from llm_grow.expanders.depth.identity_graft import (
-    IdentityGraftConfig, IdentityGraftExpander,
+from llm_grow.expanders.depth.zero_block_insert import (
+    ZeroBlockInsertConfig, ZeroBlockInsertExpander,
 )
-config = IdentityGraftConfig(
+config = ZeroBlockInsertConfig(
     num_new_layers=9,
     insert_strategy="uniform",
     freeze_original=True,
@@ -361,10 +361,10 @@ assert config.num_new_layers == 9
     run(
         "inmem/msg_config",
         """
-from llm_grow.expanders.width.multi_axis_grow import (
-    MultiAxisGrowConfig, MultiAxisGrowExpander,
+from llm_grow.expanders.width.multi_axis_pad import (
+    MultiAxisPadConfig, MultiAxisPadExpander,
 )
-config = MultiAxisGrowConfig(
+config = MultiAxisPadConfig(
     num_new_layers=10,
     hidden_size_expansion=512,
     intermediate_size_expansion=3072,

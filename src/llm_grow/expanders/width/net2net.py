@@ -48,7 +48,7 @@ class Net2NetExpander(AbstractExpander):
         # TODO: 实现完整的模型级 Net2WiderNet 逻辑（需适配 SwiGLU/GQA 结构）
         raise NotImplementedError(
             "Net2NetExpander.expand() 需要针对具体架构实现列复制逻辑。"
-            "对于 Transformer LLM，建议直接使用 MultiAxisGrowExpander。"
+            "对于 Transformer LLM，建议直接使用 MultiAxisPadExpander。"
         )
 
     def wider(

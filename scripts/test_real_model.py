@@ -67,9 +67,9 @@ def run_generate(model, tokenizer, prompt="Hello, I am"):
 # ──────────────────────────────────────────────────────────────────────────────
 def test_llama_pro():
     print_sep("Test 1: LLaMA-Pro — 恒等块插入")
-    from llm_grow.expanders.depth.identity_graft import (
-        IdentityGraftConfig,
-        IdentityGraftExpander,
+    from llm_grow.expanders.depth.zero_block_insert import (
+        ZeroBlockInsertConfig,
+        ZeroBlockInsertExpander,
     )
 
     model = load_fresh()
@@ -77,11 +77,11 @@ def test_llama_pro():
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
-    config = IdentityGraftConfig(
+    config = ZeroBlockInsertConfig(
         num_new_layers=7, insert_strategy="uniform", freeze_original=True
     )
     t0 = time.time()
-    expanded = IdentityGraftExpander().expand(model, config)
+    expanded = ZeroBlockInsertExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
@@ -105,18 +105,18 @@ def test_llama_pro():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_solar_dus():
     print_sep("Test 2: SOLAR DUS — 层重叠复制")
-    from llm_grow.expanders.depth.overlap_split import (
-        OverlapSplitConfig,
-        OverlapSplitExpander,
+    from llm_grow.expanders.depth.overlap_copy import (
+        OverlapCopyConfig,
+        OverlapCopyExpander,
     )
 
     model = load_fresh()
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
-    config = OverlapSplitConfig(num_overlap=8)
+    config = OverlapCopyConfig(num_overlap=8)
     t0 = time.time()
-    expanded = OverlapSplitExpander().expand(model, config)
+    expanded = OverlapCopyExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
@@ -139,9 +139,9 @@ def test_solar_dus():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_lesa():
     print_sep("Test 3: LESA — SVD 插值（相邻层均值）")
-    from llm_grow.expanders.depth.interp_graft import (
-        InterpGraftConfig,
-        InterpGraftExpander,
+    from llm_grow.expanders.depth.svd_interp_insert import (
+        SVDInterpInsertConfig,
+        SVDInterpInsertExpander,
     )
 
     model = load_fresh()
@@ -149,9 +149,9 @@ def test_lesa():
     orig_params = count_params(model)
 
     # 仅在前 4 对相邻层之间插入，快速验证
-    config = InterpGraftConfig(insert_between=[(i, i + 1) for i in range(4)])
+    config = SVDInterpInsertConfig(insert_between=[(i, i + 1) for i in range(4)])
     t0 = time.time()
-    expanded = InterpGraftExpander().expand(model, config)
+    expanded = SVDInterpInsertExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
@@ -168,9 +168,9 @@ def test_lesa():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_msg():
     print_sep("Test 4: MSG — 深度+宽度混合扩增")
-    from llm_grow.expanders.width.multi_axis_grow import (
-        MultiAxisGrowConfig,
-        MultiAxisGrowExpander,
+    from llm_grow.expanders.width.multi_axis_pad import (
+        MultiAxisPadConfig,
+        MultiAxisPadExpander,
     )
 
     model = load_fresh()
@@ -178,14 +178,14 @@ def test_msg():
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
-    config = MultiAxisGrowConfig(
+    config = MultiAxisPadConfig(
         num_new_layers=4,
         hidden_size_expansion=0,
         intermediate_size_expansion=0,
         freeze_original=False,
     )
     t0 = time.time()
-    expanded = MultiAxisGrowExpander().expand(model, config)
+    expanded = MultiAxisPadExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
@@ -294,9 +294,9 @@ def test_expert_upcycling():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_generation():
     print_sep("Test 7: 生成文本对比（LLaMA-Pro 扩增前后）")
-    from llm_grow.expanders.depth.identity_graft import (
-        IdentityGraftConfig,
-        IdentityGraftExpander,
+    from llm_grow.expanders.depth.zero_block_insert import (
+        ZeroBlockInsertConfig,
+        ZeroBlockInsertExpander,
     )
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
@@ -304,8 +304,8 @@ def test_generation():
 
     model_orig = load_fresh()
     model_exp = copy.deepcopy(model_orig)
-    IdentityGraftExpander().expand(
-        model_exp, IdentityGraftConfig(num_new_layers=7, freeze_original=False)
+    ZeroBlockInsertExpander().expand(
+        model_exp, ZeroBlockInsertConfig(num_new_layers=7, freeze_original=False)
     )
 
     print(f"  Prompt: {prompt!r}")

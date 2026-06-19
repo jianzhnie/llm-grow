@@ -9,7 +9,7 @@
 
 Related:
     - ``DenseToMoE`` (dense_to_moe.py): Dense 转 MoE（从零创建专家）
-    - ``IdentityGraft`` (identity_graft.py): MoE 模型的深度扩增
+    - ``ZeroBlockInsert`` (identity_graft.py): MoE 模型的深度扩增
 """
 
 from __future__ import annotations

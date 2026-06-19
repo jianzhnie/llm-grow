@@ -1,4 +1,4 @@
-"""IdentityGraft: 恒等块嫁接深度扩增 (arXiv:2401.02415, LLaMA-Pro).
+"""ZeroBlockInsert: 恒等块嫁接深度扩增 (arXiv:2401.02415, LLaMA-Pro).
 
 核心思路：在均匀间隔处插入恒等块（o_proj & down_proj 置零），
 扩增后模型与原始模型函数完全一致（function-preserving）。
@@ -7,9 +7,9 @@
     arXiv:2401.02415, 2024.
 
 Related:
-    - ``OverlapSplit`` (overlap_split.py): 非 FP 的层重叠拷贝深度扩增
-    - ``InterpGraft`` (interp_graft.py): SVD 插值近似 FP 深度扩增
-    - ``MultiAxisGrow`` (multi_axis_grow.py): 深度+宽度联合 FP 扩增
+    - ``OverlapCopy`` (overlap_split.py): 非 FP 的层重叠拷贝深度扩增
+    - ``SVDInterpInsert`` (interp_graft.py): SVD 插值近似 FP 深度扩增
+    - ``MultiAxisPad`` (multi_axis_grow.py): 深度+宽度联合 FP 扩增
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from llm_grow.initializers.identity import zero_output_projections
 
 
 @dataclass
-class IdentityGraftConfig(ExpansionConfig):
+class ZeroBlockInsertConfig(ExpansionConfig):
     num_new_layers: int = 8
     """插入的新层数量。建议 = 原层数 // 4。
     向后兼容：也可使用 num_new_blocks 传参（等效别名）。
@@ -56,21 +56,21 @@ class IdentityGraftConfig(ExpansionConfig):
         self.num_new_blocks = self.num_new_layers
 
 
-class IdentityGraftExpander(AbstractExpander):
-    """IdentityGraft 恒等块插入扩增器。
+class ZeroBlockInsertExpander(AbstractExpander):
+    """ZeroBlockInsert 恒等块插入扩增器。
 
     用法::
 
-        from llm_grow import IdentityGraftExpander
-        from llm_grow.expanders.depth.identity_graft import IdentityGraftConfig
+        from llm_grow import ZeroBlockInsertExpander
+        from llm_grow.expanders.depth.zero_block_insert import ZeroBlockInsertConfig
 
-        config = IdentityGraftConfig(num_new_layers=9)
-        expander = IdentityGraftExpander()
+        config = ZeroBlockInsertConfig(num_new_layers=9)
+        expander = ZeroBlockInsertExpander()
         expanded_model = expander(original_model, config)
         expander.verify(original_model, expanded_model)
     """
 
-    def expand(self, model: nn.Module, config: IdentityGraftConfig) -> nn.Module:
+    def expand(self, model: nn.Module, config: ZeroBlockInsertConfig) -> nn.Module:
         layers = _get_decoder_layers(model)
         num_orig = len(layers)
         insert_positions = _compute_insert_positions(
