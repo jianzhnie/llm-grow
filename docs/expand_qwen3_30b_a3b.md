@@ -66,7 +66,7 @@ python scripts/safetensor_expand.py auto \
 
 预期输出：
 ```
-[SafetensorExpand] [dry_run] GenericMoEExpertUpcyclingExpander ...
+[SafetensorExpand] [dry_run] GenericMoEExpertCloneExpander ...
   source:  18867 tensors, 16 shard(s)
   output:  37299 tensors, num_hidden_layers → 48
   dup-rows tensors : 48      ← 48 层 router.weight 行翻倍

@@ -81,7 +81,7 @@ python scripts/safetensor_expand.py auto \
 
 预期输出：
 ```
-[SafetensorExpand] [dry_run] LongcatExpertUpcyclingExpander ...
+[SafetensorExpand] [dry_run] LongcatExpertCloneExpander ...
   source:  43756 tensors, 75 shard(s)
   output:  86764 tensors, num_hidden_layers → 28
   dup-rows tensors : 56      ← 28 层 × 2（classifier.weight + e_score_correction_bias）
@@ -93,7 +93,7 @@ python scripts/safetensor_expand.py auto \
 
 **零专家处理说明**：
 
-`LongcatExpertUpcyclingExpander` 通过 `router_split=512` 正确区分零专家行：
+`LongcatExpertCloneExpander` 通过 `router_split=512` 正确区分零专家行：
 
 ```
 router.classifier.weight 扩增逻辑：
@@ -160,15 +160,15 @@ print(model.config.moe_topk)           # 24
 
 ```python
 from llm_grow.safetensor.longcat import (
-    LongcatExpertUpcyclingConfig, LongcatExpertUpcyclingExpander,
+    LongcatExpertCloneConfig, LongcatExpertCloneExpander,
 )
 
-cfg = LongcatExpertUpcyclingConfig(
+cfg = LongcatExpertCloneConfig(
     expand_factor=2,
     noise_scale=1e-6,
     double_zero_experts=True,  # zero_expert_num 256 → 512
 )
-LongcatExpertUpcyclingExpander(cfg).expand(
+LongcatExpertCloneExpander(cfg).expand(
     src_dir="./models/LongCat-Flash-Chat",
     dst_dir="./outputs/LongCat-Flash-Chat-2x",
     workers=4,
