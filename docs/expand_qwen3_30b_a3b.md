@@ -35,7 +35,7 @@ vocab_size：151936  tie_word_embeddings：False
 
 | 方案 | 方法 | 目标参数量 | 倍率 | 推理成本 | 参考配置 |
 |------|------|:---:|:---:|:---:|------|
-| **专家扩增 2x** ★ | 128→256 experts | ~59B | ~2.0x | 激活↑（top-8→16） | `configs/Qwen3-30B-A3B/expert_upcycling.yaml` |
+| **专家扩增 2x** ★ | 128→256 experts | ~59B | ~2.0x | 激活↑（top-8→16） | `configs/Qwen3-30B-A3B/expert_clone.yaml` |
 | 专家扩增（推理成本不变） | 128→256，topk 不变 | ~59B | ~2.0x | **不变** | 修改 YAML：`num_experts_per_tok: 8` |
 | 深度扩增 | 48→60 层 | ~34B | ~1.13x | ↑ 线性 | `configs/Qwen3-30B-A3B/depth.yaml` |
 
@@ -108,7 +108,7 @@ python scripts/verify_safetensor.py \
 ## 保持推理成本不变的专家扩增
 
 若要专家数翻倍但**推理激活成本保持不变**（仍只激活 8 个专家），
-修改 `configs/Qwen3-30B-A3B/expert_upcycling.yaml`：
+修改 `configs/Qwen3-30B-A3B/expert_clone.yaml`：
 
 ```yaml
 expansion:

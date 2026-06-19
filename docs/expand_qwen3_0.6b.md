@@ -27,10 +27,10 @@ vocab_size：151936  tie_word_embeddings：True
 
 | 方案 | 方法 | 目标参数量 | 倍率 | FP | 参考配置 |
 |------|------|:---:|:---:|:---:|------|
-| **LLaMA-Pro 2x** | 深度 +38 块 | 1194M | 2.00x | ✓ | `configs/Qwen3-0.6B/llama_pro.yaml` |
-| LLaMA-Pro 层翻倍 | 深度 +28 块 | 1037M | 1.74x | ✓ | — |
-| MSG 深度+宽度 | 深度+14, FFN+2048 | ~1081M | ~1.81x | ✓ | `configs/Qwen3-0.6B/msg.yaml` |
-| SOLAR DUS | 层重叠复制 | 785M | 1.32x | ✗ | `configs/Qwen3-0.6B/solar_dus.yaml` |
+| **IdentityGraft 2x** | 深度 +38 块 | 1194M | 2.00x | ✓ | `configs/Qwen3-0.6B/identity_graft.yaml` |
+| IdentityGraft 层翻倍 | 深度 +28 块 | 1037M | 1.74x | ✓ | — |
+| MultiAxisGrow 深度+宽度 | 深度+14, FFN+2048 | ~1081M | ~1.81x | ✓ | `configs/Qwen3-0.6B/multi_axis_grow.yaml` |
+| OverlapSplit | 层重叠复制 | 785M | 1.32x | ✗ | `configs/Qwen3-0.6B/overlap_split.yaml` |
 
 ---
 
@@ -47,7 +47,7 @@ huggingface-cli download Qwen/Qwen3-0.6B --local-dir ./models/Qwen3-0.6B
 
 ---
 
-## 方案 A：LLaMA-Pro 深度扩增（推荐，精确 2x）
+## 方案 A：IdentityGraft 深度扩增（推荐，精确 2x）
 
 ### Step 1  Dry-run 验证方案（无需权重）
 
@@ -108,7 +108,7 @@ python scripts/verify_safetensor.py \
 
 ---
 
-## 方案 B：MSG 深度+宽度（推理延迟更小）
+## 方案 B：MultiAxisGrow 深度+宽度（推理延迟更小）
 
 ```bash
 python scripts/safetensor_expand.py msg \

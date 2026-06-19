@@ -22,8 +22,8 @@
 
 - **两层扩增体系** — 内存级（`nn.Module` 原地修改）和 Safetensor 级（mmap 流式，峰值内存 ≤ 4 GB）
 - **四类架构全覆盖** — Dense / MoE-Standard / DeepSeek-MoE / LongCat，自动检测自动选择
-- **六种扩增算法** — LLaMA-Pro、SOLAR DUS、LESA、MSG、MoE Upcycling、Expert Upcycling
-- **Function-Preserving** — LLaMA-Pro / MSG 扩增后 zero-shot 精度零损失
+- **六种扩增算法** — IdentityGraft、OverlapSplit、InterpGraft、MultiAxisGrow、DenseToMoE、ExpertClone
+- **Function-Preserving** — IdentityGraft / MultiAxisGrow 扩增后 zero-shot 精度零损失
 - **完整训练工具链** — 冻结训练、知识蒸馏、渐进式掩码生长、MoE 负载均衡
 
 ---
@@ -446,7 +446,7 @@ tracker.summary()
 | 模型 | 方法 | 原始张量 | 输出张量 | 新增 |
 |------|------|:---:|:---:|:---:|
 | Qwen3-0.6B | depth +4 层 | 311 | 355 | 44 |
-| Qwen3-0.6B | LLaMA-Pro +7 | 311 | 388 | 77 |
+| Qwen3-0.6B | IdentityGraft +7 | 311 | 388 | 77 |
 | Qwen3-30B-A3B | expert 128->256 | 18,867 | 37,299 | 18,432 |
 | Qwen3-30B-A3B | depth 48->56 | 18,867 | 22,011 | 3,144 |
 | Kimi-K2-Base | expert 384->768 | 139,644 | 277,884 | 138,240 |
@@ -482,9 +482,9 @@ llm-grow/
 |   |   +-- utils.py            #   ShardIndex / header 扫描
 |   +-- expanders/              # 内存级扩增
 |   |   +-- base.py             #   AbstractExpander 基类
-|   |   +-- depth/              #   LLaMA-Pro / SOLAR DUS / LESA
-|   |   +-- width/              #   MSG / Net2Net
-|   |   +-- sparse/             #   MoE Upcycling / Expert Upcycling
+|   |   +-- depth/              #   IdentityGraft / OverlapSplit / InterpGraft
+|   |   +-- width/              #   MultiAxisGrow / Net2Net
+|   |   +-- sparse/             #   DenseToMoE / ExpertClone
 |   +-- initializers/           # 权重初始化（identity, SVD, 对称破坏）
 |   +-- training/               # 冻结 / 蒸馏 / 调度 / 负载均衡
 |   +-- eval/                   # FP 验证 / 结构验证 / 恢复曲线
@@ -500,11 +500,11 @@ llm-grow/
 
 ```
 configs/
-+-- Qwen3-0.6B/        llama_pro.yaml  solar_dus.yaml  msg.yaml
-+-- Qwen3-8B/          llama_pro.yaml  msg.yaml  moe_upcycling.yaml
-+-- Qwen3-30B-A3B/     expert_upcycling.yaml  depth.yaml
-+-- Kimi-K2-Base/      expert_upcycling.yaml  depth.yaml
-+-- LongCat-Flash-Chat/  expert_upcycling.yaml  depth.yaml
++-- Qwen3-0.6B/        identity_graft.yaml  overlap_split.yaml  multi_axis_grow.yaml
++-- Qwen3-8B/          identity_graft.yaml  multi_axis_grow.yaml  dense_to_moe.yaml
++-- Qwen3-30B-A3B/     expert_clone.yaml  depth.yaml
++-- Kimi-K2-Base/      expert_clone.yaml  depth.yaml
++-- LongCat-Flash-Chat/  expert_clone.yaml  depth.yaml
 ```
 
 ---

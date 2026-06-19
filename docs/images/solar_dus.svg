@@ -5,7 +5,7 @@
     <linearGradient id="oG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#BF8CD5"/><stop offset="100%" stop-color="#9B6BBF"/></linearGradient>
     <filter id="sh"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.15"/></filter>
   </defs>
-  <text x="430" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">SOLAR DUS: Depth Up-Scaling</text>
+  <text x="430" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">OverlapSplit: Depth Up-Scaling</text>
   <text x="430" y="54" text-anchor="middle" font-size="13" fill="#666">Layer overlap-copy (non function-preserving, requires CPT)</text>
   <!-- Original -->
   <text x="100" y="82" text-anchor="middle" font-size="14" font-weight="600" fill="#4080B0">Original (L=6, overlap=2)</text>

@@ -23,7 +23,7 @@ auto_map：引用 configuration_longcat_flash.py / modeling_longcat_flash.py
 **核心特性——零专家（zero_expert）**：
 
 LongCat 独有设计：512 路由专家中，256 个是真实专家，256 个是"零专家"（预初始化为恒等映射）。
-这是 LLaMA-Pro 思路在 MoE 上的直接实现——零专家在训练过程中逐步学习，无训练代价的容量扩展。
+这是 IdentityGraft 思路在 MoE 上的直接实现——零专家在训练过程中逐步学习，无训练代价的容量扩展。
 
 ```
 专家布局（扩增前）：
@@ -41,7 +41,7 @@ Router weight 形状：[512+256, 6144] = [768, 6144]
 
 | 方案 | 方法 | 专家变化 | moe_topk | 参考配置 |
 |------|------|:---:|:---:|------|
-| **专家扩增 2x** ★ | expert_upcycling | 512→1024 (256+256 zero → 512+512 zero) | 12→24 | `configs/LongCat-Flash-Chat/expert_upcycling.yaml` |
+| **专家扩增 2x** ★ | expert_upcycling | 512→1024 (256+256 zero → 512+512 zero) | 12→24 | `configs/LongCat-Flash-Chat/expert_clone.yaml` |
 
 > **注**：`moe_topk` 默认**不会**自动翻倍（`scale_moe_topk=False` 是默认值）。
 > 上表中 `moe_topk: 12→24` 需要在配置中显式设置 `scale_moe_topk=True`，
@@ -177,7 +177,7 @@ LongcatExpertUpcyclingExpander(cfg).expand(
 
 ---
 
-## 深度扩增方案（LLaMA-Pro 风格）
+## 深度扩增方案（IdentityGraft 风格）
 
 若希望增加层数而非专家数：
 

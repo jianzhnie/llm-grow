@@ -5,7 +5,7 @@
     <linearGradient id="rG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8E44AD"/><stop offset="100%" stop-color="#7D3C98"/></linearGradient>
     <filter id="s3"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.15"/></filter>
   </defs>
-  <text x="430" y="30" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">MoE Upcycling: Dense → Sparse MoE</text>
+  <text x="430" y="30" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">DenseToMoE: Dense to Sparse MoE</text>
   <text x="430" y="50" text-anchor="middle" font-size="13" fill="#666">Copy FFN as experts + random router (non function-preserving)</text>
   <!-- Dense layer -->
   <text x="140" y="82" text-anchor="middle" font-size="14" font-weight="600" fill="#4080B0">Dense Layer</text>

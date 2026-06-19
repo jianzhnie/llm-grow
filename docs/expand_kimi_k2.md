@@ -35,7 +35,7 @@ Router：mlp.gate.weight + mlp.gate.e_score_correction_bias
 
 | 方案 | 方法 | 目标参数量 | 倍率 | 推理成本 | 参考配置 |
 |------|------|:---:|:---:|:---:|------|
-| **专家扩增 2x** ★ | 384→768 experts | ~2T | ~2.0x | 激活↑（top-8→16） | `configs/Kimi-K2-Base/expert_upcycling.yaml` |
+| **专家扩增 2x** ★ | 384→768 experts | ~2T | ~2.0x | 激活↑（top-8→16） | `configs/Kimi-K2-Base/expert_clone.yaml` |
 | 专家扩增（推理不变） | 384→768，topk 不变 | ~2T | ~2.0x | **不变** | 修改 YAML |
 | 深度扩增 | 61→65 层 | ~1.07T | ~1.07x | ↑ ~7% | `configs/Kimi-K2-Base/depth.yaml` |
 

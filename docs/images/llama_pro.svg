@@ -6,7 +6,7 @@
     <filter id="shadow"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.15"/></filter>
   </defs>
   <!-- Title -->
-  <text x="410" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">LLaMA-Pro: Identity Block Insertion</text>
+  <text x="410" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e">IdentityGraft: Identity Block Insertion</text>
   <text x="410" y="54" text-anchor="middle" font-size="13" fill="#666">Function-Preserving depth expansion via zero-initialized blocks</text>
   <!-- Original Model -->
   <text x="145" y="85" text-anchor="middle" font-size="14" font-weight="600" fill="#357ABD">Original Model</text>
