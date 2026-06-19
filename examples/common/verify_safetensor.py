@@ -11,12 +11,12 @@ Checks:
 Usage
 -----
 # Fast structural checks only (no model load)
-python scripts/verify_safetensor.py \\
+python examples/common/verify_safetensor.py \\
     --src /path/to/original \\
     --dst /path/to/expanded
 
 # Full FP verification (loads both models)
-python scripts/verify_safetensor.py \\
+python examples/common/verify_safetensor.py \\
     --src /path/to/original \\
     --dst /path/to/expanded \\
     --fp

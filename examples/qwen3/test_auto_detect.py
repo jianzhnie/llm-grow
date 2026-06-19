@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 """Auto-detect and auto_expand dispatch tests for Qwen3 models."""
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common.helpers import print_summary
 from common.model_paths import QWEN3_06B, QWEN3_30B, require_path
 
 DENSE_SRC = require_path("QWEN3_06B", QWEN3_06B)
@@ -71,17 +72,9 @@ def test_auto_dispatch():
 
 
 if __name__ == "__main__":
-    results = {}
-    for name, fn in [
+    from common.helpers import run_tests
+
+    sys.exit(run_tests([
         ("detect", test_detect),
         ("auto_dispatch", test_auto_dispatch),
-    ]:
-        try:
-            results[name] = fn()
-        except Exception as e:
-            print(f"\n  [FAIL] {e}")
-            import traceback
-            traceback.print_exc()
-            results[name] = False
-
-    sys.exit(print_summary(results))
+    ]))

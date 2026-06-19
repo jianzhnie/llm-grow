@@ -7,34 +7,34 @@ correct expander automatically.
 Usage examples
 --------------
 # Auto-detect (recommended)
-python scripts/safetensor_expand.py auto \\
+python examples/common/safetensor_expand.py auto \\
     --src  /path/to/model \\
     --dst  ./output \\
     --method depth --num-new-layers 4
 
-python scripts/safetensor_expand.py auto \\
+python examples/common/safetensor_expand.py auto \\
     --src  /path/to/moe_model \\
     --dst  ./output \\
     --method expert --expand-factor 2
 
 # Explicit expanders
-python scripts/safetensor_expand.py zero_block_insert \\
+python examples/common/safetensor_expand.py zero_block_insert \\
     --src  /path/to/Qwen3-8B \\
     --dst  ./outputs/qwen3_zbi \\
     --num-new-layers 7
 
-python scripts/safetensor_expand.py overlap_copy \\
+python examples/common/safetensor_expand.py overlap_copy \\
     --src  /path/to/Qwen3-8B \\
     --dst  ./outputs/qwen3_oc \\
     --num-overlap 8
 
-python scripts/safetensor_expand.py multi_axis_pad \\
+python examples/common/safetensor_expand.py multi_axis_pad \\
     --src  /path/to/Qwen3-8B \\
     --dst  ./outputs/qwen3_map \\
     --num-new-layers 4 \\
     --ffn-size-expansion 1024
 
-python scripts/safetensor_expand.py expert_clone \\
+python examples/common/safetensor_expand.py expert_clone \\
     --src  /path/to/Qwen3-30B-A3B \\
     --dst  ./outputs/qwen3_30b_2x \\
     --expand-factor 2

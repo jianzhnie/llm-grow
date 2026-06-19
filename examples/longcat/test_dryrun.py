@@ -7,12 +7,13 @@ Tests both:
   3. Dry-run plan verification via auto-detect
 """
 
+from __future__ import annotations
+
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common.helpers import print_summary
 from common.model_paths import LONGCAT, require_path
 
 MODEL_DIR = require_path("LONGCAT", LONGCAT)
@@ -143,57 +144,27 @@ def check_dryrun_plan():
     print("\n" + "=" * 60)
     print("  Dry-run plan verification via auto-detect")
     print("=" * 60)
-    from llm_grow.safetensor.auto import _build_expander
-    from llm_grow.safetensor.detect import detect_model
-    from llm_grow.safetensor.utils import ShardIndex
+    from common.helpers import verify_dryrun_plan
 
-    checks = [
-        ("expert", {"expand_factor": 2}, {"n_routed_experts": 1024}),
-        ("depth", {"num_new_layers": 4}, {}),
-    ]
-
-    for method, kwargs, expected_patches in checks:
-        profile = detect_model(MODEL_DIR)
-        exp = _build_expander(
-            method,
-            profile,
-            kwargs.get("num_new_layers", 4),
-            "uniform",
-            kwargs.get("expand_factor", 2),
-            1e-6,
-            0,
-        )
-        plan = exp._build_plan(ShardIndex.load(MODEL_DIR))
-
-        ok = all(
-            plan.config_patches.get(k) == v for k, v in expected_patches.items()
-        )
-        print(f"  [{'OK' if ok else 'FAIL'}] LongCat/{method} config: {plan.config_patches}")
-
-        src_count = len(ShardIndex.load(MODEL_DIR).all_keys)
-        ok2 = len(plan.recipes) > src_count
-        print(f"  [{'OK' if ok2 else 'FAIL'}] tensors: {src_count} -> {len(plan.recipes)}")
-
-    return True
+    return verify_dryrun_plan(
+        MODEL_DIR,
+        "LongCat",
+        [
+            ("expert", {"expand_factor": 2}, {"n_routed_experts": 1024}),
+            ("depth", {"num_new_layers": 4}, {}),
+        ],
+    )
 
 
 def main():
-    results = {}
-    for name, fn in [
+    from common.helpers import run_tests
+
+    print("\nNote: weight files not present -- dry_run validated plan logic only.")
+    sys.exit(run_tests([
         ("expert_clone", check_expert_clone),
         ("depth_expansion", check_depth_expansion),
         ("dryrun_plan", check_dryrun_plan),
-    ]:
-        try:
-            results[name] = fn()
-        except Exception as e:
-            print(f"\n  [FAIL] {e}")
-            import traceback
-            traceback.print_exc()
-            results[name] = False
-
-    print("\nNote: weight files not present -- dry_run validated plan logic only.")
-    sys.exit(print_summary(results))
+    ]))
 
 
 if __name__ == "__main__":

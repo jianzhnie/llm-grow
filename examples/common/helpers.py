@@ -123,3 +123,63 @@ def count_dup_recipes(plan):
 
 def count_new_keys(plan, wmap):
     return sum(1 for k in plan.recipes if k not in wmap)
+
+
+def run_tests(test_list: list[tuple[str, callable]]) -> int:
+    """Run a list of (name, fn) test pairs and return exit code."""
+    test_results: dict[str, bool] = {}
+    for name, fn in test_list:
+        try:
+            test_results[name] = fn()
+        except Exception as exc:
+            print(f"\n  [FAIL] {exc}")
+            import traceback
+            traceback.print_exc()
+            test_results[name] = False
+    return print_summary(test_results)
+
+
+def verify_dryrun_plan(
+    src_dir: str,
+    label: str,
+    checks: list[tuple[str, dict, dict]],
+) -> bool:
+    """Shared dry-run plan verification logic.
+
+    Args:
+        src_dir: Path to the source model directory.
+        label: Display label for print output.
+        checks: List of (method, kwargs, expected_config_patches).
+    """
+    from llm_grow.safetensor.auto import _build_expander
+    from llm_grow.safetensor.detect import detect_model
+    from llm_grow.safetensor.utils import ShardIndex
+
+    all_ok = True
+    for method, kwargs, expected_patches in checks:
+        profile = detect_model(src_dir)
+        exp = _build_expander(
+            method,
+            profile,
+            kwargs.get("num_new_layers", 4),
+            "uniform",
+            kwargs.get("expand_factor", 2),
+            1e-6,
+            0,
+        )
+        plan = exp._build_plan(ShardIndex.load(src_dir))
+
+        ok = all(
+            plan.config_patches.get(k) == v for k, v in expected_patches.items()
+        )
+        icon = "OK" if ok else "FAIL"
+        print(f"  [{icon}] {label}/{method} config: {plan.config_patches}")
+        all_ok = all_ok and ok
+
+        src_count = len(ShardIndex.load(src_dir).all_keys)
+        ok2 = len(plan.recipes) > src_count
+        icon2 = "OK" if ok2 else "FAIL"
+        print(f"  [{icon2}] tensors: {src_count} -> {len(plan.recipes)}")
+        all_ok = all_ok and ok2
+
+    return all_ok

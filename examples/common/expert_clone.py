@@ -2,7 +2,7 @@
 """Expert Upcycling script: expand MoE expert count (M1 strategy).
 
 用法:
-    python scripts/expert_clone.py \
+    python examples/common/expert_clone.py \
         --model path/to/qwen3-moe \
         --expand-factor 2 \
         --selection-strategy utility \

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common.helpers import count_new_keys, print_summary
+from common.helpers import count_new_keys, count_zero_recipes
 from common.model_paths import QWEN3_30B, require_path
 
 SRC = require_path("QWEN3_30B", QWEN3_30B)
@@ -77,8 +77,6 @@ def test_depth():
     assert plan.new_num_hidden_layers == 56
     print("  [OK] num_hidden_layers: 48 -> 56")
 
-    from common.helpers import count_zero_recipes
-
     zero_n = count_zero_recipes(plan)
     expected_zero = 8 * (1 + 128)
     assert zero_n == expected_zero, f"Expected {expected_zero} zeros, got {zero_n}"
@@ -95,53 +93,23 @@ def test_dryrun_plan():
     print("\n" + "=" * 62)
     print("  [3] Qwen3-30B-A3B  Dry-run plan verification")
     print("=" * 62)
-    from llm_grow.safetensor.auto import _build_expander
-    from llm_grow.safetensor.detect import detect_model
-    from llm_grow.safetensor.utils import ShardIndex
+    from common.helpers import verify_dryrun_plan
 
-    checks = [
-        ("expert", {"expand_factor": 2}, {"num_experts": 256}),
-        ("depth", {"num_new_layers": 4}, {}),
-    ]
-
-    for method, kwargs, expected_patches in checks:
-        profile = detect_model(SRC)
-        exp = _build_expander(
-            method,
-            profile,
-            kwargs.get("num_new_layers", 4),
-            "uniform",
-            kwargs.get("expand_factor", 2),
-            1e-6,
-            0,
-        )
-        plan = exp._build_plan(ShardIndex.load(SRC))
-
-        ok = all(
-            plan.config_patches.get(k) == v for k, v in expected_patches.items()
-        )
-        print(f"  [{'OK' if ok else 'FAIL'}] Qwen3-30B/{method} config: {plan.config_patches}")
-
-        src_count = len(ShardIndex.load(SRC).all_keys)
-        ok2 = len(plan.recipes) > src_count
-        print(f"  [{'OK' if ok2 else 'FAIL'}] tensors: {src_count} -> {len(plan.recipes)}")
-
-    return True
+    return verify_dryrun_plan(
+        SRC,
+        "Qwen3-30B",
+        [
+            ("expert", {"expand_factor": 2}, {"num_experts": 256}),
+            ("depth", {"num_new_layers": 4}, {}),
+        ],
+    )
 
 
 if __name__ == "__main__":
-    results = {}
-    for name, fn in [
+    from common.helpers import run_tests
+
+    sys.exit(run_tests([
         ("expert_clone", test_expert_clone),
         ("depth", test_depth),
         ("dryrun_plan", test_dryrun_plan),
-    ]:
-        try:
-            results[name] = fn()
-        except Exception as e:
-            print(f"\n  [FAIL] {e}")
-            import traceback
-            traceback.print_exc()
-            results[name] = False
-
-    sys.exit(print_summary(results))
+    ]))

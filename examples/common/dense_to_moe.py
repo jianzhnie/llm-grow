@@ -2,7 +2,7 @@
 """MoE Upcycling script: Dense FFN → Sparse MoE.
 
 用法:
-    python scripts/dense_to_moe.py \
+    python examples/common/dense_to_moe.py \
         --model Qwen/Qwen3-8B \
         --num-experts 8 \
         --top-k 2 \
