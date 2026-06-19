@@ -17,24 +17,24 @@ python scripts/safetensor_expand.py auto \\
     --dst  ./output \\
     --method expert --expand-factor 2
 
-# Explicit expanders (legacy)
-python scripts/safetensor_expand.py llama_pro \\
+# Explicit expanders
+python scripts/safetensor_expand.py zero_block_insert \\
     --src  /path/to/Qwen3-8B \\
-    --dst  ./outputs/qwen3_llama_pro \\
-    --num-new-blocks 7
+    --dst  ./outputs/qwen3_zbi \\
+    --num-new-layers 7
 
-python scripts/safetensor_expand.py solar_dus \\
+python scripts/safetensor_expand.py overlap_copy \\
     --src  /path/to/Qwen3-8B \\
-    --dst  ./outputs/qwen3_solar_dus \\
+    --dst  ./outputs/qwen3_oc \\
     --num-overlap 8
 
-python scripts/safetensor_expand.py msg \\
+python scripts/safetensor_expand.py multi_axis_pad \\
     --src  /path/to/Qwen3-8B \\
-    --dst  ./outputs/qwen3_msg \\
-    --depth-expansion 4 \\
+    --dst  ./outputs/qwen3_map \\
+    --num-new-layers 4 \\
     --ffn-size-expansion 1024
 
-python scripts/safetensor_expand.py moe_expert \\
+python scripts/safetensor_expand.py expert_clone \\
     --src  /path/to/Qwen3-30B-A3B \\
     --dst  ./outputs/qwen3_30b_2x \\
     --expand-factor 2
@@ -53,13 +53,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "expander",
-        choices=["auto", "llama_pro", "solar_dus", "msg", "moe_expert"],
+        choices=[
+            "auto",
+            "zero_block_insert",
+            "overlap_copy",
+            "multi_axis_pad",
+            "expert_clone",
+        ],
         help=(
-            "auto       : detect Dense/MoE and select the right method\n"
-            "llama_pro  : identity block insertion (Dense depth)\n"
-            "solar_dus  : layer overlap-copy (Dense depth)\n"
-            "msg        : depth + FFN-width (Dense)\n"
-            "moe_expert : expert count expansion (MoE only)"
+            "auto              : detect Dense/MoE and select the right method\n"
+            "zero_block_insert : identity block insertion (Dense depth)\n"
+            "overlap_copy      : layer overlap-copy (Dense depth)\n"
+            "multi_axis_pad    : depth + FFN-width (Dense)\n"
+            "expert_clone      : expert count expansion (MoE only)"
         ),
     )
     p.add_argument("--src", required=True, help="Source model directory")
@@ -89,29 +95,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="[auto] Expansion axis",
     )
 
-    # depth / LLaMA-Pro / MSG
+    # depth / ZeroBlockInsert / MultiAxisPad
     p.add_argument(
         "--num-new-layers",
         "--num-new-blocks",
         type=int,
         default=4,
-        help="[auto depth / llama_pro / msg] layers / blocks to insert",
+        help="[auto depth / zero_block_insert] layers to insert",
     )
     p.add_argument(
         "--insert-strategy", default="uniform", choices=["uniform", "front", "rear"]
     )
 
-    # SOLAR DUS
+    # OverlapCopy
     p.add_argument(
-        "--num-overlap", type=int, default=8, help="[solar_dus] overlapping layers"
+        "--num-overlap", type=int, default=8, help="[overlap_copy] overlapping layers"
     )
 
-    # MSG width
+    # MultiAxisPad width
     p.add_argument(
         "--ffn-size-expansion",
         type=int,
         default=0,
-        help="[msg / auto width] intermediate_size increment",
+        help="[multi_axis_pad / auto width] intermediate_size increment",
     )
 
     # expert
@@ -119,13 +125,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--expand-factor",
         type=int,
         default=2,
-        help="[auto expert / moe_expert] expert count multiplier",
+        help="[auto expert / expert_clone] expert count multiplier",
     )
     p.add_argument(
         "--noise-scale",
         type=float,
         default=1e-6,
-        help="[auto expert / moe_expert] router noise scale",
+        help="[auto expert / expert_clone] router noise scale",
     )
     return p
 
@@ -160,7 +166,7 @@ def main() -> None:
         return
 
     # ── explicit expanders ────────────────────────────────────────────────────
-    if args.expander == "llama_pro":
+    if args.expander == "zero_block_insert":
         from llm_grow.safetensor.zero_block_insert import (
             ZeroBlockInsertSafetensorConfig,
             ZeroBlockInsertSafetensorExpander,
@@ -173,7 +179,7 @@ def main() -> None:
             )
         )
 
-    elif args.expander == "solar_dus":
+    elif args.expander == "overlap_copy":
         from llm_grow.safetensor.overlap_copy import (
             OverlapCopySafetensorConfig,
             OverlapCopySafetensorExpander,
@@ -183,7 +189,7 @@ def main() -> None:
             OverlapCopySafetensorConfig(num_overlap=args.num_overlap)
         )
 
-    elif args.expander == "msg":
+    elif args.expander == "multi_axis_pad":
         from llm_grow.safetensor.multi_axis_pad import (
             MultiAxisPadSafetensorConfig,
             MultiAxisPadSafetensorExpander,
@@ -197,7 +203,7 @@ def main() -> None:
             )
         )
 
-    elif args.expander == "moe_expert":
+    elif args.expander == "expert_clone":
         from llm_grow.safetensor.auto import auto_expand
 
         auto_expand(

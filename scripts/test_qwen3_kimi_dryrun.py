@@ -40,10 +40,10 @@ def test_qwen3_expert_clone():
     print("\n" + "=" * 62)
     print("  [1] Qwen3-30B-A3B  Expert Upcycling  (128 → 256 experts)")
     print("=" * 62)
-    from llm_grow.safetensor.moe_generic import make_qwen3moe_upcycling
+    from llm_grow.safetensor.moe_generic import make_qwen3moe_expert_clone
     from llm_grow.safetensor.utils import ShardIndex
 
-    exp = make_qwen3moe_upcycling(expand_factor=2)
+    exp = make_qwen3moe_expert_clone(expand_factor=2)
     plan = exp.dry_run(QWEN3)
 
     src = ShardIndex.load(QWEN3)

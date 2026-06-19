@@ -81,7 +81,7 @@ from llm_grow.safetensor.detect import detect_model
     run(
         "import/make_qwen3moe",
         """
-from llm_grow.safetensor.moe_generic import make_qwen3moe_upcycling
+from llm_grow.safetensor.moe_generic import make_qwen3moe_expert_clone
 """,
     )
 
@@ -249,7 +249,7 @@ assert profile.family == "longcat"
     with tempfile.TemporaryDirectory() as d:
         run_cmd(
             "cli/zero_block_insert",
-            f"python scripts/safetensor_expand.py llama_pro "
+            f"python scripts/safetensor_expand.py zero_block_insert "
             f"--src {SRC} --dst {d}/out --num-new-layers 7",
         )
 
@@ -257,7 +257,7 @@ assert profile.family == "longcat"
     with tempfile.TemporaryDirectory() as d:
         run_cmd(
             "cli/overlap_copy",
-            f"python scripts/safetensor_expand.py solar_dus "
+            f"python scripts/safetensor_expand.py overlap_copy "
             f"--src {SRC} --dst {d}/out --num-overlap 8",
         )
 
@@ -269,10 +269,10 @@ assert profile.family == "longcat"
             f"--src {SRC} --dst {d}/out --num-new-layers 4 --ffn-size-expansion 1024",
         )
 
-    # README line 274-275: moe_expert (dry-run)
+    # README line 274-275: expert_clone (dry-run)
     run_cmd(
-        "cli/moe_expert_dryrun",
-        f"python scripts/safetensor_expand.py moe_expert "
+        "cli/expert_clone_dryrun",
+        f"python scripts/safetensor_expand.py expert_clone "
         f"--src {SRC_MOE} --dst /tmp/x --expand-factor 2 --dry-run",
     )
 
@@ -291,7 +291,7 @@ assert profile.family == "longcat"
     with tempfile.TemporaryDirectory() as d:
         # First expand, then verify
         subprocess.run(
-            f"python scripts/safetensor_expand.py llama_pro "
+            f"python scripts/safetensor_expand.py zero_block_insert "
             f"--src {SRC} --dst {d}/out --num-new-layers 4 --quiet",
             shell=True,
             capture_output=True,

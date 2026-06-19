@@ -251,7 +251,7 @@ auto_expand(
 
 | 函数 | 适用模型 | 说明 |
 |------|---------|------|
-| `make_qwen3moe_upcycling(factor)` | Qwen3-30B-A3B | 专家数扩增 |
+| `make_qwen3moe_expert_clone(factor)` | Qwen3-30B-A3B | 专家数扩增 |
 | `make_qwen3moe_zero_block_insert(n)` | Qwen3-30B-A3B | 深度扩增 |
 | `make_kimik2_expert_clone(factor)` | Kimi-K2-Base | 专家数扩增（含 fp8 处理） |
 | `make_kimik2_zero_block_insert(n)` | Kimi-K2-Base | 深度扩增（含 dense 首层处理） |
