@@ -108,8 +108,12 @@ def test_dryrun_plan():
 if __name__ == "__main__":
     from common.helpers import run_tests
 
-    sys.exit(run_tests([
-        ("expert_clone", test_expert_clone),
-        ("depth", test_depth),
-        ("dryrun_plan", test_dryrun_plan),
-    ]))
+    sys.exit(
+        run_tests(
+            [
+                ("expert_clone", test_expert_clone),
+                ("depth", test_depth),
+                ("dryrun_plan", test_dryrun_plan),
+            ]
+        )
+    )

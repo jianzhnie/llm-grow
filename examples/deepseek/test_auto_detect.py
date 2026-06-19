@@ -45,7 +45,7 @@ def test_auto_dispatch():
         try:
             auto_expand(
                 SRC,
-                f"/tmp/auto_test/kimi_k2",
+                "/tmp/auto_test/kimi_k2",
                 method=method,
                 verbose=False,
                 dry_run=True,
@@ -61,7 +61,11 @@ def test_auto_dispatch():
 if __name__ == "__main__":
     from common.helpers import run_tests
 
-    sys.exit(run_tests([
-        ("detect", test_detect),
-        ("auto_dispatch", test_auto_dispatch),
-    ]))
+    sys.exit(
+        run_tests(
+            [
+                ("detect", test_detect),
+                ("auto_dispatch", test_auto_dispatch),
+            ]
+        )
+    )

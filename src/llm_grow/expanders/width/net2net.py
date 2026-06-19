@@ -82,7 +82,8 @@ class Net2NetExpander(AbstractExpander):
 
         counts = torch.bincount(indices, minlength=old_width)
         scale = 1.0 + counts.float().to(w_out.device)
-        scale_out = torch.cat([scale, torch.ones(extra, device=w_out.device)])
-        w_out_new = w_out / scale_out.unsqueeze(0) if w_out.dim() == 2 else w_out
+        scale_out = torch.cat([scale, scale[indices]])
+        w_out_expanded = torch.cat([w_out, w_out[:, indices]], dim=1) if w_out.dim() == 2 else w_out
+        w_out_new = w_out_expanded / scale_out.unsqueeze(0) if w_out.dim() == 2 else w_out
 
         return w_in_new, w_out_new

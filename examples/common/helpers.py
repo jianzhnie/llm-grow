@@ -7,7 +7,6 @@ from pathlib import Path
 
 import torch
 
-
 results: dict[str, bool] = {}
 
 
@@ -134,6 +133,7 @@ def run_tests(test_list: list[tuple[str, callable]]) -> int:
         except Exception as exc:
             print(f"\n  [FAIL] {exc}")
             import traceback
+
             traceback.print_exc()
             test_results[name] = False
     return print_summary(test_results)
@@ -169,9 +169,7 @@ def verify_dryrun_plan(
         )
         plan = exp._build_plan(ShardIndex.load(src_dir))
 
-        ok = all(
-            plan.config_patches.get(k) == v for k, v in expected_patches.items()
-        )
+        ok = all(plan.config_patches.get(k) == v for k, v in expected_patches.items())
         icon = "OK" if ok else "FAIL"
         print(f"  [{icon}] {label}/{method} config: {plan.config_patches}")
         all_ok = all_ok and ok

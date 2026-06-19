@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common.helpers import count_new_keys, count_zero_recipes
+from common.helpers import count_new_keys
 from common.model_paths import KIMI_K2, require_path
 
 SRC = require_path("KIMI_K2", KIMI_K2)
@@ -139,8 +139,12 @@ def test_dryrun_plan():
 if __name__ == "__main__":
     from common.helpers import run_tests
 
-    sys.exit(run_tests([
-        ("expert_clone", test_expert_clone),
-        ("depth", test_depth),
-        ("dryrun_plan", test_dryrun_plan),
-    ]))
+    sys.exit(
+        run_tests(
+            [
+                ("expert_clone", test_expert_clone),
+                ("depth", test_depth),
+                ("dryrun_plan", test_dryrun_plan),
+            ]
+        )
+    )

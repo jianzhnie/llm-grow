@@ -90,7 +90,10 @@ def check_depth_expansion():
     print("\n" + "=" * 60)
     print("  Depth Expansion  (28 -> 32 layers, +4 identity blocks)")
     print("=" * 60)
-    from llm_grow.safetensor.models.longcat import LongcatDepthConfig, LongcatDepthExpander
+    from llm_grow.safetensor.models.longcat import (
+        LongcatDepthConfig,
+        LongcatDepthExpander,
+    )
     from llm_grow.safetensor.utils import ShardIndex
 
     cfg = LongcatDepthConfig(num_new_layers=4, insert_strategy="uniform")
@@ -160,11 +163,15 @@ def main():
     from common.helpers import run_tests
 
     print("\nNote: weight files not present -- dry_run validated plan logic only.")
-    sys.exit(run_tests([
-        ("expert_clone", check_expert_clone),
-        ("depth_expansion", check_depth_expansion),
-        ("dryrun_plan", check_dryrun_plan),
-    ]))
+    sys.exit(
+        run_tests(
+            [
+                ("expert_clone", check_expert_clone),
+                ("depth_expansion", check_depth_expansion),
+                ("dryrun_plan", check_dryrun_plan),
+            ]
+        )
+    )
 
 
 if __name__ == "__main__":

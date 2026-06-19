@@ -26,6 +26,10 @@ from llm_grow.safetensor.models.longcat import (
     LongcatExpertCloneConfig,
     LongcatExpertCloneExpander,
 )
+from llm_grow.safetensor.models.moe_width import (
+    MoEWidthConfig,
+    MoEWidthExpander,
+)
 from llm_grow.safetensor.models.moe_generic import (
     GenericDenseToMoEConfig,
     GenericMoEDepthConfig,
@@ -49,6 +53,8 @@ __all__ = [
     "LongcatExpertCloneConfig",
     "LongcatExpertCloneExpander",
     "ModelProfile",
+    "MoEWidthConfig",
+    "MoEWidthExpander",
     "MultiAxisPadSafetensorConfig",
     "MultiAxisPadSafetensorExpander",
     "OverlapCopySafetensorConfig",

@@ -145,11 +145,20 @@ def _build_expander(
     # ── width ──────────────────────────────────────────────────────────────
     if method == "width":
         if profile.is_moe:
-            raise NotImplementedError(
-                "method='width' (FFN size expansion) is not yet "
-                "supported for MoE models. "
-                "Use method='expert' to increase expert count."
+            from llm_grow.safetensor.models.moe_width import (
+                MoEWidthConfig,
+                MoEWidthExpander,
             )
+
+            return MoEWidthExpander(
+                MoEWidthConfig(
+                    ffn_size_expansion=ffn_size_expansion,
+                    hidden_size_expansion=0,
+                    num_new_layers=num_new_layers,
+                    insert_strategy=insert_strategy,
+                )
+            )
+
         from llm_grow.safetensor.methods.multi_axis_pad import (
             MultiAxisPadSafetensorConfig,
             MultiAxisPadSafetensorExpander,

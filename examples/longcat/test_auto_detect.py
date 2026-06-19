@@ -19,7 +19,9 @@ def test_detect():
     print(p.summary())
 
     assert p.family == "longcat", f"Expected 'longcat', got {p.family!r}"
-    assert p.has_dual_attn is True, f"Expected has_dual_attn=True, got {p.has_dual_attn}"
+    assert p.has_dual_attn is True, (
+        f"Expected has_dual_attn=True, got {p.has_dual_attn}"
+    )
     print("  [OK] Detection: family=longcat, has_dual_attn=True")
     return True
 
@@ -37,7 +39,7 @@ def test_auto_dispatch():
         try:
             auto_expand(
                 MODEL_DIR,
-                f"/tmp/auto_test/longcat",
+                "/tmp/auto_test/longcat",
                 method=method,
                 verbose=False,
                 dry_run=True,
@@ -53,7 +55,11 @@ def test_auto_dispatch():
 if __name__ == "__main__":
     from common.helpers import run_tests
 
-    sys.exit(run_tests([
-        ("detect", test_detect),
-        ("auto_dispatch", test_auto_dispatch),
-    ]))
+    sys.exit(
+        run_tests(
+            [
+                ("detect", test_detect),
+                ("auto_dispatch", test_auto_dispatch),
+            ]
+        )
+    )

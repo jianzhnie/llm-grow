@@ -63,11 +63,34 @@ class SVDInterpInsertExpander(AbstractExpander):
         pairs = config.insert_between or [(i, i + 1) for i in range(num_layers - 1)]
         insert_after = sorted({p[0] for p in pairs})
 
+        predictors = None
+        if config.use_predictor:
+            from llm_grow.initializers.svd_interp import train_predictor
+
+            logger.info("Training LESA predictors (svd_rank=%d)...", config.svd_rank)
+            predictors = train_predictor(
+                layers,
+                svd_rank=config.svd_rank,
+                predictor_hidden=config.predictor_hidden,
+            )
+
         new_layers: list[nn.Module] = []
         for i, layer in enumerate(layers):
             new_layers.append(layer)
             if i in insert_after and i + 1 < num_layers:
-                interpolated = _interpolate_layers(layers[i], layers[i + 1], config)
+                if predictors is not None:
+                    from llm_grow.initializers.svd_interp import predict_layer
+
+                    interpolated = predict_layer(
+                        layers[i],
+                        layers[i + 1],
+                        predictors,
+                        svd_rank=config.svd_rank,
+                    )
+                else:
+                    interpolated = _interpolate_layers(
+                        layers[i], layers[i + 1], config
+                    )
                 new_layers.append(interpolated)
 
         layer_list = nn.ModuleList(new_layers)

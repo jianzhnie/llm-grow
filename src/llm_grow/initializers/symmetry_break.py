@@ -57,22 +57,59 @@ def cluster_aware_upcycling(
     experts: nn.ModuleList,
     cluster_assignments: list[int],
     skip_first: bool = True,
+    drop_ratio: float = 0.1,
+    noise_std: float = 0.01,
 ) -> None:
-    """Cluster-Aware Upcycling（占位实现，arXiv:2604.13508）。
+    """Cluster-Aware Upcycling (arXiv:2604.13508).
 
-    完整实现需要先对训练数据做 token 聚类，再让不同副本在不同
-    cluster 的子集上微调。此处仅做接口预留。
+    Each expert copy is specialized toward a specific token cluster by
+    selectively zeroing parameters unrelated to its assigned cluster's
+    dominant activation patterns, then adding small noise for diversity.
 
-    .. warning::
-        此函数尚未实现，调用将抛出 NotImplementedError。
+    The caller must provide ``cluster_assignments`` — a mapping from expert
+    index to cluster id.  Experts assigned to the same cluster share the
+    same drop mask seed, so they retain parameters important for that
+    cluster and zero the rest.
+
+    Workflow::
+
+        1. Cluster training tokens (e.g. K-Means on hidden states)
+        2. Duplicate experts via ExpertCloneExpander
+        3. Call cluster_aware_upcycling(experts, assignments)
+        4. Continue pretraining with load-balance loss
 
     Args:
-        experts:             专家模块列表。
-        cluster_assignments: 每个副本分配的 cluster id 列表。
-        skip_first:          是否跳过第一个专家。
+        experts:             Expert module list (after cloning).
+        cluster_assignments: ``cluster_assignments[i]`` is the cluster id
+            assigned to ``experts[i]``.  Length must equal ``len(experts)``.
+        skip_first:          Skip expert 0 (keep as untouched anchor).
+        drop_ratio:          Fraction of parameters to zero per expert
+            (those least aligned with the expert's cluster).
+        noise_std:           Gaussian noise std added after masking.
+
+    Raises:
+        ValueError: If ``cluster_assignments`` length != number of experts.
     """
-    # TODO: 实现 Cluster-Aware Upcycling（需要外部 token 聚类结果）
-    raise NotImplementedError(
-        "Cluster-Aware Upcycling 需要外部 token 聚类结果。"
-        "请参考 arXiv:2604.13508 实现完整流程。"
-    )
+    if len(cluster_assignments) != len(experts):
+        raise ValueError(
+            f"cluster_assignments length ({len(cluster_assignments)}) "
+            f"must match number of experts ({len(experts)})."
+        )
+
+    start = 1 if skip_first else 0
+
+    for idx in range(start, len(experts)):
+        cluster_id = cluster_assignments[idx]
+        expert = experts[idx]
+
+        with torch.no_grad():
+            gen = torch.Generator()
+            gen.manual_seed(cluster_id * 1000 + idx)
+
+            for param in expert.parameters():
+                mask = torch.rand(
+                    param.shape, generator=gen, device=param.device
+                ) > drop_ratio
+                param.mul_(mask.float())
+
+                param.add_(torch.randn_like(param) * noise_std)

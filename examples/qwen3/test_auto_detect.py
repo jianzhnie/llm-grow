@@ -22,14 +22,18 @@ def test_detect():
     print(p_dense.summary())
     results["dense/family"] = p_dense.family == "dense"
     results["dense/is_moe"] = p_dense.is_moe is False
-    print(f"  [{'OK' if all(results.values()) else 'FAIL'}] Dense: family={p_dense.family}, is_moe={p_dense.is_moe}")
+    print(
+        f"  [{'OK' if all(results.values()) else 'FAIL'}] Dense: family={p_dense.family}, is_moe={p_dense.is_moe}"
+    )
 
     p_moe = detect_model(MOE_SRC)
     print(p_moe.summary())
     results["moe/family"] = p_moe.family == "standard_moe"
     results["moe/is_moe"] = p_moe.is_moe is True
     results["moe/experts"] = p_moe.experts_per_moe_layer == 128
-    print(f"  [{'OK' if results['moe/family'] else 'FAIL'}] MoE: family={p_moe.family}, experts={p_moe.experts_per_moe_layer}")
+    print(
+        f"  [{'OK' if results['moe/family'] else 'FAIL'}] MoE: family={p_moe.family}, experts={p_moe.experts_per_moe_layer}"
+    )
 
     return all(results.values())
 
@@ -62,7 +66,9 @@ def test_auto_dispatch():
             print(f"  [{'OK' if ok else 'FAIL'}] {label} / {method}")
         except (ValueError, NotImplementedError) as e:
             ok = want == "expected"
-            print(f"  [{'OK' if ok else 'FAIL'}] {label} / {method} (expected error: {e})")
+            print(
+                f"  [{'OK' if ok else 'FAIL'}] {label} / {method} (expected error: {e})"
+            )
         except Exception as e:
             ok = False
             print(f"  [FAIL] {label} / {method}: {e}")
@@ -74,7 +80,11 @@ def test_auto_dispatch():
 if __name__ == "__main__":
     from common.helpers import run_tests
 
-    sys.exit(run_tests([
-        ("detect", test_detect),
-        ("auto_dispatch", test_auto_dispatch),
-    ]))
+    sys.exit(
+        run_tests(
+            [
+                ("detect", test_detect),
+                ("auto_dispatch", test_auto_dispatch),
+            ]
+        )
+    )
