@@ -132,15 +132,15 @@ def test_zero_block_insert():
     label = "llama_pro"
     print(f"\n{'=' * 60}\n  {label}: Dense depth expansion (+7 blocks)\n{'=' * 60}")
 
-    from llm_grow.safetensor.llama_pro import (
-        LlamaProSafetensorConfig,
-        LlamaProSafetensorExpander,
+    from llm_grow.safetensor.zero_block_insert import (
+        ZeroBlockInsertSafetensorConfig,
+        ZeroBlockInsertSafetensorExpander,
     )
 
     with tempfile.TemporaryDirectory() as dst:
-        LlamaProSafetensorExpander(LlamaProSafetensorConfig(num_new_layers=7)).expand(
-            src_dir=QWEN3_06B, dst_dir=dst, verbose=False
-        )
+        ZeroBlockInsertSafetensorExpander(
+            ZeroBlockInsertSafetensorConfig(num_new_layers=7)
+        ).expand(src_dir=QWEN3_06B, dst_dir=dst, verbose=False)
 
         verify_config(dst, {"num_hidden_layers": 35}, label)
 
@@ -186,15 +186,15 @@ def test_overlap_copy():
     label = "solar_dus"
     print(f"\n{'=' * 60}\n  {label}: Dense DUS (overlap=8)\n{'=' * 60}")
 
-    from llm_grow.safetensor.solar_dus import (
-        SolarDUSSafetensorConfig,
-        SolarDUSSafetensorExpander,
+    from llm_grow.safetensor.overlap_copy import (
+        OverlapCopySafetensorConfig,
+        OverlapCopySafetensorExpander,
     )
 
     with tempfile.TemporaryDirectory() as dst:
-        SolarDUSSafetensorExpander(SolarDUSSafetensorConfig(num_overlap=8)).expand(
-            src_dir=QWEN3_06B, dst_dir=dst, verbose=False
-        )
+        OverlapCopySafetensorExpander(
+            OverlapCopySafetensorConfig(num_overlap=8)
+        ).expand(src_dir=QWEN3_06B, dst_dir=dst, verbose=False)
 
         verify_config(dst, {"num_hidden_layers": 40}, label)
 
@@ -226,11 +226,14 @@ def test_msg():
     label = "msg"
     print(f"\n{'=' * 60}\n  {label}: Dense depth+4 + FFN+512\n{'=' * 60}")
 
-    from llm_grow.safetensor.msg import MSGSafetensorConfig, MSGSafetensorExpander
+    from llm_grow.safetensor.multi_axis_pad import (
+        MultiAxisPadSafetensorConfig,
+        MultiAxisPadSafetensorExpander,
+    )
 
     with tempfile.TemporaryDirectory() as dst:
-        MSGSafetensorExpander(
-            MSGSafetensorConfig(num_new_layers=4, ffn_size_expansion=512)
+        MultiAxisPadSafetensorExpander(
+            MultiAxisPadSafetensorConfig(num_new_layers=4, ffn_size_expansion=512)
         ).expand(src_dir=QWEN3_06B, dst_dir=dst, verbose=False)
 
         verify_config(dst, {"num_hidden_layers": 32, "intermediate_size": 3584}, label)

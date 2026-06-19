@@ -161,33 +161,36 @@ def main() -> None:
 
     # ── explicit expanders ────────────────────────────────────────────────────
     if args.expander == "llama_pro":
-        from llm_grow.safetensor.llama_pro import (
-            LlamaProSafetensorConfig,
-            LlamaProSafetensorExpander,
+        from llm_grow.safetensor.zero_block_insert import (
+            ZeroBlockInsertSafetensorConfig,
+            ZeroBlockInsertSafetensorExpander,
         )
 
-        expander = LlamaProSafetensorExpander(
-            LlamaProSafetensorConfig(
+        expander = ZeroBlockInsertSafetensorExpander(
+            ZeroBlockInsertSafetensorConfig(
                 num_new_layers=args.num_new_layers,
                 insert_strategy=args.insert_strategy,
             )
         )
 
     elif args.expander == "solar_dus":
-        from llm_grow.safetensor.solar_dus import (
-            SolarDUSSafetensorConfig,
-            SolarDUSSafetensorExpander,
+        from llm_grow.safetensor.overlap_copy import (
+            OverlapCopySafetensorConfig,
+            OverlapCopySafetensorExpander,
         )
 
-        expander = SolarDUSSafetensorExpander(
-            SolarDUSSafetensorConfig(num_overlap=args.num_overlap)
+        expander = OverlapCopySafetensorExpander(
+            OverlapCopySafetensorConfig(num_overlap=args.num_overlap)
         )
 
     elif args.expander == "msg":
-        from llm_grow.safetensor.msg import MSGSafetensorConfig, MSGSafetensorExpander
+        from llm_grow.safetensor.multi_axis_pad import (
+            MultiAxisPadSafetensorConfig,
+            MultiAxisPadSafetensorExpander,
+        )
 
-        expander = MSGSafetensorExpander(
-            MSGSafetensorConfig(
+        expander = MultiAxisPadSafetensorExpander(
+            MultiAxisPadSafetensorConfig(
                 num_new_layers=args.num_new_layers,
                 insert_strategy=args.insert_strategy,
                 ffn_size_expansion=args.ffn_size_expansion,

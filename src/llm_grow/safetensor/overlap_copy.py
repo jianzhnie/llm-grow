@@ -12,7 +12,7 @@ from llm_grow.safetensor.utils import ShardIndex
 
 
 @dataclass
-class SolarDUSSafetensorConfig:
+class OverlapCopySafetensorConfig:
     num_overlap: int = 8
     """Number of overlapping layers.
 
@@ -22,19 +22,19 @@ class SolarDUSSafetensorConfig:
     """
 
 
-class SolarDUSSafetensorExpander(SafetensorExpanderBase):
+class OverlapCopySafetensorExpander(SafetensorExpanderBase):
     """SOLAR DUS depth up-scaling directly on safetensor files.
 
     Example::
 
-        SolarDUSSafetensorExpander(SolarDUSSafetensorConfig(num_overlap=8)).expand(
+        OverlapCopySafetensorExpander(OverlapCopySafetensorConfig(num_overlap=8)).expand(
             src_dir="Qwen/Qwen3-8B",
             dst_dir="./outputs/qwen3_solar_dus",
         )
     """
 
-    def __init__(self, config: SolarDUSSafetensorConfig | None = None) -> None:
-        self.config = config or SolarDUSSafetensorConfig()
+    def __init__(self, config: OverlapCopySafetensorConfig | None = None) -> None:
+        self.config = config or OverlapCopySafetensorConfig()
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         num_orig = src_index.num_hidden_layers()

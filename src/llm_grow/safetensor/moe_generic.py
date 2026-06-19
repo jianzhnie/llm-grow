@@ -24,13 +24,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.llama_pro import _insert_positions
 from llm_grow.safetensor.longcat import (
     _expert_idx,
     _expert_key_offset,
     _is_expert_key,
 )
 from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
+from llm_grow.safetensor.zero_block_insert import _insert_positions
 
 # ── config dataclasses ────────────────────────────────────────────────────────
 

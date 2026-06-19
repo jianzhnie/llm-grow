@@ -8,7 +8,7 @@ Expansion axes
 ``method="depth"``
     Insert LLaMA-Pro–style identity layers.
 
-    *Dense* → ``LlamaProSafetensorExpander``
+    *Dense* → ``ZeroBlockInsertSafetensorExpander``
                zeros: self_attn.o_proj + mlp.down_proj
 
     *MoE-standard* → ``GenericMoEDepthExpander``
@@ -32,7 +32,7 @@ Expansion axes
 ``method="width"``
     Zero-pad FFN intermediate_size.  Dense only (MoE expert width not yet supported).
 
-    *Dense* → ``MSGSafetensorExpander``
+    *Dense* → ``MultiAxisPadSafetensorExpander``
     *MoE*   → raises ``NotImplementedError``
 
 Key difference summary
@@ -40,7 +40,7 @@ Key difference summary
 Dense identity block needs ONE zero proj:       ``mlp.down_proj.weight``
 MoE   identity block needs N×experts zero prjs: ``mlp.experts.{0..N}.down_proj.weight``
 
-If the wrong expander is used (e.g. LlamaProSafetensor on a MoE model),
+If the wrong expander is used (e.g. ZeroBlockInsertSafetensor on a MoE model),
 the identity block is incomplete: expert outputs are non-zero → function changes.
 This module prevents that mistake via auto-detection.
 """
@@ -150,14 +150,17 @@ def _build_expander(
                 "supported for MoE models. "
                 "Use method='expert' to increase expert count."
             )
-        from llm_grow.safetensor.msg import MSGSafetensorConfig, MSGSafetensorExpander
+        from llm_grow.safetensor.multi_axis_pad import (
+            MultiAxisPadSafetensorConfig,
+            MultiAxisPadSafetensorExpander,
+        )
 
-        cfg = MSGSafetensorConfig(
+        cfg = MultiAxisPadSafetensorConfig(
             num_new_layers=num_new_layers,
             insert_strategy=insert_strategy,
             ffn_size_expansion=ffn_size_expansion,
         )
-        return MSGSafetensorExpander(cfg)
+        return MultiAxisPadSafetensorExpander(cfg)
 
     raise ValueError(
         f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'."
@@ -196,13 +199,13 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
         )
 
     # Pure dense model
-    from llm_grow.safetensor.llama_pro import (
-        LlamaProSafetensorConfig,
-        LlamaProSafetensorExpander,
+    from llm_grow.safetensor.zero_block_insert import (
+        ZeroBlockInsertSafetensorConfig,
+        ZeroBlockInsertSafetensorExpander,
     )
 
-    return LlamaProSafetensorExpander(
-        LlamaProSafetensorConfig(
+    return ZeroBlockInsertSafetensorExpander(
+        ZeroBlockInsertSafetensorConfig(
             num_new_blocks=num_new_layers,
             insert_strategy=strategy,
             attn_zero_suffixes=profile.attn_zero_suffixes,

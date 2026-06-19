@@ -13,7 +13,7 @@ from llm_grow.safetensor.utils import ShardIndex
 
 
 @dataclass
-class LlamaProSafetensorConfig:
+class ZeroBlockInsertSafetensorConfig:
     num_new_layers: int = 8
     """Number of identity blocks to insert."""
 
@@ -36,23 +36,23 @@ class LlamaProSafetensorConfig:
         self.num_new_blocks = self.num_new_layers
 
 
-class LlamaProSafetensorExpander(SafetensorExpanderBase):
+class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):
     """Insert identity blocks directly into safetensor weight files.
 
     Example::
 
-        from llm_grow.safetensor.llama_pro import (
-            LlamaProSafetensorConfig, LlamaProSafetensorExpander,
+        from llm_grow.safetensor.zero_block_insert import (
+            ZeroBlockInsertSafetensorConfig, ZeroBlockInsertSafetensorExpander,
         )
-        cfg = LlamaProSafetensorConfig(num_new_layers=7)
-        LlamaProSafetensorExpander(cfg).expand(
+        cfg = ZeroBlockInsertSafetensorConfig(num_new_layers=7)
+        ZeroBlockInsertSafetensorExpander(cfg).expand(
             src_dir="Qwen/Qwen3-8B",
             dst_dir="./outputs/qwen3_llama_pro",
         )
     """
 
-    def __init__(self, config: LlamaProSafetensorConfig | None = None) -> None:
-        self.config = config or LlamaProSafetensorConfig()
+    def __init__(self, config: ZeroBlockInsertSafetensorConfig | None = None) -> None:
+        self.config = config or ZeroBlockInsertSafetensorConfig()
         # Merge user-specified zero suffixes into base set
         self.IDENTITY_ZERO_SUFFIXES = frozenset(
             self.config.attn_zero_suffixes + self.config.mlp_zero_suffixes

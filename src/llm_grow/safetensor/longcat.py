@@ -305,7 +305,7 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         return bool(suf.endswith(".down_proj.weight") and "mlp.experts." in suf)
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
-        from llm_grow.safetensor.llama_pro import _insert_positions
+        from llm_grow.safetensor.zero_block_insert import _insert_positions
 
         cfg = self.config
         num_orig = src_index.num_hidden_layers()

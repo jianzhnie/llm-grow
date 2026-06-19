@@ -15,8 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.llama_pro import _insert_positions
 from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
+from llm_grow.safetensor.zero_block_insert import _insert_positions
 
 # Suffixes whose output dimension (rows) expands with intermediate_size
 _FFN_OUT_SUFFIXES = frozenset({"mlp.gate_proj.weight", "mlp.up_proj.weight"})
@@ -25,7 +25,7 @@ _FFN_IN_SUFFIXES = frozenset({"mlp.down_proj.weight"})
 
 
 @dataclass
-class MSGSafetensorConfig:
+class MultiAxisPadSafetensorConfig:
     # ── depth ────────────────────────────────────────────────────────────────
     num_new_layers: int = 0
     """Number of identity blocks to insert (0 = depth disabled)."""
@@ -54,22 +54,22 @@ class MSGSafetensorConfig:
         self.depth_expansion = self.num_new_layers
 
 
-class MSGSafetensorExpander(SafetensorExpanderBase):
+class MultiAxisPadSafetensorExpander(SafetensorExpanderBase):
     """MSG-style safetensor expander combining depth and FFN-width growth.
 
     Example — depth only::
 
-        MSGSafetensorExpander(MSGSafetensorConfig(num_new_layers=4)).expand(...)
+        MultiAxisPadSafetensorExpander(MultiAxisPadSafetensorConfig(num_new_layers=4)).expand(...)
 
     Example — depth + wider FFN::
 
-        MSGSafetensorExpander(MSGSafetensorConfig(
+        MultiAxisPadSafetensorExpander(MultiAxisPadSafetensorConfig(
             num_new_layers=4, ffn_size_expansion=1024,
         )).expand(...)
     """
 
-    def __init__(self, config: MSGSafetensorConfig | None = None) -> None:
-        self.config = config or MSGSafetensorConfig()
+    def __init__(self, config: MultiAxisPadSafetensorConfig | None = None) -> None:
+        self.config = config or MultiAxisPadSafetensorConfig()
         self.IDENTITY_ZERO_SUFFIXES = frozenset(
             self.config.attn_zero_suffixes + self.config.mlp_zero_suffixes
         )

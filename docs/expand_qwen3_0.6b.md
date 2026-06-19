@@ -62,7 +62,7 @@ python scripts/safetensor_expand.py auto \
 
 预期输出：
 ```
-[SafetensorExpand] [dry_run] LlamaProSafetensorExpander ...
+[SafetensorExpand] [dry_run] ZeroBlockInsertSafetensorExpander ...
   source:  311 tensors, 1 shard(s)
   output:  541 tensors, num_hidden_layers → 66
   zero-out tensors : 38      ← 38 个恒等块的 o_proj + down_proj
