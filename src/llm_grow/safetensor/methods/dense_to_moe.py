@@ -13,20 +13,25 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx, read_safetensors_header
+from llm_grow.safetensor.utils import (
+    ShardIndex,
+    read_safetensors_header,
+)
 
-_FFN_SUFFIXES = frozenset({
-    "mlp.gate_proj.weight",
-    "mlp.up_proj.weight",
-    "mlp.down_proj.weight",
-    "mlp.gate_proj.bias",
-    "mlp.up_proj.bias",
-    "mlp.down_proj.bias",
-    "mlp.fc1.weight",
-    "mlp.fc2.weight",
-    "mlp.fc1.bias",
-    "mlp.fc2.bias",
-})
+_FFN_SUFFIXES = frozenset(
+    {
+        "mlp.gate_proj.weight",
+        "mlp.up_proj.weight",
+        "mlp.down_proj.weight",
+        "mlp.gate_proj.bias",
+        "mlp.up_proj.bias",
+        "mlp.down_proj.bias",
+        "mlp.fc1.weight",
+        "mlp.fc2.weight",
+        "mlp.fc1.bias",
+        "mlp.fc2.bias",
+    }
+)
 
 
 @dataclass
@@ -125,7 +130,9 @@ class DenseToMoESafetensorExpander(SafetensorExpanderBase):
 def _get_hidden_size(src_index: ShardIndex) -> int:
     """Infer hidden_size from q_proj or embed shape in layer 0."""
     for key in src_index.weight_map:
-        if key.endswith("self_attn.q_proj.weight") and key.startswith("model.layers.0."):
+        if key.endswith("self_attn.q_proj.weight") and key.startswith(
+            "model.layers.0."
+        ):
             shard_path = src_index.model_dir / src_index.weight_map[key]
             header = read_safetensors_header(shard_path)
             if key in header:

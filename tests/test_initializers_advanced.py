@@ -1,4 +1,4 @@
-"""Tests for advanced initializer features: SVD interpolation and cluster-aware symmetry breaking."""
+"""Tests for advanced initializers: SVD interpolation and cluster-aware."""
 
 from __future__ import annotations
 
@@ -85,7 +85,8 @@ class TestPredictLayer:
         orig_params = dict(layer_a.named_parameters())
         for name, param in new_layer.named_parameters():
             assert param.shape == orig_params[name].shape, (
-                f"Parameter '{name}' shape mismatch: {param.shape} vs {orig_params[name].shape}"
+                f"Parameter '{name}' shape mismatch: "
+                f"{param.shape} vs {orig_params[name].shape}"
             )
 
 
@@ -107,7 +108,11 @@ class TestClusterAwareUpcycling:
         orig_w = experts[1].down_proj.weight.clone()
         cluster_assignments = [0, 1, 2, 3]
         cluster_aware_upcycling(
-            experts, cluster_assignments, skip_first=True, drop_ratio=0.1, noise_std=0.01
+            experts,
+            cluster_assignments,
+            skip_first=True,
+            drop_ratio=0.1,
+            noise_std=0.01,
         )
         assert not torch.allclose(experts[1].down_proj.weight, orig_w), (
             "Expert weights should change after cluster-aware upcycling"
@@ -120,7 +125,11 @@ class TestClusterAwareUpcycling:
         orig_first = experts[0].down_proj.weight.clone()
         cluster_assignments = [0, 1, 2, 3]
         cluster_aware_upcycling(
-            experts, cluster_assignments, skip_first=True, drop_ratio=0.1, noise_std=0.01
+            experts,
+            cluster_assignments,
+            skip_first=True,
+            drop_ratio=0.1,
+            noise_std=0.01,
         )
         assert torch.allclose(experts[0].down_proj.weight, orig_first), (
             "First expert should be unchanged when skip_first=True"
@@ -136,8 +145,8 @@ class TestClusterAwareUpcycling:
             experts, cluster_assignments, skip_first=True, drop_ratio=0.3, noise_std=0.0
         )
         # With noise_std=0 and different clusters, the zero masks should differ
-        mask_1 = (experts[1].down_proj.weight == 0)
-        mask_2 = (experts[2].down_proj.weight == 0)
+        mask_1 = experts[1].down_proj.weight == 0
+        mask_2 = experts[2].down_proj.weight == 0
         assert not torch.equal(mask_1, mask_2), (
             "Different cluster assignments should produce different drop masks"
         )

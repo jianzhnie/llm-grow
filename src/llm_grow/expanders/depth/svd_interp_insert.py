@@ -88,9 +88,7 @@ class SVDInterpInsertExpander(AbstractExpander):
                         svd_rank=config.svd_rank,
                     )
                 else:
-                    interpolated = _interpolate_layers(
-                        layers[i], layers[i + 1], config
-                    )
+                    interpolated = _interpolate_layers(layers[i], layers[i + 1], config)
                 new_layers.append(interpolated)
 
         layer_list = nn.ModuleList(new_layers)

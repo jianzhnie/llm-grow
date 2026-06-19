@@ -1,12 +1,18 @@
-"""Tests for the training module: freeze, growth_scheduler, distillation, load_balance."""
+"""Tests for training: freeze, growth_scheduler, distillation, loss."""
 
 from __future__ import annotations
 
 import math
 
+import pytest
 import torch
 import torch.nn as nn
 
+from llm_grow.training.distillation import (
+    DistillationLoss,
+    DistillConfig,
+    run_teacher_inference,
+)
 from llm_grow.training.freeze import (
     freeze_layers_by_index,
     freeze_original_layers,
@@ -16,10 +22,8 @@ from llm_grow.training.freeze import (
     unfreeze_all,
 )
 from llm_grow.training.growth_scheduler import GrowthScheduleConfig, GrowthScheduler
-from llm_grow.training.distillation import DistillationLoss, DistillConfig, run_teacher_inference
 from llm_grow.training.load_balance import combined_moe_loss, load_balance_loss, z_loss
 from tests.conftest import FakeModel
-
 
 # ---------------------------------------------------------------------------
 # freeze.py tests
@@ -119,11 +123,8 @@ class TestFreezeLayersByIndex:
 
     def test_raises_on_bad_attr(self):
         model = FakeModel(num_layers=4, d=32)
-        try:
+        with pytest.raises(AttributeError):
             freeze_layers_by_index(model, [0], layer_attr="nonexistent.attr")
-            assert False, "Expected AttributeError"
-        except AttributeError:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -168,11 +169,8 @@ class TestGrowthSchedulerGetUnlockRatio:
     def test_unknown_strategy_raises(self):
         cfg = GrowthScheduleConfig(total_steps=100, strategy="unknown")
         scheduler = GrowthScheduler(cfg)
-        try:
+        with pytest.raises(ValueError):
             scheduler.get_unlock_ratio(50)
-            assert False, "Expected ValueError"
-        except ValueError:
-            pass
 
 
 class TestGrowthSchedulerApplyMasks:
@@ -243,16 +241,18 @@ class TestDistillationLoss:
         labels = torch.randint(0, 10, (2, 4))
         loss = criterion(student_logits, teacher_logits, labels)
         import torch.nn.functional as F
+
         expected_ce = F.cross_entropy(student_logits.view(-1, 10), labels.view(-1))
         assert abs(loss.item() - expected_ce.item()) < 1e-5
 
     def test_vocab_mismatch_raises(self):
         criterion = DistillationLoss(DistillConfig())
-        try:
-            criterion(torch.randn(2, 4, 10), torch.randn(2, 4, 8), torch.zeros(2, 4, dtype=torch.long))
-            assert False, "Expected ValueError"
-        except ValueError:
-            pass
+        with pytest.raises(ValueError):
+            criterion(
+                torch.randn(2, 4, 10),
+                torch.randn(2, 4, 8),
+                torch.zeros(2, 4, dtype=torch.long),
+            )
 
     def test_all_ignored_labels(self):
         criterion = DistillationLoss(DistillConfig(alpha=0.5, temperature=2.0))
@@ -265,7 +265,7 @@ class TestDistillationLoss:
 
 
 class _TeacherModel(nn.Module):
-    """FakeModel variant whose forward accepts keyword arguments like a real HF model."""
+    """FakeModel variant whose forward accepts keyword arguments."""
 
     def __init__(self, num_layers=2, d=32):
         super().__init__()
@@ -315,7 +315,9 @@ class TestLoadBalanceLoss:
         uniform_logits = torch.zeros(16, num_experts)
         skewed_logits = torch.zeros(16, num_experts)
         skewed_logits[:, 0] = 100.0  # Everything routes to expert 0
-        loss_uniform = load_balance_loss(uniform_logits, num_experts, top_k=1, coeff=1e-2)
+        loss_uniform = load_balance_loss(
+            uniform_logits, num_experts, top_k=1, coeff=1e-2
+        )
         loss_skewed = load_balance_loss(skewed_logits, num_experts, top_k=1, coeff=1e-2)
         assert loss_skewed.item() > loss_uniform.item()
 
@@ -349,8 +351,12 @@ class TestCombinedMoeLoss:
         lm_loss = torch.tensor(2.0)
         router_logits_list = [torch.randn(8, 4), torch.randn(8, 4)]
         total = combined_moe_loss(
-            lm_loss, router_logits_list, num_experts=4, top_k=2,
-            balance_coeff=1e-2, z_coeff=1e-3,
+            lm_loss,
+            router_logits_list,
+            num_experts=4,
+            top_k=2,
+            balance_coeff=1e-2,
+            z_coeff=1e-3,
         )
         assert total.item() > lm_loss.item()
 

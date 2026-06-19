@@ -107,9 +107,10 @@ def cluster_aware_upcycling(
             gen.manual_seed(cluster_id * 1000 + idx)
 
             for param in expert.parameters():
-                mask = torch.rand(
-                    param.shape, generator=gen, device=param.device
-                ) > drop_ratio
+                mask = (
+                    torch.rand(param.shape, generator=gen, device=param.device)
+                    > drop_ratio
+                )
                 param.mul_(mask.float())
 
                 param.add_(torch.randn_like(param) * noise_std)

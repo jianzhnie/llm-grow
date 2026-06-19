@@ -23,7 +23,8 @@ def test_detect():
     results["dense/family"] = p_dense.family == "dense"
     results["dense/is_moe"] = p_dense.is_moe is False
     print(
-        f"  [{'OK' if all(results.values()) else 'FAIL'}] Dense: family={p_dense.family}, is_moe={p_dense.is_moe}"
+        f"  [{'OK' if all(results.values()) else 'FAIL'}]"
+        f" Dense: family={p_dense.family}, is_moe={p_dense.is_moe}"
     )
 
     p_moe = detect_model(MOE_SRC)
@@ -32,7 +33,9 @@ def test_detect():
     results["moe/is_moe"] = p_moe.is_moe is True
     results["moe/experts"] = p_moe.experts_per_moe_layer == 128
     print(
-        f"  [{'OK' if results['moe/family'] else 'FAIL'}] MoE: family={p_moe.family}, experts={p_moe.experts_per_moe_layer}"
+        f"  [{'OK' if results['moe/family'] else 'FAIL'}]"
+        f" MoE: family={p_moe.family},"
+        f" experts={p_moe.experts_per_moe_layer}"
     )
 
     return all(results.values())

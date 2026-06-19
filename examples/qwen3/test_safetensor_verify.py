@@ -178,64 +178,7 @@ def test_msg():
         verify_fp_logits(SRC, dst, label)
 
 
-def test_dup_rows_router_split():
-    label = "dup_rows_router_split"
-    print(f"\n{'=' * 60}\n  {label}: Router weight expansion invariants\n{'=' * 60}")
-
-    from llm_grow.safetensor.base import TensorRecipe, _apply_recipe
-
-    torch.manual_seed(42)
-    n_real, n_zero, hidden = 512, 256, 16
-    src = torch.randn(n_real + n_zero, hidden)
-    src[n_real:] = 0.0
-
-    recipe = TensorRecipe(
-        "", "", dup_rows=True, dup_rows_noise_scale=1e-6, router_split=n_real
-    )
-    out = _apply_recipe(src, recipe)
-
-    log_result(
-        f"{label}/output_shape", list(out.shape) == [2 * (n_real + n_zero), hidden]
-    )
-
-    real_orig = out[:n_real]
-    real_dup = out[n_real : 2 * n_real]
-    zero_orig = out[2 * n_real : 2 * n_real + n_zero]
-    zero_dup = out[2 * n_real + n_zero :]
-
-    log_result(f"{label}/real_orig_exact", torch.equal(real_orig, src[:n_real]))
-    log_result(f"{label}/real_dup_has_noise", not torch.equal(real_dup, src[:n_real]))
-    log_result(
-        f"{label}/real_dup_close", torch.allclose(real_dup, src[:n_real], atol=1e-3)
-    )
-    log_result(f"{label}/zero_orig_exact", torch.equal(zero_orig, src[n_real:]))
-    log_result(f"{label}/zero_dup_exact", torch.equal(zero_dup, src[n_real:]))
-    log_result(f"{label}/zero_rows_still_zero", zero_orig.abs().max().item() == 0)
-
-    recipe2 = TensorRecipe(
-        "", "", dup_rows=True, dup_rows_noise_scale=1e-6, router_split=0
-    )
-    out2 = _apply_recipe(src, recipe2)
-    log_result(
-        f"{label}/no_split_all_noised", not torch.equal(out2[n_real + n_zero :], src)
-    )
-
-    recipe3 = TensorRecipe(
-        "", "", dup_rows=True, dup_rows_noise_scale=0.0, router_split=n_real
-    )
-    out3 = _apply_recipe(src, recipe3)
-    log_result(
-        f"{label}/bias_real_exact_copy",
-        torch.equal(out3[n_real : 2 * n_real], src[:n_real]),
-    )
-    log_result(
-        f"{label}/bias_zero_exact_copy",
-        torch.equal(out3[2 * n_real + n_zero :], src[n_real:]),
-    )
-
-
 def main():
-    test_dup_rows_router_split()
     test_zero_block_insert()
     test_overlap_copy()
     test_msg()

@@ -26,10 +26,6 @@ from llm_grow.safetensor.models.longcat import (
     LongcatExpertCloneConfig,
     LongcatExpertCloneExpander,
 )
-from llm_grow.safetensor.models.moe_width import (
-    MoEWidthConfig,
-    MoEWidthExpander,
-)
 from llm_grow.safetensor.models.moe_generic import (
     GenericDenseToMoEConfig,
     GenericMoEDepthConfig,
@@ -39,6 +35,10 @@ from llm_grow.safetensor.models.moe_generic import (
     make_kimik2_zero_block_insert,
     make_qwen3moe_expert_clone,
     make_qwen3moe_zero_block_insert,
+)
+from llm_grow.safetensor.models.moe_width import (
+    MoEWidthConfig,
+    MoEWidthExpander,
 )
 
 __all__ = [
@@ -52,9 +52,9 @@ __all__ = [
     "LongcatDepthExpander",
     "LongcatExpertCloneConfig",
     "LongcatExpertCloneExpander",
-    "ModelProfile",
     "MoEWidthConfig",
     "MoEWidthExpander",
+    "ModelProfile",
     "MultiAxisPadSafetensorConfig",
     "MultiAxisPadSafetensorExpander",
     "OverlapCopySafetensorConfig",

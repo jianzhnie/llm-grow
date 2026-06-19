@@ -665,10 +665,7 @@ def _worker_write_shard(
                 create_shape,
                 create_dtype,
             ) in triples:
-                if create_shape:
-                    t = torch.zeros(1)
-                else:
-                    t = sf.get_tensor(src_key)
+                t = torch.zeros(1) if create_shape else sf.get_tensor(src_key)
                 interp_t = None
                 if interp_key and interp_shard_path:
                     with safe_open(

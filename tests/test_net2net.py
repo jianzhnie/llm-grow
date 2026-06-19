@@ -15,7 +15,7 @@ class TestWider:
     def setup_method(self):
         self.expander = Net2NetExpander()
         torch.manual_seed(42)
-        self.w_in = torch.randn(8, 4)   # (out_features=8, in_features=4)
+        self.w_in = torch.randn(8, 4)  # (out_features=8, in_features=4)
         self.w_out = torch.randn(6, 8)  # (next_out, out_features=8)
 
     def test_output_shapes(self):

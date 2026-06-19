@@ -166,11 +166,7 @@ def train_predictor(
     if num_layers < 3:
         raise ValueError("Need at least 3 layers to train predictors.")
 
-    param_names = [
-        name
-        for name, p in layers[0].named_parameters()
-        if p.dim() >= 2
-    ]
+    param_names = [name for name, p in layers[0].named_parameters() if p.dim() >= 2]
 
     predictors: dict[str, LayerPredictor] = {}
 
@@ -190,11 +186,14 @@ def train_predictor(
             for i in range(num_layers)
         ]
         targets = [
-            dict(layers[i].named_parameters())[pname].data.reshape(-1).float().to(device)
+            dict(layers[i].named_parameters())[pname]
+            .data.reshape(-1)
+            .float()
+            .to(device)
             for i in range(num_layers)
         ]
 
-        for step in range(steps):
+        for _step in range(steps):
             total_loss = torch.tensor(0.0, device=device)
             count = 0
             for i in range(num_layers - 2):
@@ -208,9 +207,7 @@ def train_predictor(
             optimizer.step()
 
         predictors[pname] = predictor.eval()
-        logger.info(
-            "Trained predictor for %s: final loss=%.4e", pname, loss.item()
-        )
+        logger.info("Trained predictor for %s: final loss=%.4e", pname, loss.item())
 
     return predictors
 

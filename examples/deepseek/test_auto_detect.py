@@ -40,7 +40,7 @@ def test_auto_dispatch():
     ]
 
     all_ok = True
-    for method, kwargs, want_ok in scenarios:
+    for method, kwargs, _want_ok in scenarios:
         print(f"\n  -> auto_expand(method={method!r}, dry_run=True)")
         try:
             auto_expand(

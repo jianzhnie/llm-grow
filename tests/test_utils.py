@@ -9,17 +9,17 @@ from pathlib import Path
 import pytest
 import torch.nn as nn
 
-from llm_grow.utils.arch_info import ArchInfo, parse_arch_info, count_params
 from llm_grow.safetensor.utils import (
-    parse_layer_idx,
-    rename_layer_idx,
-    layer_suffix,
-    insert_positions,
-    is_expert_key,
     expert_idx,
     expert_key_offset,
+    insert_positions,
+    is_expert_key,
+    layer_suffix,
+    parse_layer_idx,
     peek_model_config,
+    rename_layer_idx,
 )
+from llm_grow.utils.arch_info import ArchInfo, count_params, parse_arch_info
 from tests.conftest import FakeModel
 
 # ---------------------------------------------------------------------------
@@ -102,8 +102,14 @@ class TestRenameLayerIdx:
 
 class TestLayerSuffix:
     def test_returns_suffix(self):
-        assert layer_suffix("model.layers.3.mlp.gate_proj.weight") == "mlp.gate_proj.weight"
-        assert layer_suffix("model.layers.0.self_attn.o_proj.weight") == "self_attn.o_proj.weight"
+        assert (
+            layer_suffix("model.layers.3.mlp.gate_proj.weight")
+            == "mlp.gate_proj.weight"
+        )
+        assert (
+            layer_suffix("model.layers.0.self_attn.o_proj.weight")
+            == "self_attn.o_proj.weight"
+        )
 
     def test_non_layer_key(self):
         assert layer_suffix("model.embed_tokens.weight") is None
@@ -167,7 +173,9 @@ class TestExpertIdx:
 class TestExpertKeyOffset:
     def test_offset(self):
         key = "model.layers.0.mlp.experts.2.gate_proj.weight"
-        assert expert_key_offset(key, 4) == "model.layers.0.mlp.experts.6.gate_proj.weight"
+        assert (
+            expert_key_offset(key, 4) == "model.layers.0.mlp.experts.6.gate_proj.weight"
+        )
 
     def test_non_expert_unchanged(self):
         key = "model.layers.0.mlp.gate_proj.weight"

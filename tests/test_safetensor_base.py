@@ -1,10 +1,8 @@
 """Tests for llm_grow.safetensor.base: TensorRecipe, _apply_recipe, ExpansionPlan."""
 
 import torch
-import pytest
 
-from llm_grow.safetensor.base import TensorRecipe, _apply_recipe, ExpansionPlan
-
+from llm_grow.safetensor.base import ExpansionPlan, TensorRecipe, _apply_recipe
 
 # ── TensorRecipe + _apply_recipe ─────────────────────────────────────────────
 

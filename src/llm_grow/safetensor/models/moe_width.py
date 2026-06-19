@@ -29,9 +29,7 @@ from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, Tens
 from llm_grow.safetensor.utils import (
     ShardIndex,
     insert_positions,
-    is_expert_key,
     parse_layer_idx,
-    peek_model_config,
     read_safetensors_header,
 )
 
@@ -91,8 +89,7 @@ class MoEWidthExpander(SafetensorExpanderBase):
         if suf.endswith(".down_proj.weight") and "mlp.experts." in suf:
             return True
         return bool(
-            cfg.zero_shared_expert_down
-            and suf == "mlp.shared_experts.down_proj.weight"
+            cfg.zero_shared_expert_down and suf == "mlp.shared_experts.down_proj.weight"
         )
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
@@ -152,7 +149,6 @@ class MoEWidthExpander(SafetensorExpanderBase):
         is_scale = suf.endswith("weight_scale_inv")
 
         if cfg.ffn_size_expansion > 0 and is_expert and not is_scale:
-            base = suf.rsplit(".", 1)[-1] if "." in suf else suf
             proj_name = suf.split(".")[-2] if suf.count(".") >= 2 else ""
             if proj_name in ("gate_proj", "up_proj"):
                 pad_r += cfg.ffn_size_expansion
@@ -188,9 +184,7 @@ class MoEWidthExpander(SafetensorExpanderBase):
 
         return pad_r, pad_c
 
-    def _build_non_layer_plan(
-        self, plan: ExpansionPlan, wmap: dict[str, str]
-    ) -> None:
+    def _build_non_layer_plan(self, plan: ExpansionPlan, wmap: dict[str, str]) -> None:
         cfg = self.config
         for key, shard in wmap.items():
             if parse_layer_idx(key) is not None:
