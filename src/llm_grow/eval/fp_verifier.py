@@ -5,6 +5,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
+from llm_grow.utils import get_vocab_size
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -45,7 +46,7 @@ def verify_fp(
     original.eval().to(device)
     expanded.eval().to(device)
 
-    vocab_size = _get_vocab_size(original)
+    vocab_size = get_vocab_size(original)
     input_ids = torch.randint(0, vocab_size, (num_samples, seq_len), device=device)
 
     results = []
@@ -84,9 +85,3 @@ def _load_model(path: str) -> nn.Module:
     from llm_grow.utils.model_io import load_model
 
     return load_model(path, dtype=torch.float32, device_map="cpu")
-
-
-def _get_vocab_size(model: nn.Module) -> int:
-    from llm_grow.expanders.base import _get_vocab_size as _base_get_vocab_size
-
-    return _base_get_vocab_size(model)

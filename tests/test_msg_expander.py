@@ -71,6 +71,26 @@ class TestMultiAxisPadExpander:
         max_err = (out_orig - out_exp).abs().max().item()
         assert max_err < 1e-4, f"FP check failed: max_err={max_err:.4e}"
 
+    def test_function_preserving_depth_and_ffn_width(self):
+        model = self._make_model(8)
+        original = copy.deepcopy(model)
+        config = MultiAxisPadConfig(
+            depth_expansion=2,
+            intermediate_size_expansion=16,
+            freeze_original=False,
+        )
+        expanded = MultiAxisPadExpander().expand(model, config)
+
+        input_ids = torch.randint(0, 256, (2, 8))
+        original.eval()
+        expanded.eval()
+        with torch.no_grad():
+            out_orig = original(input_ids).logits
+            out_exp = expanded(input_ids).logits
+
+        max_err = (out_orig - out_exp).abs().max().item()
+        assert max_err < 1e-4, f"FP check failed: max_err={max_err:.4e}"
+
     def test_freeze_original(self):
         model = self._make_model(4)
         config = MultiAxisPadConfig(depth_expansion=2, freeze_original=True)

@@ -22,7 +22,7 @@ class ArchInfo:
     vocab_size: int = 0
     max_position_embeddings: int = 0
     model_type: str = ""
-    extra: dict[str, Any] = None
+    extra: dict[str, Any] | None = None
 
     def __post_init__(self):
         if self.extra is None:
@@ -85,3 +85,17 @@ def param_diff_report(
         logger.info(
             "FFN:    %d → %d", orig_info.intermediate_size, exp_info.intermediate_size
         )
+
+
+def get_vocab_size(model: nn.Module) -> int:
+    """从模型配置或嵌入参数推断词汇表大小。"""
+    cfg = getattr(model, "config", None)
+    if cfg is not None and hasattr(cfg, "vocab_size"):
+        return cfg.vocab_size
+    for name, param in model.named_parameters():
+        if "embed" in name and param.dim() == 2:
+            return param.shape[0]
+    raise ValueError(
+        "Cannot determine vocab_size: no config.vocab_size "
+        "and no embedding parameter found."
+    )

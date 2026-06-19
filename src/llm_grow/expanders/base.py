@@ -8,6 +8,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 
+from llm_grow.utils import get_vocab_size
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -78,7 +79,7 @@ class AbstractExpander(ABC):
         original.eval().to(device)
         expanded.eval().to(device)
 
-        orig_vocab = _get_vocab_size(original)
+        orig_vocab = get_vocab_size(original)
         torch.manual_seed(seed)
         input_ids = torch.randint(0, orig_vocab, (num_samples, seq_len), device=device)
 
@@ -97,16 +98,3 @@ class AbstractExpander(ABC):
     @staticmethod
     def _deep_copy_block(block: nn.Module) -> nn.Module:
         return copy.deepcopy(block)
-
-
-def _get_vocab_size(model: nn.Module) -> int:
-    cfg = getattr(model, "config", None)
-    if cfg is not None and hasattr(cfg, "vocab_size"):
-        return cfg.vocab_size
-    for name, param in model.named_parameters():
-        if "embed" in name and param.dim() == 2:
-            return param.shape[0]
-    raise ValueError(
-        "Cannot determine vocab_size: no config.vocab_size "
-        "and no embedding parameter found."
-    )

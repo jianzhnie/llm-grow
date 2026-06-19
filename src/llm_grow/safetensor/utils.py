@@ -9,9 +9,12 @@ from pathlib import Path
 
 from safetensors import safe_open
 
+from llm_grow.utils.insertion import insert_positions
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
+
+__all__ = ["insert_positions"]
 
 # ── dtype → bytes per element (mirrors safetensors dtype strings) ─────────────
 DTYPE_SIZES: dict[str, int] = {
@@ -252,42 +255,6 @@ def auto_detect_shard_size(model_dir: Path, shard_files: list[str]) -> int:
         return avg
     logger.info("No shard files found on disk — using 4 GB default")
     return 4 * 1024**3
-
-
-# ── layer insertion positions ─────────────────────────────────────────────────
-
-
-def insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
-    """Compute layer insertion positions for depth expansion.
-
-    Strategies:
-      - 'uniform': evenly spaced (best general-purpose choice)
-      - 'front':   insert at the beginning
-      - 'rear':    insert at the end
-    """
-    if num_new <= 0:
-        return []
-    if num_new > num_orig:
-        raise ValueError(
-            f"num_new_layers ({num_new}) cannot exceed num_orig_layers ({num_orig})."
-        )
-    if strategy == "uniform":
-        step = num_orig / (num_new + 1)
-        positions = sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
-        if len(positions) < num_new:
-            import warnings
-
-            warnings.warn(
-                f"Uniform insertion produced {len(positions)} unique positions "
-                f"(requested {num_new}). Consider reducing num_new_layers.",
-                stacklevel=2,
-            )
-        return positions
-    if strategy == "front":
-        return list(range(num_new))
-    if strategy == "rear":
-        return list(range(num_orig - num_new, num_orig))
-    raise ValueError(f"Unknown insert_strategy: {strategy!r}")
 
 
 # ── MoE expert key helpers ───────────────────────────────────────────────────

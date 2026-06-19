@@ -21,7 +21,7 @@ import torch.nn as nn
 
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
 from llm_grow.initializers.identity import zero_output_projections
-from llm_grow.safetensor.utils import insert_positions
+from llm_grow.utils import insert_positions
 
 
 @dataclass
@@ -113,17 +113,17 @@ def _make_identity_block(
     block = copy.deepcopy(source_block)
     zero_output_projections(block, attn_proj_names, mlp_proj_names)
     for param in block.parameters():
-        param._is_new_growth = True
+        param._is_new_growth = True  # type: ignore[attr-defined]
     return block
 
 
 def _get_decoder_layers(model: nn.Module) -> nn.ModuleList:
     for attr in ("layers", "model.layers", "transformer.h", "decoder.layers"):
-        obj = model
+        obj: nn.Module | None = model
         for part in attr.split("."):
-            obj = getattr(obj, part, None)
             if obj is None:
                 break
+            obj = getattr(obj, part, None)
         if isinstance(obj, nn.ModuleList):
             return obj
     raise AttributeError("Cannot locate decoder layer list in model.")
@@ -132,11 +132,11 @@ def _get_decoder_layers(model: nn.Module) -> nn.ModuleList:
 def _set_decoder_layers(model: nn.Module, new_layers: nn.ModuleList) -> None:
     for attr in ("layers", "model.layers", "transformer.h", "decoder.layers"):
         parts = attr.split(".")
-        obj = model
+        obj: nn.Module | None = model
         for part in parts[:-1]:
-            obj = getattr(obj, part, None)
             if obj is None:
                 break
+            obj = getattr(obj, part, None)
         if obj is not None and hasattr(obj, parts[-1]):
             setattr(obj, parts[-1], new_layers)
             return

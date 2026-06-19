@@ -73,9 +73,9 @@ class ColorfulFormatter(Formatter):
         Returns:
             The formatted log message with color codes.
         """
-        # Add rank information to the record
-        record.rank = self._get_rank()
-        record.is_main = record.rank == 0
+        # Add rank information to the record (logging.LogRecord accepts dynamic attrs)
+        record.rank = self._get_rank()  # type: ignore[attr-defined]
+        record.is_main = record.rank == 0  # type: ignore[attr-defined]
 
         # Format the log message
         log_message = super().format(record)
@@ -153,7 +153,7 @@ def get_logger(
     # Only configure handlers for main process or if explicitly requested
     if is_main_process or not force_main_process:
         # Initialize handlers list
-        handlers = []
+        handlers: list[logging.Handler] = []
 
         # Add StreamHandler for main process only
         if is_main_process:

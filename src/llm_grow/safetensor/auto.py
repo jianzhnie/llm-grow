@@ -47,12 +47,44 @@ This module prevents that mistake via auto-detection.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
+from llm_grow.safetensor.base import SafetensorExpanderBase
 from llm_grow.safetensor.detect import ModelProfile, detect_model
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
+
+# ── expander registry ─────────────────────────────────────────────────────────
+
+ExpanderFactory = Callable[..., SafetensorExpanderBase]
+_EXPANDER_REGISTRY: dict[tuple[str, str], ExpanderFactory] = {}
+
+
+def register_expander(
+    method: str, family: str
+) -> Callable[[ExpanderFactory], ExpanderFactory]:
+    """Register a factory function for ``(method, family)``.
+
+    Example::
+
+        @register_expander("depth", "dense")
+        def _build_dense_depth(profile, num_new_layers, insert_strategy):
+            ...
+    """
+
+    def decorator(factory: ExpanderFactory) -> ExpanderFactory:
+        _EXPANDER_REGISTRY[(method, family)] = factory
+        return factory
+
+    return decorator
+
+
+def _available_families(method: str) -> list[str]:
+    return sorted({f for m, f in _EXPANDER_REGISTRY if m == method})
+
 
 # ── public API ────────────────────────────────────────────────────────────────
 
@@ -127,90 +159,65 @@ def _build_expander(
     expand_factor: int,
     noise_scale: float,
     ffn_size_expansion: int,
-):
-    # ── depth ──────────────────────────────────────────────────────────────
-    if method == "depth":
-        return _build_depth_expander(profile, num_new_layers, insert_strategy)
+) -> SafetensorExpanderBase:
+    family = profile.family
 
-    # ── expert ─────────────────────────────────────────────────────────────
-    if method == "expert":
+    if method == "expert" and not profile.is_moe:
+        raise ValueError(
+            f"method='expert' requires a MoE model, but detected "
+            f"family='{family}' (Dense). "
+            f"Use method='depth' or method='width' for Dense models."
+        )
+
+    factory = _EXPANDER_REGISTRY.get((method, family))
+
+    if factory is None:
+        available = _available_families(method)
+        raise ValueError(
+            f"No expander registered for method={method!r} and family={family!r}. "
+            f"Available families for this method: {available or 'none'}."
+        )
+
+    kwargs: dict[str, Any] = {}
+    if method == "depth":
+        kwargs = {
+            "num_new_layers": num_new_layers,
+            "insert_strategy": insert_strategy,
+            "profile": profile,
+        }
+    elif method == "expert":
         if not profile.is_moe:
             raise ValueError(
                 f"method='expert' requires a MoE model, but detected "
                 f"family='{profile.family}' (Dense). "
                 f"Use method='depth' or method='width' for Dense models."
             )
-        return _build_expert_expander(profile, expand_factor, noise_scale)
+        kwargs = {
+            "expand_factor": expand_factor,
+            "noise_scale": noise_scale,
+            "profile": profile,
+        }
+    elif method == "width":
+        kwargs = {
+            "num_new_layers": num_new_layers,
+            "insert_strategy": insert_strategy,
+            "ffn_size_expansion": ffn_size_expansion,
+            "profile": profile,
+        }
 
-    # ── width ──────────────────────────────────────────────────────────────
-    if method == "width":
-        if profile.is_moe:
-            from llm_grow.safetensor.models.moe_width import (
-                MoEWidthConfig,
-                MoEWidthExpander,
-            )
-
-            return MoEWidthExpander(
-                MoEWidthConfig(
-                    ffn_size_expansion=ffn_size_expansion,
-                    hidden_size_expansion=0,
-                    num_new_layers=num_new_layers,
-                    insert_strategy=insert_strategy,
-                )
-            )
-
-        from llm_grow.safetensor.methods.multi_axis_pad import (
-            MultiAxisPadSafetensorConfig,
-            MultiAxisPadSafetensorExpander,
-        )
-
-        cfg = MultiAxisPadSafetensorConfig(
-            num_new_layers=num_new_layers,
-            insert_strategy=insert_strategy,
-            ffn_size_expansion=ffn_size_expansion,
-        )
-        return MultiAxisPadSafetensorExpander(cfg)
-
-    raise ValueError(
-        f"Unknown method: {method!r}. Choose 'depth', 'expert', or 'width'."
-    )
+    return factory(**kwargs)
 
 
-def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: str):
-    """Select and configure the correct depth expander for this architecture."""
+# ── registered factories ──────────────────────────────────────────────────────
 
-    if profile.has_dual_attn:
-        # LongCat-Flash: dual attention + dual MLP + 512 experts
-        from llm_grow.safetensor.models.longcat import (
-            LongcatDepthConfig,
-            LongcatDepthExpander,
-        )
 
-        return LongcatDepthExpander(
-            LongcatDepthConfig(
-                num_new_layers=num_new_layers,
-                insert_strategy=strategy,
-            )
-        )
-
-    if profile.is_moe:
-        # Standard MoE or DeepSeek-style MoE
-        from llm_grow.safetensor.models.moe_generic import (
-            GenericMoEDepthConfig,
-            GenericMoEDepthExpander,
-        )
-
-        return GenericMoEDepthExpander(
-            GenericMoEDepthConfig(
-                num_new_layers=num_new_layers,
-                insert_strategy=strategy,
-                extra_attn_zero_suffixes=profile.attn_zero_suffixes,
-                dense_mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
-                zero_shared_expert_down=profile.has_shared_expert,
-            )
-        )
-
-    # Pure dense model
+@register_expander("depth", "dense")
+def _build_dense_depth(
+    profile: ModelProfile,
+    num_new_layers: int,
+    insert_strategy: str,
+    **_: Any,
+) -> SafetensorExpanderBase:
     from llm_grow.safetensor.methods.zero_block_insert import (
         ZeroBlockInsertSafetensorConfig,
         ZeroBlockInsertSafetensorExpander,
@@ -219,34 +226,86 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
     return ZeroBlockInsertSafetensorExpander(
         ZeroBlockInsertSafetensorConfig(
             num_new_blocks=num_new_layers,
-            insert_strategy=strategy,
+            insert_strategy=insert_strategy,
             attn_zero_suffixes=profile.attn_zero_suffixes,
             mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
         )
     )
 
 
-def _build_expert_expander(
-    profile: ModelProfile, expand_factor: int, noise_scale: float
-):
-    """Select and configure the correct expert clone expander."""
+@register_expander("depth", "standard_moe")
+@register_expander("depth", "deepseek_moe")
+def _build_moe_depth(
+    profile: ModelProfile,
+    num_new_layers: int,
+    insert_strategy: str,
+    **_: Any,
+) -> SafetensorExpanderBase:
+    from llm_grow.safetensor.models.moe_generic import (
+        GenericMoEDepthConfig,
+        GenericMoEDepthExpander,
+    )
 
-    if profile.has_dual_attn:
-        # LongCat-Flash (special router structure)
-        from llm_grow.safetensor.models.longcat import (
-            LongcatExpertCloneConfig,
-            LongcatExpertCloneExpander,
+    return GenericMoEDepthExpander(
+        GenericMoEDepthConfig(
+            num_new_layers=num_new_layers,
+            insert_strategy=insert_strategy,
+            extra_attn_zero_suffixes=profile.attn_zero_suffixes,
+            dense_mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
+            zero_shared_expert_down=profile.has_shared_expert,
         )
+    )
 
-        return LongcatExpertCloneExpander(
-            LongcatExpertCloneConfig(
-                expand_factor=expand_factor,
-                noise_scale=noise_scale,
-            )
+
+@register_expander("depth", "longcat")
+def _build_longcat_depth(
+    profile: ModelProfile,
+    num_new_layers: int,
+    insert_strategy: str,
+    **_: Any,
+) -> SafetensorExpanderBase:
+    from llm_grow.safetensor.models.longcat import (
+        LongcatDepthConfig,
+        LongcatDepthExpander,
+    )
+
+    return LongcatDepthExpander(
+        LongcatDepthConfig(
+            num_new_layers=num_new_layers,
+            insert_strategy=insert_strategy,
         )
+    )
 
-    # Generic: Qwen3MoE, DeepSeek-V2/V3, KimiK2, Mixtral, …
-    from llm_grow.safetensor.moe_generic import (
+
+@register_expander("expert", "longcat")
+def _build_longcat_expert(
+    profile: ModelProfile,
+    expand_factor: int,
+    noise_scale: float,
+    **_: Any,
+) -> SafetensorExpanderBase:
+    from llm_grow.safetensor.models.longcat import (
+        LongcatExpertCloneConfig,
+        LongcatExpertCloneExpander,
+    )
+
+    return LongcatExpertCloneExpander(
+        LongcatExpertCloneConfig(
+            expand_factor=expand_factor,
+            noise_scale=noise_scale,
+        )
+    )
+
+
+@register_expander("expert", "standard_moe")
+@register_expander("expert", "deepseek_moe")
+def _build_moe_expert(
+    profile: ModelProfile,
+    expand_factor: int,
+    noise_scale: float,
+    **_: Any,
+) -> SafetensorExpanderBase:
+    from llm_grow.safetensor.models.moe_generic import (
         GenericDenseToMoEConfig,
         GenericMoEExpertCloneExpander,
     )
@@ -261,5 +320,54 @@ def _build_expert_expander(
             ),
             config_expert_count_key=profile.expert_count_config_key,
             config_topk_key=profile.topk_config_key,
+        )
+    )
+
+
+@register_expander("width", "dense")
+def _build_dense_width(
+    profile: ModelProfile,
+    num_new_layers: int,
+    insert_strategy: str,
+    ffn_size_expansion: int,
+    **_: Any,
+) -> SafetensorExpanderBase:
+    from llm_grow.safetensor.methods.multi_axis_pad import (
+        MultiAxisPadSafetensorConfig,
+        MultiAxisPadSafetensorExpander,
+    )
+
+    cfg = MultiAxisPadSafetensorConfig(
+        num_new_layers=num_new_layers,
+        insert_strategy=insert_strategy,
+        ffn_size_expansion=ffn_size_expansion,
+    )
+    return MultiAxisPadSafetensorExpander(cfg)
+
+
+@register_expander("width", "standard_moe")
+@register_expander("width", "deepseek_moe")
+@register_expander("width", "longcat")
+def _build_moe_width(
+    profile: ModelProfile,
+    num_new_layers: int,
+    insert_strategy: str,
+    ffn_size_expansion: int,
+    **_: Any,
+) -> SafetensorExpanderBase:
+    from llm_grow.safetensor.models.moe_width import (
+        MoEWidthConfig,
+        MoEWidthExpander,
+    )
+
+    return MoEWidthExpander(
+        MoEWidthConfig(
+            ffn_size_expansion=ffn_size_expansion,
+            hidden_size_expansion=0,
+            num_new_layers=num_new_layers,
+            insert_strategy=insert_strategy,
+            extra_attn_zero_suffixes=profile.attn_zero_suffixes,
+            dense_mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
+            zero_shared_expert_down=profile.has_shared_expert,
         )
     )

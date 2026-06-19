@@ -65,7 +65,7 @@ class GrowthScheduler:
             if getattr(param, "_is_new_growth", False):
                 param.requires_grad_(unlock_ratio > 0)
                 if hasattr(param, "_growth_scale"):
-                    param._growth_scale = unlock_ratio
+                    param._growth_scale = unlock_ratio  # type: ignore[attr-defined]
 
     def register_new_params(
         self, model: nn.Module, original_param_ids: set[int] | None = None

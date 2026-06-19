@@ -161,6 +161,10 @@ def _get_hidden_size(model: nn.Module) -> int:
     for name, param in model.named_parameters():
         if param.dim() == 2 and "embed" not in name:
             return min(param.shape)
+    logger.warning(
+        "Cannot infer hidden_size from config or parameters; "
+        "falling back to default 4096."
+    )
     return 4096
 
 

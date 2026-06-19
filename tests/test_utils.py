@@ -138,7 +138,7 @@ class TestInsertPositions:
             insert_positions(4, 5, "uniform")
 
     def test_unknown_strategy_raises(self):
-        with pytest.raises(ValueError, match="Unknown insert_strategy"):
+        with pytest.raises(ValueError, match="Unknown insert strategy"):
             insert_positions(8, 2, "middle")
 
     def test_single_insert_uniform(self):

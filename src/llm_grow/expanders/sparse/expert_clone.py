@@ -175,7 +175,7 @@ def _compute_utility_scores(experts: nn.ModuleList) -> list[float]:
 def _utility_select(scores: list[float], n: int) -> list[int]:
     """按效用得分降序选取 n 个索引（允许重复）。"""
     ranked = sorted(range(len(scores)), key=lambda i: -scores[i])
-    result = []
+    result: list[int] = []
     while len(result) < n:
         result.extend(ranked[: n - len(result)])
     return result[:n]

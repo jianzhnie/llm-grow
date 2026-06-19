@@ -128,7 +128,7 @@ def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
     new_w[:old_out, :old_in] = old_w
 
     new_param = nn.Parameter(new_w)
-    new_param._is_new_growth = True
+    new_param._is_new_growth = True  # type: ignore[attr-defined]
     module.weight = new_param
     module.out_features = new_out
     module.in_features = new_in
@@ -138,17 +138,18 @@ def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
         new_b = torch.zeros(new_out, dtype=old_b.dtype, device=old_b.device)
         new_b[:old_out] = old_b
         new_bias_param = nn.Parameter(new_b)
-        new_bias_param._is_new_growth = True
+        new_bias_param._is_new_growth = True  # type: ignore[attr-defined]
         module.bias = new_bias_param
 
 
 def _classify_linear(name: str) -> str:
-    """根据参数名称粗略分类线性层的语义角色。"""
-    if any(k in name for k in ("lm_head", "embed", "layernorm", "norm")):
+    """根据参数名称的叶子节点粗略分类线性层的语义角色。"""
+    leaf = name.split(".")[-1]
+    if any(k in leaf for k in ("lm_head", "embed", "layernorm", "norm")):
         return "skip"
-    if any(k in name for k in ("gate_proj", "up_proj")):
+    if any(k in leaf for k in ("gate_proj", "up_proj")):
         return "hidden_to_inter"
-    if "down_proj" in name:
+    if "down_proj" in leaf:
         return "inter_to_hidden"
     return "hidden_to_hidden"
 

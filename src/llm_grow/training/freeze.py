@@ -37,7 +37,7 @@ def mark_new_params(model: nn.Module, original_param_ids: set[int]) -> int:
     count = 0
     for param in model.parameters():
         if id(param) not in original_param_ids:
-            param._is_new_growth = True
+            param._is_new_growth = True  # type: ignore[attr-defined]
             count += param.numel()
     return count
 

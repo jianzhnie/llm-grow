@@ -302,7 +302,11 @@ class SafetensorExpanderBase(ABC):
             recipe = plan.recipes[new_key]
             src_meta = src_headers[recipe.src_shard].get(recipe.src_key)
             if src_meta is None:
-                continue
+                raise KeyError(
+                    f"Recipe for '{new_key}' references missing source tensor "
+                    f"'{recipe.src_key}' in shard '{recipe.src_shard}'. "
+                    "This indicates a corrupted or incorrectly built expansion plan."
+                )
             out_bytes = _predict_recipe_bytes(src_meta, recipe)
             if current_bytes + out_bytes > target_bytes and current_bytes > 0:
                 shard_groups.append([])
@@ -535,6 +539,10 @@ def _apply_recipe(
         dtype = _TORCH_DTYPES.get(recipe.create_dtype, torch.float32)
         return torch.zeros(recipe.create_shape, dtype=dtype)
 
+    # ── zero_out can be applied directly without cloning the mmap-backed src ───
+    if recipe.zero_out:
+        return torch.zeros_like(src)
+
     # ── interpolation: alpha * src + (1 - alpha) * interp_tensor ─────────────
     if interp_tensor is not None and recipe.interp_src_key:
         alpha = recipe.interp_alpha
@@ -558,7 +566,7 @@ def _apply_recipe(
         dup = src + noise.to(src.dtype)
         return torch.cat([src, dup], dim=0)
 
-    # ── pad then optionally zero ──────────────────────────────────────────────
+    # ── pad then optionally add noise ─────────────────────────────────────────
     if recipe.pad_rows > 0 or recipe.pad_cols > 0:
         if src.dim() == 2:
             t = torch.zeros(
@@ -573,10 +581,9 @@ def _apply_recipe(
         else:
             raise ValueError(f"Unsupported tensor dim {src.dim()} for padding")
     else:
-        t = src.clone()  # must clone: mmap views share storage → save_file fails
-
-    if recipe.zero_out:
-        return torch.zeros_like(t)
+        # Passthrough tensors must be cloned because mmap-backed views share
+        # storage and safetensors' save_file rejects non-owning memory.
+        t = src.clone()
 
     if recipe.add_noise_std > 0:
         noise = torch.randn_like(t) * recipe.add_noise_std
