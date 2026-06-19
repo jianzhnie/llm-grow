@@ -129,7 +129,7 @@ def verify_config(dst_dir: str, expected_patches: dict, label: str) -> bool:
 
 
 def test_zero_block_insert():
-    label = "llama_pro"
+    label = "zero_block_insert"
     print(f"\n{'=' * 60}\n  {label}: Dense depth expansion (+7 blocks)\n{'=' * 60}")
 
     from llm_grow.safetensor.zero_block_insert import (
@@ -183,7 +183,7 @@ def test_zero_block_insert():
 
 
 def test_overlap_copy():
-    label = "solar_dus"
+    label = "overlap_copy"
     print(f"\n{'=' * 60}\n  {label}: Dense DUS (overlap=8)\n{'=' * 60}")
 
     from llm_grow.safetensor.overlap_copy import (

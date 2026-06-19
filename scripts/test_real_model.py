@@ -135,10 +135,10 @@ def test_overlap_copy():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Test 3: LESA
+# Test 3: SVDInterpInsert
 # ──────────────────────────────────────────────────────────────────────────────
 def test_svd_interp_insert():
-    print_sep("Test 3: LESA — SVD 插值（相邻层均值）")
+    print_sep("Test 3: SVDInterpInsert — SVD 插值（相邻层均值）")
     from llm_grow.expanders.depth.svd_interp_insert import (
         SVDInterpInsertConfig,
         SVDInterpInsertExpander,
@@ -159,7 +159,7 @@ def test_svd_interp_insert():
     print(f"  Layers : {orig_layers} → {exp_layers}")
     print(f"  Params : {orig_params / 1e6:.1f}M → {exp_params / 1e6:.1f}M")
     print(f"  Expand time: {elapsed:.2f}s")
-    print("  [✓] LESA expansion complete (approx FP, atol=0.5 relaxed)")
+    print("  [✓] SVDInterpInsert expansion complete (approx FP, atol=0.5 relaxed)")
     return True
 
 

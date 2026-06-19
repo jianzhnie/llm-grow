@@ -476,7 +476,7 @@ llm-grow/
 |   |   +-- base.py             #   ExpansionPlan + 两阶段写出
 |   |   +-- zero_block_insert.py        #   Dense 深度扩增
 |   |   +-- overlap_copy.py             #   Dense 深度扩增（DUS）
-|   |   +-- msg.py              #   Dense 深度+宽度扩增
+|   |   +-- multi_axis_pad.py     #   Dense 深度+宽度扩增
 |   |   +-- moe_generic.py      #   Qwen3MoE / KimiK2 通用 MoE
 |   |   +-- longcat.py          #   LongCat 专用
 |   |   +-- utils.py            #   ShardIndex / header 扫描

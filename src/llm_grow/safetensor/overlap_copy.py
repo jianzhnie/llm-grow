@@ -29,7 +29,7 @@ class OverlapCopySafetensorExpander(SafetensorExpanderBase):
 
         OverlapCopySafetensorExpander(OverlapCopySafetensorConfig(num_overlap=8)).expand(
             src_dir="Qwen/Qwen3-8B",
-            dst_dir="./outputs/qwen3_solar_dus",
+            dst_dir="./outputs/qwen3_overlap_copy",
         )
     """
 

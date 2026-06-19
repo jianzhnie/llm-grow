@@ -47,7 +47,7 @@ class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):
         cfg = ZeroBlockInsertSafetensorConfig(num_new_layers=7)
         ZeroBlockInsertSafetensorExpander(cfg).expand(
             src_dir="Qwen/Qwen3-8B",
-            dst_dir="./outputs/qwen3_llama_pro",
+            dst_dir="./outputs/qwen3_zero_block_insert",
         )
     """
 
