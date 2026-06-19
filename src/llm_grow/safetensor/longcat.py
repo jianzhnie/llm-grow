@@ -7,7 +7,7 @@ Supports two expansion modes for the LongcatFlash architecture:
    Memory peak ≈ largest shard × 2.
 
 2. **LongcatDepthExpander** — Depth expansion via identity block insertion
-   (LLaMA-Pro style), adapted for LongCat's dual-attention + MoE structure.
+   (ZeroBlockInsert style), adapted for LongCat's dual-attention + MoE structure.
 
 LongCat-Flash architecture specifics
 -------------------------------------
@@ -53,7 +53,7 @@ def _expert_key_offset(key: str, offset: int) -> str:
     return f"{m.group(1)}{int(m.group(2)) + offset}{m.group(3)}"
 
 
-# ── Expert Upcycling ──────────────────────────────────────────────────────────
+# ── ExpertClone ──────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -264,7 +264,7 @@ class LongcatDepthConfig:
 
 
 class LongcatDepthExpander(SafetensorExpanderBase):
-    """Insert LLaMA-Pro–style identity layers into LongCat-Flash.
+    """Insert ZeroBlockInsert-style identity layers into LongCat-Flash.
 
     An identity layer zeros:
     * ``self_attn.{0,1}.o_proj.weight``         — attention output projections

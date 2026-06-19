@@ -83,11 +83,11 @@ class GenericMoEDepthConfig:
     """Zero mlp.shared_experts.down_proj.weight in identity blocks."""
 
 
-# ── Expert Upcycling ──────────────────────────────────────────────────────────
+# ── ExpertClone ──────────────────────────────────────────────────────────
 
 
 class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
-    """Expert upcycling for any model using ``mlp.experts.{i}.*`` keys.
+    """ExpertClone for any model using ``mlp.experts.{i}.*`` keys.
 
     Works for Qwen3MoE, DeepSeek-V2/V3, Kimi-K2, Mixtral, etc.
     Handles fp8 ``weight_scale_inv`` tensors transparently.
@@ -222,7 +222,7 @@ class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
 
 
 class GenericMoEDepthExpander(SafetensorExpanderBase):
-    """Insert LLaMA-Pro–style identity layers into any MoE model.
+    """Insert ZeroBlockInsert-style identity layers into any MoE model.
 
     Zeros per identity block:
     * ``self_attn.o_proj.weight``                  — attention output
@@ -295,8 +295,8 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
 # ── pre-configured instances ──────────────────────────────────────────────────
 
 
-def make_qwen3moe_upcycling(expand_factor: int = 2, noise_scale: float = 1e-6):
-    """Expert upcycling for Qwen3MoeForCausalLM (Qwen3-30B-A3B, etc.)."""
+def make_qwen3moe_expert_clone(expand_factor: int = 2, noise_scale: float = 1e-6):
+    """ExpertClone for Qwen3MoeForCausalLM (Qwen3-30B-A3B, etc.)."""
     return GenericMoEExpertCloneExpander(
         GenericDenseToMoEConfig(
             expand_factor=expand_factor,
@@ -309,8 +309,8 @@ def make_qwen3moe_upcycling(expand_factor: int = 2, noise_scale: float = 1e-6):
     )
 
 
-def make_qwen3moe_depth(num_new_layers: int = 4, strategy: str = "uniform"):
-    """LLaMA-Pro depth expansion for Qwen3MoeForCausalLM."""
+def make_qwen3moe_zero_block_insert(num_new_layers: int = 4, strategy: str = "uniform"):
+    """ZeroBlockInsert depth expansion for Qwen3MoeForCausalLM."""
     return GenericMoEDepthExpander(
         GenericMoEDepthConfig(
             num_new_layers=num_new_layers,
@@ -322,8 +322,8 @@ def make_qwen3moe_depth(num_new_layers: int = 4, strategy: str = "uniform"):
     )
 
 
-def make_kimik2_upcycling(expand_factor: int = 2, noise_scale: float = 1e-6):
-    """Expert upcycling for Kimi-K2-Base (DeepseekV3ForCausalLM variant)."""
+def make_kimik2_expert_clone(expand_factor: int = 2, noise_scale: float = 1e-6):
+    """ExpertClone for Kimi-K2-Base (DeepseekV3ForCausalLM variant)."""
     return GenericMoEExpertCloneExpander(
         GenericDenseToMoEConfig(
             expand_factor=expand_factor,
@@ -336,8 +336,8 @@ def make_kimik2_upcycling(expand_factor: int = 2, noise_scale: float = 1e-6):
     )
 
 
-def make_kimik2_depth(num_new_layers: int = 4, strategy: str = "uniform"):
-    """LLaMA-Pro depth expansion for Kimi-K2-Base."""
+def make_kimik2_zero_block_insert(num_new_layers: int = 4, strategy: str = "uniform"):
+    """ZeroBlockInsert depth expansion for Kimi-K2-Base."""
     return GenericMoEDepthExpander(
         GenericMoEDepthConfig(
             num_new_layers=num_new_layers,

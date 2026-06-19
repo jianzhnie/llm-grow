@@ -284,7 +284,7 @@ def _derive_zero_suffixes(
     is_moe: bool,
     dense_layers: list[int],
 ) -> tuple[list[str], list[str]]:
-    """Compute which layer-suffixes to zero in LLaMA-Pro identity blocks."""
+    """Compute which layer-suffixes to zero in ZeroBlockInsert identity blocks."""
     if has_dual_attn:
         attn_zero = ["self_attn.0.o_proj.weight", "self_attn.1.o_proj.weight"]
     else:

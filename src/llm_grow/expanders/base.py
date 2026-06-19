@@ -69,7 +69,7 @@ class AbstractExpander(ABC):
     ) -> bool:
         """验证 function-preserving：随机输入下两个模型输出是否一致。
 
-        适用于恒等初始化方法（LLaMA-Pro、MSG）。非 FP 方法可覆盖此方法
+        适用于恒等初始化方法（ZeroBlockInsert、MultiAxisPad）。非 FP 方法可覆盖此方法
         返回 True 并打印 skip 提示。
         """
         if device is None:

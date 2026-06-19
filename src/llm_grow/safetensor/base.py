@@ -11,7 +11,7 @@ For models that can be loaded in memory, use the in-memory expanders at
 ``llm_grow.expanders.base.AbstractExpander`` instead — they offer richer
 integration with training, verification, and optimizer workflows.
 
-Both layers share the same mathematical algorithms (LLaMA-Pro identity
+Both layers share the same mathematical algorithms (ZeroBlockInsert identity
 insertion, expert duplication, etc.) but operate at different abstraction
 levels:
 

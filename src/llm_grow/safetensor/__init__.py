@@ -11,10 +11,10 @@ from llm_grow.safetensor.moe_generic import (
     GenericMoEDepthConfig,
     GenericMoEDepthExpander,
     GenericMoEExpertCloneExpander,
-    make_kimik2_depth,
-    make_kimik2_upcycling,
-    make_qwen3moe_depth,
-    make_qwen3moe_upcycling,
+    make_kimik2_expert_clone,
+    make_kimik2_zero_block_insert,
+    make_qwen3moe_expert_clone,
+    make_qwen3moe_zero_block_insert,
 )
 from llm_grow.safetensor.multi_axis_pad import (
     MultiAxisPadSafetensorConfig,
@@ -47,8 +47,8 @@ __all__ = [
     "ZeroBlockInsertSafetensorExpander",
     "auto_expand",
     "detect_model",
-    "make_kimik2_depth",
-    "make_kimik2_upcycling",
-    "make_qwen3moe_depth",
-    "make_qwen3moe_upcycling",
+    "make_kimik2_expert_clone",
+    "make_kimik2_zero_block_insert",
+    "make_qwen3moe_expert_clone",
+    "make_qwen3moe_zero_block_insert",
 ]

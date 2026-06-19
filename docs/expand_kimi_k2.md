@@ -150,9 +150,9 @@ mlp.experts.0.gate_proj.weight_scale_inv  # 量化 scale [16, 56]
 ## Python API
 
 ```python
-from llm_grow.safetensor.moe_generic import make_kimik2_upcycling
+from llm_grow.safetensor.moe_generic import make_kimik2_expert_clone
 
-make_kimik2_upcycling(expand_factor=2, noise_scale=1e-6).expand(
+make_kimik2_expert_clone(expand_factor=2, noise_scale=1e-6).expand(
     src_dir="./models/Kimi-K2-Base",
     dst_dir="./outputs/Kimi-K2-Base-2x",
     workers=8,

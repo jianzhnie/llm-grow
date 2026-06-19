@@ -92,10 +92,10 @@ def test_qwen3_depth():
     print("\n" + "=" * 62)
     print("  [2] Qwen3-30B-A3B  Depth Expansion  (48 → 56 layers)")
     print("=" * 62)
-    from llm_grow.safetensor.moe_generic import make_qwen3moe_depth
+    from llm_grow.safetensor.moe_generic import make_qwen3moe_zero_block_insert
     from llm_grow.safetensor.utils import ShardIndex
 
-    exp = make_qwen3moe_depth(num_new_layers=8)
+    exp = make_qwen3moe_zero_block_insert(num_new_layers=8)
     plan = exp.dry_run(QWEN3)
 
     assert plan.new_num_hidden_layers == 56
@@ -121,10 +121,10 @@ def test_kimik2_expert_clone():
     print("\n" + "=" * 62)
     print("  [3] Kimi-K2-Base  Expert Upcycling  (384 → 768 experts)")
     print("=" * 62)
-    from llm_grow.safetensor.moe_generic import make_kimik2_upcycling
+    from llm_grow.safetensor.moe_generic import make_kimik2_expert_clone
     from llm_grow.safetensor.utils import ShardIndex
 
-    exp = make_kimik2_upcycling(expand_factor=2)
+    exp = make_kimik2_expert_clone(expand_factor=2)
     plan = exp.dry_run(KIMI_K2)
 
     src = ShardIndex.load(KIMI_K2)
@@ -195,10 +195,10 @@ def test_kimik2_depth():
     print("\n" + "=" * 62)
     print("  [4] Kimi-K2-Base  Depth Expansion  (61 → 65 layers)")
     print("=" * 62)
-    from llm_grow.safetensor.moe_generic import make_kimik2_depth
+    from llm_grow.safetensor.moe_generic import make_kimik2_zero_block_insert
     from llm_grow.safetensor.utils import ShardIndex
 
-    exp = make_kimik2_depth(num_new_layers=4)
+    exp = make_kimik2_zero_block_insert(num_new_layers=4)
     plan = exp.dry_run(KIMI_K2)
 
     assert plan.new_num_hidden_layers == 65

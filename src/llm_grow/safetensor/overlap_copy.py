@@ -1,4 +1,4 @@
-"""SOLAR DUS safetensor expander: depth up-scaling via layer overlap-copy.
+"""OverlapCopy safetensor expander: depth up-scaling via layer overlap-copy.
 
 Non-FP method.  Requires 100B+ continued pretraining to recover accuracy.
 """
@@ -23,7 +23,7 @@ class OverlapCopySafetensorConfig:
 
 
 class OverlapCopySafetensorExpander(SafetensorExpanderBase):
-    """SOLAR DUS depth up-scaling directly on safetensor files.
+    """OverlapCopy depth up-scaling directly on safetensor files.
 
     Example::
 

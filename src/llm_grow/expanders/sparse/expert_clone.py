@@ -1,10 +1,10 @@
-"""ExpertClone: MoE 专家克隆扩展 (arXiv:2604.19835, Expert Upcycling).
+"""ExpertClone: MoE 专家克隆扩展 (arXiv:2604.19835, ExpertClone).
 
 核心思路（M1 方案）：将已有 E 个专家各复制一份得到 mE 个专家，
 保持 Top-K 路由不变，推理激活参数量不变，总参数量线性增长。
 关键：必须打破对称性，否则副本无法专业化。
 
-原始论文: Amazon AI, "Expert Upcycling: Densely Activated
+原始论文: Amazon AI, "ExpertClone: Densely Activated
     Mixture-of-Experts Pre-Training", arXiv:2604.19835, 2026.
 
 Related:

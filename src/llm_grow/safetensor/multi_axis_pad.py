@@ -1,7 +1,7 @@
 """MSG safetensor expander: depth + FFN-width masked structural growth.
 
 Supports two orthogonal expansion axes:
-  - depth_expansion   : identity block insertion (same as LLaMA-Pro)
+  - depth_expansion   : identity block insertion (same as ZeroBlockInsert)
   - ffn_size_expansion: zero-pad gate_proj/up_proj rows and down_proj cols
 
 Both are function-preserving: all new parameters start at zero.

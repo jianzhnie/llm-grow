@@ -6,7 +6,7 @@ so callers never need to know whether a model is Dense or MoE.
 Expansion axes
 --------------
 ``method="depth"``
-    Insert LLaMA-Pro–style identity layers.
+    Insert ZeroBlockInsert-style identity layers.
 
     *Dense* → ``ZeroBlockInsertSafetensorExpander``
                zeros: self_attn.o_proj + mlp.down_proj
@@ -217,7 +217,7 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
 def _build_expert_expander(
     profile: ModelProfile, expand_factor: int, noise_scale: float
 ):
-    """Select and configure the correct expert upcycling expander."""
+    """Select and configure the correct expert clone expander."""
 
     if profile.has_dual_attn:
         # LongCat-Flash (special router structure)
