@@ -33,11 +33,11 @@ vocab_size：151936  tie_word_embeddings：False
 
 ## 可用扩增方案
 
-| 方案 | 方法 | 目标参数量 | 倍率 | 推理成本 | 参考配置 |
-|------|------|:---:|:---:|:---:|------|
-| **专家扩增 2x** ★ | 128→256 experts | ~59B | ~2.0x | 激活↑（top-8→16） | `configs/Qwen3-30B-A3B/expert_clone.yaml` |
-| 专家扩增（推理成本不变） | 128→256，topk 不变 | ~59B | ~2.0x | **不变** | 修改 YAML：`num_experts_per_tok: 8` |
-| 深度扩增 | 48→60 层 | ~34B | ~1.13x | ↑ 线性 | `configs/Qwen3-30B-A3B/depth.yaml` |
+| 方案 | 方法 | 目标参数量 | 倍率 | 推理成本 |
+|------|------|:---:|:---:|:---:|
+| **专家扩增 2x** ★ | 128→256 experts | ~59B | ~2.0x | 激活↑（top-8→16） |
+| 专家扩增（推理成本不变） | 128→256，topk 不变 | ~59B | ~2.0x | **不变** |
+| 深度扩增 | 48→60 层 | ~34B | ~1.13x | ↑ 线性 |
 
 > **注**：深度扩增对 MoE 模型增量有限（专家参数占 96%），优先选择专家扩增。
 
@@ -108,13 +108,29 @@ python examples/common/verify_safetensor.py \
 ## 保持推理成本不变的专家扩增
 
 若要专家数翻倍但**推理激活成本保持不变**（仍只激活 8 个专家），
-修改 `configs/Qwen3-30B-A3B/expert_clone.yaml`：
+使用 Python API 并设置 `scale_topk=False`：
 
-```yaml
-expansion:
-  config_patches:
-    num_experts: 256
-    num_experts_per_tok: 8    # 保持 top-8，不翻倍
+```python
+from llm_grow.safetensor.models.moe_generic import (
+    GenericDenseToMoEConfig,
+    GenericMoEExpertCloneExpander,
+)
+
+expander = GenericMoEExpertCloneExpander(
+    GenericDenseToMoEConfig(
+        expand_factor=2,
+        noise_scale=1e-6,
+        router_weight_suffixes=["mlp.gate.weight"],
+        router_bias_suffixes=[],
+        config_expert_count_key="num_experts",
+        config_topk_key="num_experts_per_tok",
+        scale_topk=False,  # 保持 top-8，不翻倍
+    )
+)
+expander.expand(
+    src_dir="./models/Qwen3-30B-A3B",
+    dst_dir="./outputs/Qwen3-30B-A3B-2x-top8",
+)
 ```
 
 此配置下：总参数 ~2x，推理每 token 激活的 expert FLOPs 不变，仅 Router 计算量微增。

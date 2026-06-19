@@ -561,24 +561,8 @@ llm-grow/
 |   +-- eval/                   # FP 验证 / 结构验证 / 恢复曲线
 +-- examples/                   # 示例脚本 + 集成测试
 +-- tests/                      # 单元测试
-+-- configs/                    # 按模型分类的 YAML 配置
 +-- docs/                       # 教程 + 架构图
 ```
-
----
-
-## 配置文件
-
-```
-configs/
-+-- Qwen3-0.6B/        zero_block_insert.yaml  overlap_copy.yaml  multi_axis_pad.yaml
-+-- Qwen3-8B/          zero_block_insert.yaml  multi_axis_pad.yaml  dense_to_moe.yaml
-+-- Qwen3-30B-A3B/     expert_clone.yaml  depth.yaml
-+-- Kimi-K2-Base/      expert_clone.yaml  depth.yaml
-+-- LongCat-Flash-Chat/  expert_clone.yaml  depth.yaml
-```
-
-> 注：`configs/` 下的 YAML 文件目前仅作为人工可读的参考配置，尚未被 CLI 或 Python API 自动加载。请直接阅读文件内容并对应到 `llm-grow expand` 的参数或 Python API 的 config 类。
 
 ---
 

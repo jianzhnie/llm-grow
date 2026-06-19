@@ -1,7 +1,7 @@
 # llm-grow 代码库 Review 报告
 
 > Review 日期：2026-06-19  
-> Review 范围：`src/llm_grow/`、`tests/`、`examples/`、`configs/`、`docs/`、`README.md`、`pyproject.toml`
+> Review 范围：`src/llm_grow/`、`tests/`、`examples/`、`docs/`、`README.md`、`pyproject.toml`
 
 ## 总体评估
 
@@ -169,17 +169,13 @@
 5. **`docs/expand_qwen3_0.6b.md:114` 使用 `msg` 作为算法名**
    - `python scripts/safetensor_expand.py msg ...` 中 `msg` 不是 `safetensor_expand.py` 支持的选择，应为 `multi_axis_pad`。
 
-6. **`configs/` YAML 文件未被代码消费**
-   - 所有 YAML 目前只是人类可读的配置说明，没有代码解析它们。建议要么实现配置加载器，要么在文档中说明它们仅作参考。
-
-7. **`MoEWidthExpander`、`GrowthScheduler`、`Net2Net`、`SVDInterpInsert` 内存级实现缺失文档**
+6. **`MoEWidthExpander`、`GrowthScheduler`、`Net2Net`、`SVDInterpInsert` 内存级实现缺失文档**
    - README 方法表和 API 参考未覆盖这些功能。
 
 ### 建议
 
 - 对 README 和 4 篇教程做一次同步校对，确保所有 import 路径、脚本路径、CLI 参数与代码一致。
 - 为 Safetensor 的 `MoEWidthExpander`、训练的 `GrowthScheduler`、以及内存级 `Net2Net`/`SVDInterpInsert` 补充 API 示例。
-- 明确 `configs/` 的用途：要么让 CLI/Python API 支持加载 YAML，要么标注为参考配置。
 
 ---
 
@@ -213,7 +209,6 @@
 
 16. 统一内存级与 Safetensor 级的 config 类，减少重复。
 17. 考虑将 `TensorRecipe` 拆分为更小的组合类型。
-18. 让 `configs/` YAML 真正可被代码加载，或明确其文档定位。
 
 ---
 

@@ -25,12 +25,12 @@ vocab_size：151936  tie_word_embeddings：True
 
 ## 可用扩增方案
 
-| 方案 | 方法 | 目标参数量 | 倍率 | FP | 参考配置 |
-|------|------|:---:|:---:|:---:|------|
-| **ZeroBlockInsert 2x** | 深度 +38 块 | 1194M | 2.00x | ✓ | `configs/Qwen3-0.6B/zero_block_insert.yaml` |
-| ZeroBlockInsert 层翻倍 | 深度 +28 块 | 1037M | 1.74x | ✓ | — |
-| MultiAxisPad 深度+宽度 | 深度+14, FFN+2048 | ~1081M | ~1.81x | ✓ | `configs/Qwen3-0.6B/multi_axis_pad.yaml` |
-| OverlapCopy | 层重叠复制 | 785M | 1.32x | ✗ | `configs/Qwen3-0.6B/overlap_copy.yaml` |
+| 方案 | 方法 | 目标参数量 | 倍率 | FP |
+|------|------|:---:|:---:|:---:|
+| **ZeroBlockInsert 2x** | 深度 +38 块 | 1194M | 2.00x | ✓ |
+| ZeroBlockInsert 层翻倍 | 深度 +28 块 | 1037M | 1.74x | ✓ |
+| MultiAxisPad 深度+宽度 | 深度+14, FFN+2048 | ~1081M | ~1.81x | ✓ |
+| OverlapCopy | 层重叠复制 | 785M | 1.32x | ✗ |
 
 ---
 
