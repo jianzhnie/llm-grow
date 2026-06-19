@@ -7,13 +7,25 @@ Skips examples that require unavailable models (Qwen3-8B).
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
-SRC = "/Users/robin/hfhub/models/Qwen/Qwen3-0.6B"
-SRC_MOE = "/Users/robin/hfhub/models/Qwen/Qwen3-30B-A3B"  # index only
-SRC_LONGCAT = "/Users/robin/hfhub/models/meituan-longcat/LongCat-Flash-Chat"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.model_paths import (
+    LONGCAT,
+    QWEN3_06B,
+    QWEN3_30B,
+    REPO_DIR,
+    require_path,
+)
+
+SRC = require_path("QWEN3_06B", QWEN3_06B)
+SRC_MOE = require_path("QWEN3_30B", QWEN3_30B)
+SRC_LONGCAT = require_path("LONGCAT", LONGCAT)
+CWD = REPO_DIR or str(Path(__file__).resolve().parents[2])
 
 results: dict[str, bool] = {}
 
@@ -41,7 +53,7 @@ def run_cmd(name: str, cmd: str, expect_ok: bool = True) -> bool:
         shell=True,
         capture_output=True,
         text=True,
-        cwd="/Users/robin/work_dir/llm-grow",
+        cwd=CWD,
         timeout=60,
     )
     ok = (r.returncode == 0) == expect_ok
@@ -295,7 +307,7 @@ assert profile.family == "longcat"
             f"--src {SRC} --dst {d}/out --num-new-layers 4 --quiet",
             shell=True,
             capture_output=True,
-            cwd="/Users/robin/work_dir/llm-grow",
+            cwd=CWD,
             timeout=60,
         )
         run_cmd(
@@ -482,7 +494,7 @@ with tempfile.TemporaryDirectory() as d:
             f"--method depth --num-new-layers 4",
             shell=True,
             capture_output=True,
-            cwd="/Users/robin/work_dir/llm-grow",
+            cwd=CWD,
             timeout=60,
         )
         run_cmd("cli/llm_grow_verify", f"llm-grow verify --src {SRC} --dst {d}/out")

@@ -4,11 +4,18 @@
 Tests both:
   1. Expert Upcycling  (512 -> 1024 experts)
   2. Depth Expansion   (28  -> 32  layers)
+  3. Dry-run plan verification via auto-detect
 """
 
+import re
 import sys
+from pathlib import Path
 
-MODEL_DIR = "/Users/robin/hfhub/models/meituan-longcat/LongCat-Flash-Chat"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.helpers import print_summary
+from common.model_paths import LONGCAT, require_path
+
+MODEL_DIR = require_path("LONGCAT", LONGCAT)
 
 
 def check_expert_clone():
@@ -22,7 +29,6 @@ def check_expert_clone():
     )
     from llm_grow.safetensor.utils import ShardIndex
 
-    # Default: scale_moe_topk=False → moe_topk unchanged (matches original default)
     cfg = LongcatExpertCloneConfig(
         expand_factor=2, noise_scale=1e-6, scale_moe_topk=False
     )
@@ -32,12 +38,11 @@ def check_expert_clone():
     src_index = ShardIndex.load(MODEL_DIR)
     wmap = src_index.weight_map
 
-    # Verify expert tensors doubled
     orig_experts = expander._count_experts_per_layer(wmap)
     new_expert_keys = [k for k in plan.recipes if "mlp.experts." in k]
     experts_in_plan = len(
         {
-            int(__import__("re").search(r"experts\.(\d+)", k).group(1))
+            int(re.search(r"experts\.(\d+)", k).group(1))
             for k in new_expert_keys
             if k.startswith("model.layers.0.")
         }
@@ -47,7 +52,6 @@ def check_expert_clone():
     assert experts_in_plan == orig_experts * 2, "Expert count mismatch!"
     print("  [OK] Expert count doubled correctly")
 
-    # Verify router keys present and modified
     router_cls_keys = [k for k in plan.recipes if "mlp.router.classifier.weight" in k]
     router_bias_keys = [k for k in plan.recipes if "e_score_correction_bias" in k]
     print(f"  [Check] Router classifier keys : {len(router_cls_keys)} (dup_rows)")
@@ -56,8 +60,6 @@ def check_expert_clone():
         assert plan.recipes[k].dup_rows, "Classifier should have dup_rows=True"
     print("  [OK] Router classifier dup_rows=True")
 
-    # scale_moe_topk=False: moe_topk unchanged
-    # (matches original expand_experts.py default)
     assert plan.config_patches.get("n_routed_experts") == 1024
     assert plan.config_patches.get("zero_expert_num") == 512
     assert "moe_topk" not in plan.config_patches
@@ -65,13 +67,11 @@ def check_expert_clone():
         "  [OK] Config: n_routed_experts=1024, zero_expert_num=512, moe_topk=UNCHANGED"
     )
 
-    # scale_moe_topk=True: explicit topk scaling
     cfg2 = LongcatExpertCloneConfig(expand_factor=2, scale_moe_topk=True)
     plan2 = LongcatExpertCloneExpander(cfg2)._build_plan(src_index)
     assert plan2.config_patches.get("moe_topk") == 24
     print("  [OK] scale_moe_topk=True correctly patches moe_topk=24")
 
-    # use_group_routing: topk unchanged, routing flags added
     cfg3 = LongcatExpertCloneConfig(expand_factor=2, use_group_routing=True)
     plan3 = LongcatExpertCloneExpander(cfg3)._build_plan(src_index)
     assert plan3.config_patches.get("use_group_routing") is True
@@ -115,11 +115,7 @@ def check_depth_expansion():
     for cat, cnt in zero_per_layer.items():
         print(f"    {cat}: {cnt}")
 
-    # 4 identity layers each with:
-    #   2 o_proj (attn.0, attn.1)
-    #   512 expert down_proj
-    #   2 dense MLP down_proj
-    expected_zero_per_id_layer = 2 + 512 + 2  # = 516
+    expected_zero_per_id_layer = 2 + 512 + 2
     expected_total_zero = 4 * expected_zero_per_id_layer
     print(f"  Expected zero tensors: {expected_total_zero}  (4 layers x 516)")
     print(f"  Actual   zero tensors: {len(zero_recipes)}")
@@ -128,7 +124,6 @@ def check_depth_expansion():
     )
     print("  [OK] Zero tensor count correct")
 
-    # Non-layer tensors (mtp, embed, etc.) must all pass through
     non_layer_orig = sum(
         1
         for k in src_index.weight_map
@@ -144,30 +139,61 @@ def check_depth_expansion():
     return True
 
 
+def check_dryrun_plan():
+    print("\n" + "=" * 60)
+    print("  Dry-run plan verification via auto-detect")
+    print("=" * 60)
+    from llm_grow.safetensor.auto import _build_expander
+    from llm_grow.safetensor.detect import detect_model
+    from llm_grow.safetensor.utils import ShardIndex
+
+    checks = [
+        ("expert", {"expand_factor": 2}, {"n_routed_experts": 1024}),
+        ("depth", {"num_new_layers": 4}, {}),
+    ]
+
+    for method, kwargs, expected_patches in checks:
+        profile = detect_model(MODEL_DIR)
+        exp = _build_expander(
+            method,
+            profile,
+            kwargs.get("num_new_layers", 4),
+            "uniform",
+            kwargs.get("expand_factor", 2),
+            1e-6,
+            0,
+        )
+        plan = exp._build_plan(ShardIndex.load(MODEL_DIR))
+
+        ok = all(
+            plan.config_patches.get(k) == v for k, v in expected_patches.items()
+        )
+        print(f"  [{'OK' if ok else 'FAIL'}] LongCat/{method} config: {plan.config_patches}")
+
+        src_count = len(ShardIndex.load(MODEL_DIR).all_keys)
+        ok2 = len(plan.recipes) > src_count
+        print(f"  [{'OK' if ok2 else 'FAIL'}] tensors: {src_count} -> {len(plan.recipes)}")
+
+    return True
+
+
 def main():
     results = {}
     for name, fn in [
         ("expert_clone", check_expert_clone),
         ("depth_expansion", check_depth_expansion),
+        ("dryrun_plan", check_dryrun_plan),
     ]:
         try:
             results[name] = fn()
         except Exception as e:
             print(f"\n  [FAIL] {e}")
             import traceback
-
             traceback.print_exc()
             results[name] = False
 
-    print("\n" + "=" * 60)
-    print("  Summary")
-    print("=" * 60)
-    for name, ok in results.items():
-        print(f"  [{'OK' if ok else 'FAIL'}] {name}")
-
     print("\nNote: weight files not present -- dry_run validated plan logic only.")
-    print("      Download weights to run actual expansion.")
-    sys.exit(0 if all(results.values()) else 1)
+    sys.exit(print_summary(results))
 
 
 if __name__ == "__main__":

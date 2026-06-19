@@ -15,10 +15,17 @@ import copy
 import sys
 import time
 
+import os
+import sys
+from pathlib import Path
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-MODEL_PATH = "/Users/robin/hfhub/models/Qwen/Qwen3-0.6B"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.model_paths import QWEN3_06B, require_path
+
+MODEL_PATH = require_path("QWEN3_06B", QWEN3_06B)
 DEVICE = "cpu"
 DTYPE = torch.float32  # CPU 测试用 fp32，避免 bfloat16 精度误差干扰 FP 验证
 
