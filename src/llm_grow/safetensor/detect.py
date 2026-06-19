@@ -30,7 +30,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from llm_grow.safetensor.longcat import _expert_idx, _is_expert_key
+from llm_grow.safetensor.utils import expert_idx, is_expert_key
 
 # ── data class ────────────────────────────────────────────────────────────────
 
@@ -141,7 +141,7 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
         num_layers = 0
 
     # ── structural probes ────────────────────────────────────────────────────
-    has_experts = any(_is_expert_key(k) for k in wmap)
+    has_experts = any(is_expert_key(k) for k in wmap)
     has_fp8 = any(k.endswith("weight_scale_inv") for k in wmap)
     has_mla = any("q_a_proj" in k or "kv_a_proj" in k for k in wmap)
     has_dual_attn = any("self_attn.0." in k for k in wmap)
@@ -246,7 +246,7 @@ def _count_experts(wmap: dict, num_layers: int) -> tuple[int, list[int]]:
     for layer_id in range(num_layers):
         prefix = f"model.layers.{layer_id}."
         idxs = {
-            _expert_idx(k) for k in wmap if k.startswith(prefix) and _is_expert_key(k)
+            expert_idx(k) for k in wmap if k.startswith(prefix) and is_expert_key(k)
         }
         if idxs:
             max_experts = max(max_experts, len(idxs))

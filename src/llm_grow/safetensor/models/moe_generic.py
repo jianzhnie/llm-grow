@@ -24,13 +24,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.longcat import (
-    _expert_idx,
-    _expert_key_offset,
-    _is_expert_key,
+from llm_grow.safetensor.utils import (
+    ShardIndex,
+    expert_idx,
+    expert_key_offset,
+    insert_positions,
+    is_expert_key,
+    parse_layer_idx,
+    peek_model_config,
 )
-from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx, peek_model_config
-from llm_grow.safetensor.zero_block_insert import _insert_positions
 
 # ── config dataclasses ────────────────────────────────────────────────────────
 
@@ -148,10 +150,10 @@ class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
                 else ""
             )
 
-            if _is_expert_key(key):
+            if is_expert_key(key):
                 plan.passthrough(key, shard)
                 for copy_i in range(1, cfg.expand_factor):
-                    new_key = _expert_key_offset(key, orig_n * copy_i)
+                    new_key = expert_key_offset(key, orig_n * copy_i)
                     plan.add(new_key, TensorRecipe(src_shard=shard, src_key=key))
 
             elif layer_idx is not None and suf in router_w_set:
@@ -199,9 +201,9 @@ class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
         for layer_id in range(num_layers):
             prefix = f"model.layers.{layer_id}."
             indices = {
-                _expert_idx(k)
+                expert_idx(k)
                 for k in wmap
-                if k.startswith(prefix) and _is_expert_key(k)
+                if k.startswith(prefix) and is_expert_key(k)
             }
             if indices:
                 return len(indices)
@@ -249,7 +251,7 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
         suffixes = src_index.layer_suffixes()
 
         positions = set(
-            _insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
+            insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
         )
         sequence: list[tuple[int, bool]] = []
         for i in range(num_orig):

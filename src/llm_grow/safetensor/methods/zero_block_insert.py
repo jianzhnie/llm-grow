@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase
-from llm_grow.safetensor.utils import ShardIndex
+from llm_grow.safetensor.utils import ShardIndex, insert_positions
 
 
 @dataclass
@@ -62,7 +62,7 @@ class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):
         num_orig = src_index.num_hidden_layers()
         cfg = self.config
 
-        positions = _insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
+        positions = insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
         pos_set = set(positions)
 
         # Build ordered layer sequence: (src_orig_idx, is_identity)
@@ -74,31 +74,3 @@ class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):
 
         return self._build_layer_plan(src_index, layer_sequence=sequence)
 
-
-# ── helpers ──────────────────────────────────────────────────────────────────
-
-
-def _insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
-    if num_new <= 0:
-        return []
-    if num_new > num_orig:
-        raise ValueError(
-            f"num_new_layers ({num_new}) cannot exceed num_orig_layers ({num_orig})."
-        )
-    if strategy == "uniform":
-        step = num_orig / (num_new + 1)
-        positions = sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
-        if len(positions) < num_new:
-            import warnings
-
-            warnings.warn(
-                f"Uniform insertion produced {len(positions)} unique positions "
-                f"(requested {num_new}). Consider reducing num_new_layers.",
-                stacklevel=2,
-            )
-        return positions
-    if strategy == "front":
-        return list(range(num_new))
-    if strategy == "rear":
-        return list(range(num_orig - num_new, num_orig))
-    raise ValueError(f"Unknown insert_strategy: {strategy!r}")

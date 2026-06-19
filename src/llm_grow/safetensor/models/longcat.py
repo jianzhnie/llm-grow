@@ -25,33 +25,16 @@ LongCat-Flash architecture specifics
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.utils import ShardIndex, peek_model_config
-
-# ── regex helpers ─────────────────────────────────────────────────────────────
-
-_EXPERT_RE = re.compile(r"^(.*\.mlp\.experts\.)(\d+)(\..*)$")
-
-
-def _is_expert_key(key: str) -> bool:
-    return bool(_EXPERT_RE.match(key))
-
-
-def _expert_idx(key: str) -> int:
-    m = _EXPERT_RE.match(key)
-    return int(m.group(2)) if m else -1
-
-
-def _expert_key_offset(key: str, offset: int) -> str:
-    """Rename expert index: experts.{i}.* → experts.{i+offset}.*"""
-    m = _EXPERT_RE.match(key)
-    if m is None:
-        return key
-    return f"{m.group(1)}{int(m.group(2)) + offset}{m.group(3)}"
-
+from llm_grow.safetensor.utils import (
+    ShardIndex,
+    expert_idx,
+    expert_key_offset,
+    is_expert_key,
+    peek_model_config,
+)
 
 # ── ExpertClone ──────────────────────────────────────────────────────────
 
@@ -169,12 +152,12 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
         router_split = orig_n_experts if zero_expert_num > 0 else 0
 
         for key, shard in wmap.items():
-            if _is_expert_key(key):
+            if is_expert_key(key):
                 # Keep original; create (expand_factor - 1) copies with index offset
                 plan.passthrough(key, shard)
                 for copy_idx in range(1, cfg.expand_factor):
                     offset = orig_n_experts * copy_idx
-                    new_key = _expert_key_offset(key, offset)
+                    new_key = expert_key_offset(key, offset)
                     plan.add(new_key, TensorRecipe(src_shard=shard, src_key=key))
 
             elif key.endswith("mlp.router.classifier.weight"):
@@ -230,9 +213,9 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
     def _count_experts_per_layer(wmap: dict[str, str]) -> int:
         """Count distinct expert indices in layer 0."""
         indices = {
-            _expert_idx(k)
+            expert_idx(k)
             for k in wmap
-            if k.startswith("model.layers.0.") and _is_expert_key(k)
+            if k.startswith("model.layers.0.") and is_expert_key(k)
         }
         return len(indices)
 
@@ -296,7 +279,7 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         return bool(suf.endswith(".down_proj.weight") and "mlp.experts." in suf)
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
-        from llm_grow.safetensor.zero_block_insert import _insert_positions
+        from llm_grow.safetensor.utils import insert_positions
 
         cfg = self.config
         num_orig = src_index.num_hidden_layers()
@@ -304,7 +287,7 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         suffixes = src_index.layer_suffixes()
 
         positions = set(
-            _insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
+            insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
         )
         sequence: list[tuple[int, bool]] = []
         for i in range(num_orig):

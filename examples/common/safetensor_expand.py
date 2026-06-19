@@ -167,7 +167,7 @@ def main() -> None:
 
     # ── explicit expanders ────────────────────────────────────────────────────
     if args.expander == "zero_block_insert":
-        from llm_grow.safetensor.zero_block_insert import (
+        from llm_grow.safetensor.methods.zero_block_insert import (
             ZeroBlockInsertSafetensorConfig,
             ZeroBlockInsertSafetensorExpander,
         )
@@ -180,7 +180,7 @@ def main() -> None:
         )
 
     elif args.expander == "overlap_copy":
-        from llm_grow.safetensor.overlap_copy import (
+        from llm_grow.safetensor.methods.overlap_copy import (
             OverlapCopySafetensorConfig,
             OverlapCopySafetensorExpander,
         )
@@ -190,7 +190,7 @@ def main() -> None:
         )
 
     elif args.expander == "multi_axis_pad":
-        from llm_grow.safetensor.multi_axis_pad import (
+        from llm_grow.safetensor.methods.multi_axis_pad import (
             MultiAxisPadSafetensorConfig,
             MultiAxisPadSafetensorExpander,
         )

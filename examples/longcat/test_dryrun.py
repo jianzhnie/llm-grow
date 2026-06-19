@@ -24,7 +24,7 @@ def check_expert_clone():
     print("  Expert Upcycling  (512 -> 1024 experts)")
     print("  scale_moe_topk=False: matches expand_experts.py default")
     print("=" * 60)
-    from llm_grow.safetensor.longcat import (
+    from llm_grow.safetensor.models.longcat import (
         LongcatExpertCloneConfig,
         LongcatExpertCloneExpander,
     )
@@ -90,7 +90,7 @@ def check_depth_expansion():
     print("\n" + "=" * 60)
     print("  Depth Expansion  (28 -> 32 layers, +4 identity blocks)")
     print("=" * 60)
-    from llm_grow.safetensor.longcat import LongcatDepthConfig, LongcatDepthExpander
+    from llm_grow.safetensor.models.longcat import LongcatDepthConfig, LongcatDepthExpander
     from llm_grow.safetensor.utils import ShardIndex
 
     cfg = LongcatDepthConfig(num_new_layers=4, insert_strategy="uniform")

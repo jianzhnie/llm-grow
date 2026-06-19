@@ -36,7 +36,7 @@ def test_zero_block_insert():
     label = "zero_block_insert"
     print(f"\n{'=' * 60}\n  {label}: Dense depth expansion (+7 blocks)\n{'=' * 60}")
 
-    from llm_grow.safetensor.zero_block_insert import (
+    from llm_grow.safetensor.methods.zero_block_insert import (
         ZeroBlockInsertSafetensorConfig,
         ZeroBlockInsertSafetensorExpander,
     )
@@ -83,7 +83,7 @@ def test_overlap_copy():
     label = "overlap_copy"
     print(f"\n{'=' * 60}\n  {label}: Dense DUS (overlap=8)\n{'=' * 60}")
 
-    from llm_grow.safetensor.overlap_copy import (
+    from llm_grow.safetensor.methods.overlap_copy import (
         OverlapCopySafetensorConfig,
         OverlapCopySafetensorExpander,
     )
@@ -117,7 +117,7 @@ def test_msg():
     label = "msg"
     print(f"\n{'=' * 60}\n  {label}: Dense depth+4 + FFN+512\n{'=' * 60}")
 
-    from llm_grow.safetensor.multi_axis_pad import (
+    from llm_grow.safetensor.methods.multi_axis_pad import (
         MultiAxisPadSafetensorConfig,
         MultiAxisPadSafetensorExpander,
     )

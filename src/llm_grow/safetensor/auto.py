@@ -150,7 +150,7 @@ def _build_expander(
                 "supported for MoE models. "
                 "Use method='expert' to increase expert count."
             )
-        from llm_grow.safetensor.multi_axis_pad import (
+        from llm_grow.safetensor.methods.multi_axis_pad import (
             MultiAxisPadSafetensorConfig,
             MultiAxisPadSafetensorExpander,
         )
@@ -172,7 +172,7 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
 
     if profile.has_dual_attn:
         # LongCat-Flash: dual attention + dual MLP + 512 experts
-        from llm_grow.safetensor.longcat import LongcatDepthConfig, LongcatDepthExpander
+        from llm_grow.safetensor.models.longcat import LongcatDepthConfig, LongcatDepthExpander
 
         return LongcatDepthExpander(
             LongcatDepthConfig(
@@ -183,7 +183,7 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
 
     if profile.is_moe:
         # Standard MoE or DeepSeek-style MoE
-        from llm_grow.safetensor.moe_generic import (
+        from llm_grow.safetensor.models.moe_generic import (
             GenericMoEDepthConfig,
             GenericMoEDepthExpander,
         )
@@ -199,7 +199,7 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
         )
 
     # Pure dense model
-    from llm_grow.safetensor.zero_block_insert import (
+    from llm_grow.safetensor.methods.zero_block_insert import (
         ZeroBlockInsertSafetensorConfig,
         ZeroBlockInsertSafetensorExpander,
     )
@@ -221,7 +221,7 @@ def _build_expert_expander(
 
     if profile.has_dual_attn:
         # LongCat-Flash (special router structure)
-        from llm_grow.safetensor.longcat import (
+        from llm_grow.safetensor.models.longcat import (
             LongcatExpertCloneConfig,
             LongcatExpertCloneExpander,
         )

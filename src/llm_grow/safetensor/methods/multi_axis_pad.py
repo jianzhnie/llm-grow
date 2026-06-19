@@ -15,8 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.utils import ShardIndex
-from llm_grow.safetensor.zero_block_insert import _insert_positions
+from llm_grow.safetensor.utils import ShardIndex, insert_positions
 
 # Suffixes whose output dimension (rows) expands with intermediate_size
 _FFN_OUT_SUFFIXES = frozenset({"mlp.gate_proj.weight", "mlp.up_proj.weight"})
@@ -83,7 +82,7 @@ class MultiAxisPadSafetensorExpander(SafetensorExpanderBase):
         # ── depth: build layer sequence ──────────────────────────────────────
         if cfg.num_new_layers > 0:
             positions = set(
-                _insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
+                insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
             )
         else:
             positions = set()

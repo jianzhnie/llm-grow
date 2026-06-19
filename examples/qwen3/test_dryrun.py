@@ -24,7 +24,7 @@ def test_expert_clone():
     print("\n" + "=" * 62)
     print("  [1] Qwen3-30B-A3B  Expert Upcycling  (128 -> 256 experts)")
     print("=" * 62)
-    from llm_grow.safetensor.moe_generic import make_qwen3moe_expert_clone
+    from llm_grow.safetensor.models.moe_generic import make_qwen3moe_expert_clone
     from llm_grow.safetensor.utils import ShardIndex
 
     exp = make_qwen3moe_expert_clone(expand_factor=2)
@@ -68,7 +68,7 @@ def test_depth():
     print("\n" + "=" * 62)
     print("  [2] Qwen3-30B-A3B  Depth Expansion  (48 -> 56 layers)")
     print("=" * 62)
-    from llm_grow.safetensor.moe_generic import make_qwen3moe_zero_block_insert
+    from llm_grow.safetensor.models.moe_generic import make_qwen3moe_zero_block_insert
     from llm_grow.safetensor.utils import ShardIndex
 
     exp = make_qwen3moe_zero_block_insert(num_new_layers=8)

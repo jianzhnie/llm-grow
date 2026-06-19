@@ -24,7 +24,7 @@ def test_expert_clone():
     print("\n" + "=" * 62)
     print("  [1] Kimi-K2-Base  Expert Upcycling  (384 -> 768 experts)")
     print("=" * 62)
-    from llm_grow.safetensor.moe_generic import make_kimik2_expert_clone
+    from llm_grow.safetensor.models.moe_generic import make_kimik2_expert_clone
     from llm_grow.safetensor.utils import ShardIndex
 
     exp = make_kimik2_expert_clone(expand_factor=2)
@@ -88,7 +88,7 @@ def test_depth():
     print("\n" + "=" * 62)
     print("  [2] Kimi-K2-Base  Depth Expansion  (61 -> 65 layers)")
     print("=" * 62)
-    from llm_grow.safetensor.moe_generic import make_kimik2_zero_block_insert
+    from llm_grow.safetensor.models.moe_generic import make_kimik2_zero_block_insert
     from llm_grow.safetensor.utils import ShardIndex
 
     exp = make_kimik2_zero_block_insert(num_new_layers=4)

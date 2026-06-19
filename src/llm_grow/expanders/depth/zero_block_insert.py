@@ -21,7 +21,7 @@ import torch.nn as nn
 
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
 from llm_grow.initializers.identity import zero_output_projections
-from llm_grow.safetensor.zero_block_insert import _insert_positions
+from llm_grow.safetensor.utils import insert_positions
 
 
 @dataclass
@@ -74,12 +74,12 @@ class ZeroBlockInsertExpander(AbstractExpander):
     def expand(self, model: nn.Module, config: ZeroBlockInsertConfig) -> nn.Module:
         layers = _get_decoder_layers(model)
         num_orig = len(layers)
-        insert_positions = _insert_positions(
+        positions = insert_positions(
             num_orig, config.num_new_layers, config.insert_strategy
         )
 
         new_layers = nn.ModuleList()
-        insert_set = set(insert_positions)
+        insert_set = set(positions)
 
         for i, layer in enumerate(layers):
             new_layers.append(layer)
