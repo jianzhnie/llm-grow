@@ -17,10 +17,10 @@ import copy
 
 import torch
 
-from llm_grow.expanders.sparse.expert_upcycling import (
+from llm_grow.expanders.sparse.expert_clone import (
+    ExpertCloneConfig,
+    ExpertCloneExpander,
     ExpertSelectionStrategy,
-    ExpertUpcyclingConfig,
-    ExpertUpcyclingExpander,
 )
 from llm_grow.utils.arch_info import param_diff_report
 from llm_grow.utils.model_io import load_model, load_tokenizer, save_model
@@ -54,7 +54,7 @@ def main() -> None:
     tokenizer = load_tokenizer(args.model)
     original_ref = copy.deepcopy(model)
 
-    config = ExpertUpcyclingConfig(
+    config = ExpertCloneConfig(
         expand_factor=args.expand_factor,
         selection_strategy=ExpertSelectionStrategy(args.selection_strategy),
         symmetry_break=args.symmetry_break,
@@ -62,7 +62,7 @@ def main() -> None:
         drop_ratio=args.drop_ratio,
     )
 
-    expander = ExpertUpcyclingExpander()
+    expander = ExpertCloneExpander()
     expanded = expander.expand(model, config)
 
     param_diff_report(original_ref, expanded)

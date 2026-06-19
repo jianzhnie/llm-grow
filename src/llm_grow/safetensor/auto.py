@@ -24,7 +24,7 @@ Expansion axes
 
     *Dense* → raises ``ValueError`` (no experts to copy)
 
-    *Any MoE* → ``GenericMoEExpertUpcyclingExpander``
+    *Any MoE* → ``GenericMoEExpertCloneExpander``
                duplicates mlp.experts.{i}.* (including fp8 scale tensors)
                duplicates router weight rows (+ noise)
                duplicates router bias rows  (no noise)
@@ -219,12 +219,12 @@ def _build_expert_expander(
     if profile.has_dual_attn:
         # LongCat-Flash (special router structure)
         from llm_grow.safetensor.longcat import (
-            LongcatExpertUpcyclingConfig,
-            LongcatExpertUpcyclingExpander,
+            LongcatExpertCloneConfig,
+            LongcatExpertCloneExpander,
         )
 
-        return LongcatExpertUpcyclingExpander(
-            LongcatExpertUpcyclingConfig(
+        return LongcatExpertCloneExpander(
+            LongcatExpertCloneConfig(
                 expand_factor=expand_factor,
                 noise_scale=noise_scale,
             )
@@ -232,12 +232,12 @@ def _build_expert_expander(
 
     # Generic: Qwen3MoE, DeepSeek-V2/V3, KimiK2, Mixtral, …
     from llm_grow.safetensor.moe_generic import (
-        GenericMoEExpertUpcyclingExpander,
-        GenericMoEUpcyclingConfig,
+        GenericDenseToMoEConfig,
+        GenericMoEExpertCloneExpander,
     )
 
-    return GenericMoEExpertUpcyclingExpander(
-        GenericMoEUpcyclingConfig(
+    return GenericMoEExpertCloneExpander(
+        GenericDenseToMoEConfig(
             expand_factor=expand_factor,
             noise_scale=noise_scale,
             router_weight_suffixes=[profile.router_weight_suffix],

@@ -139,11 +139,6 @@ class DenseToMoEExpander(AbstractExpander):
         return False
 
 
-# Backward-compatible aliases
-MoEUpcyclingConfig = DenseToMoEConfig
-MoEUpcyclingExpander = DenseToMoEExpander
-
-
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------

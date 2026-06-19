@@ -16,9 +16,9 @@ import argparse
 
 import torch
 
-from llm_grow.expanders.sparse.moe_upcycling import (
-    MoEUpcyclingConfig,
-    MoEUpcyclingExpander,
+from llm_grow.expanders.sparse.dense_to_moe import (
+    DenseToMoEConfig,
+    DenseToMoEExpander,
 )
 from llm_grow.utils.arch_info import param_diff_report
 from llm_grow.utils.model_io import load_model, load_tokenizer, save_model
@@ -46,7 +46,7 @@ def main() -> None:
     model = load_model(args.model, dtype=dtype)
     tokenizer = load_tokenizer(args.model)
 
-    config = MoEUpcyclingConfig(
+    config = DenseToMoEConfig(
         num_experts=args.num_experts,
         top_k=args.top_k,
         noise_std=args.noise_std,
@@ -57,7 +57,7 @@ def main() -> None:
 
     original_ref = copy.deepcopy(model)
 
-    expander = MoEUpcyclingExpander()
+    expander = DenseToMoEExpander()
     expanded = expander.expand(model, config)
 
     param_diff_report(original_ref, expanded)

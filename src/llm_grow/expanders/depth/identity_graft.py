@@ -62,7 +62,7 @@ class IdentityGraftExpander(AbstractExpander):
     用法::
 
         from llm_grow import IdentityGraftExpander
-        from llm_grow.expanders.depth.llama_pro import IdentityGraftConfig
+        from llm_grow.expanders.depth.identity_graft import IdentityGraftConfig
 
         config = IdentityGraftConfig(num_new_layers=9)
         expander = IdentityGraftExpander()
@@ -176,8 +176,3 @@ def _update_num_hidden_layers(model: nn.Module, new_num: int) -> None:
         if hasattr(cfg, attr):
             setattr(cfg, attr, new_num)
             break
-
-
-# Backward-compatible aliases
-LlamaProConfig = IdentityGraftConfig
-LlamaProExpander = IdentityGraftExpander

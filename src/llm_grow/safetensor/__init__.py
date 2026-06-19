@@ -7,14 +7,14 @@ from llm_grow.safetensor.llama_pro import (
 from llm_grow.safetensor.longcat import (
     LongcatDepthConfig,
     LongcatDepthExpander,
-    LongcatExpertUpcyclingConfig,
-    LongcatExpertUpcyclingExpander,
+    LongcatExpertCloneConfig,
+    LongcatExpertCloneExpander,
 )
 from llm_grow.safetensor.moe_generic import (
+    GenericDenseToMoEConfig,
     GenericMoEDepthConfig,
     GenericMoEDepthExpander,
-    GenericMoEExpertUpcyclingExpander,
-    GenericMoEUpcyclingConfig,
+    GenericMoEExpertCloneExpander,
     make_kimik2_depth,
     make_kimik2_upcycling,
     make_qwen3moe_depth,
@@ -27,16 +27,16 @@ from llm_grow.safetensor.solar_dus import (
 )
 
 __all__ = [
+    "GenericDenseToMoEConfig",
     "GenericMoEDepthConfig",
     "GenericMoEDepthExpander",
-    "GenericMoEExpertUpcyclingExpander",
-    "GenericMoEUpcyclingConfig",
+    "GenericMoEExpertCloneExpander",
     "LlamaProSafetensorConfig",
     "LlamaProSafetensorExpander",
     "LongcatDepthConfig",
     "LongcatDepthExpander",
-    "LongcatExpertUpcyclingConfig",
-    "LongcatExpertUpcyclingExpander",
+    "LongcatExpertCloneConfig",
+    "LongcatExpertCloneExpander",
     "MSGSafetensorConfig",
     "MSGSafetensorExpander",
     "ModelProfile",

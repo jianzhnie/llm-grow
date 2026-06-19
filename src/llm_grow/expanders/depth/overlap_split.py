@@ -70,8 +70,3 @@ class OverlapSplitExpander(AbstractExpander):
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
         logger.info("OverlapSplit is NOT function-preserving — skipping output check.")
         return False
-
-
-# Backward-compatible aliases
-SolarDUSConfig = OverlapSplitConfig
-SolarDUSExpander = OverlapSplitExpander

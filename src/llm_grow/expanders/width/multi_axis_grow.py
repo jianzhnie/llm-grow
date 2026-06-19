@@ -184,8 +184,3 @@ def _freeze_original_params(model: nn.Module) -> None:
     for param in model.parameters():
         if not getattr(param, "_is_new_growth", False):
             param.requires_grad_(False)
-
-
-# Backward-compatible aliases
-MSGConfig = MultiAxisGrowConfig
-MSGExpander = MultiAxisGrowExpander

@@ -1,4 +1,4 @@
-"""Tests for MSGExpander."""
+"""Tests for MultiAxisGrowExpander."""
 
 from __future__ import annotations
 
@@ -6,37 +6,44 @@ import copy
 
 import torch
 
-from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
+from llm_grow.expanders.width.multi_axis_grow import (
+    MultiAxisGrowConfig,
+    MultiAxisGrowExpander,
+)
 from tests.conftest import FakeModel
 
 
-class TestMSGExpander:
+class TestMultiAxisGrowExpander:
     def _make_model(self, num_layers=8):
         return FakeModel(num_layers=num_layers, d=32)
 
     def test_depth_only_increases_layers(self):
         model = self._make_model(8)
-        config = MSGConfig(depth_expansion=4)
-        MSGExpander().expand(model, config)
+        config = MultiAxisGrowConfig(depth_expansion=4)
+        MultiAxisGrowExpander().expand(model, config)
         assert len(model.layers) == 12
 
     def test_width_expansion_changes_sizes(self):
         model = self._make_model(4)
-        config = MSGConfig(intermediate_size_expansion=16, freeze_original=False)
-        expanded = MSGExpander().expand(model, config)
+        config = MultiAxisGrowConfig(
+            intermediate_size_expansion=16, freeze_original=False
+        )
+        expanded = MultiAxisGrowExpander().expand(model, config)
         assert expanded.config.intermediate_size == 64 + 16
 
     def test_hidden_size_expansion(self):
         model = self._make_model(4)
-        config = MSGConfig(hidden_size_expansion=8, freeze_original=False)
-        expanded = MSGExpander().expand(model, config)
+        config = MultiAxisGrowConfig(hidden_size_expansion=8, freeze_original=False)
+        expanded = MultiAxisGrowExpander().expand(model, config)
         assert expanded.config.hidden_size == 32 + 8
 
     def test_function_preserving_width(self):
         model = self._make_model(4)
         original = copy.deepcopy(model)
-        config = MSGConfig(intermediate_size_expansion=16, freeze_original=False)
-        expanded = MSGExpander().expand(model, config)
+        config = MultiAxisGrowConfig(
+            intermediate_size_expansion=16, freeze_original=False
+        )
+        expanded = MultiAxisGrowExpander().expand(model, config)
 
         input_ids = torch.randint(0, 256, (2, 8))
         original.eval()
@@ -51,8 +58,8 @@ class TestMSGExpander:
     def test_function_preserving_depth(self):
         model = self._make_model(8)
         original = copy.deepcopy(model)
-        config = MSGConfig(depth_expansion=2, freeze_original=False)
-        expanded = MSGExpander().expand(model, config)
+        config = MultiAxisGrowConfig(depth_expansion=2, freeze_original=False)
+        expanded = MultiAxisGrowExpander().expand(model, config)
 
         input_ids = torch.randint(0, 256, (2, 8))
         original.eval()
@@ -66,7 +73,7 @@ class TestMSGExpander:
 
     def test_freeze_original(self):
         model = self._make_model(4)
-        config = MSGConfig(depth_expansion=2, freeze_original=True)
-        MSGExpander().expand(model, config)
+        config = MultiAxisGrowConfig(depth_expansion=2, freeze_original=True)
+        MultiAxisGrowExpander().expand(model, config)
         frozen = [p for p in model.parameters() if not p.requires_grad]
         assert len(frozen) > 0

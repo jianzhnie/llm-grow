@@ -1,4 +1,4 @@
-"""Tests for LlamaProExpander and SolarDUSExpander."""
+"""Tests for IdentityGraftExpander and OverlapSplitExpander."""
 
 from __future__ import annotations
 
@@ -7,8 +7,14 @@ import copy
 import torch
 import torch.nn as nn
 
-from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
-from llm_grow.expanders.depth.solar_dus import SolarDUSConfig, SolarDUSExpander
+from llm_grow.expanders.depth.identity_graft import (
+    IdentityGraftConfig,
+    IdentityGraftExpander,
+)
+from llm_grow.expanders.depth.overlap_split import (
+    OverlapSplitConfig,
+    OverlapSplitExpander,
+)
 
 # ---------------------------------------------------------------------------
 # Minimal Transformer-like model for unit testing
@@ -79,23 +85,23 @@ class FakeModel(nn.Module):
 # ---------------------------------------------------------------------------
 
 
-class TestLlamaProExpander:
+class TestIdentityGraftExpander:
     def _make_model(self, num_layers=8):
         return FakeModel(num_layers=num_layers, d=32)
 
     def test_layer_count_increases(self):
         model = self._make_model(8)
-        config = LlamaProConfig(num_new_blocks=4, insert_strategy="uniform")
-        LlamaProExpander().expand(model, config)
+        config = IdentityGraftConfig(num_new_blocks=4, insert_strategy="uniform")
+        IdentityGraftExpander().expand(model, config)
         assert len(model.layers) == 12
 
     def test_function_preserving(self):
         model = self._make_model(8)
         original = copy.deepcopy(model)
-        config = LlamaProConfig(
+        config = IdentityGraftConfig(
             num_new_blocks=4, insert_strategy="uniform", freeze_original=False
         )
-        expanded = LlamaProExpander().expand(model, config)
+        expanded = IdentityGraftExpander().expand(model, config)
 
         input_ids = torch.randint(0, 256, (2, 16))
         original.eval()
@@ -109,13 +115,13 @@ class TestLlamaProExpander:
 
     def test_num_hidden_layers_updated(self):
         model = self._make_model(8)
-        LlamaProExpander().expand(model, LlamaProConfig(num_new_blocks=2))
+        IdentityGraftExpander().expand(model, IdentityGraftConfig(num_new_blocks=2))
         assert model.config.num_hidden_layers == 10
 
     def test_freeze_original_works(self):
         model = self._make_model(8)
-        LlamaProExpander().expand(
-            model, LlamaProConfig(num_new_blocks=2, freeze_original=True)
+        IdentityGraftExpander().expand(
+            model, IdentityGraftConfig(num_new_blocks=2, freeze_original=True)
         )
         trainable = [p for p in model.parameters() if p.requires_grad]
         frozen = [p for p in model.parameters() if not p.requires_grad]
@@ -128,16 +134,16 @@ class TestLlamaProExpander:
 # ---------------------------------------------------------------------------
 
 
-class TestSolarDUSExpander:
+class TestOverlapSplitExpander:
     def test_layer_count(self):
         model = FakeModel(num_layers=8)
-        config = SolarDUSConfig(num_overlap=2)
-        SolarDUSExpander().expand(model, config)
+        config = OverlapSplitConfig(num_overlap=2)
+        OverlapSplitExpander().expand(model, config)
         assert len(model.layers) == 12  # 2*(8-2) = 12
 
     def test_verify_returns_false(self):
         model = FakeModel(num_layers=8)
         original = copy.deepcopy(model)
         expanded = copy.deepcopy(model)
-        result = SolarDUSExpander().verify(original, expanded)
+        result = OverlapSplitExpander().verify(original, expanded)
         assert result is False

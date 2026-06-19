@@ -5,7 +5,7 @@ Pre-configured for:
   - **KimiK2**     (Kimi-K2-Base) : 384 experts/layer, MLA attn, fp8 weights,
                                      layer-0 dense, shared expert per MoE layer
 
-Both are backed by a single ``GenericMoEExpertUpcyclingExpander`` and
+Both are backed by a single ``GenericMoEExpertCloneExpander`` and
 ``GenericMoEDepthExpander`` that handle any model following the
 ``model.layers.{i}.mlp.experts.{j}.*`` naming convention.
 
@@ -36,7 +36,7 @@ from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
 
 
 @dataclass
-class GenericMoEUpcyclingConfig:
+class GenericDenseToMoEConfig:
     expand_factor: int = 2
     """Expert count multiplier."""
 
@@ -86,7 +86,7 @@ class GenericMoEDepthConfig:
 # ── Expert Upcycling ──────────────────────────────────────────────────────────
 
 
-class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
+class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
     """Expert upcycling for any model using ``mlp.experts.{i}.*`` keys.
 
     Works for Qwen3MoE, DeepSeek-V2/V3, Kimi-K2, Mixtral, etc.
@@ -94,17 +94,17 @@ class GenericMoEExpertUpcyclingExpander(SafetensorExpanderBase):
 
     Usage::
 
-        cfg = GenericMoEUpcyclingConfig(
+        cfg = GenericDenseToMoEConfig(
             expand_factor=2,
             router_weight_suffixes=["mlp.gate.weight"],
             router_bias_suffixes=["mlp.gate.e_score_correction_bias"],
             config_expert_count_key="n_routed_experts",
         )
-        GenericMoEExpertUpcyclingExpander(cfg).dry_run("path/to/model")
+        GenericMoEExpertCloneExpander(cfg).dry_run("path/to/model")
     """
 
-    def __init__(self, config: GenericMoEUpcyclingConfig | None = None) -> None:
-        self.config = config or GenericMoEUpcyclingConfig()
+    def __init__(self, config: GenericDenseToMoEConfig | None = None) -> None:
+        self.config = config or GenericDenseToMoEConfig()
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         cfg = self.config
@@ -297,8 +297,8 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
 
 def make_qwen3moe_upcycling(expand_factor: int = 2, noise_scale: float = 1e-6):
     """Expert upcycling for Qwen3MoeForCausalLM (Qwen3-30B-A3B, etc.)."""
-    return GenericMoEExpertUpcyclingExpander(
-        GenericMoEUpcyclingConfig(
+    return GenericMoEExpertCloneExpander(
+        GenericDenseToMoEConfig(
             expand_factor=expand_factor,
             noise_scale=noise_scale,
             router_weight_suffixes=["mlp.gate.weight"],
@@ -324,8 +324,8 @@ def make_qwen3moe_depth(num_new_layers: int = 4, strategy: str = "uniform"):
 
 def make_kimik2_upcycling(expand_factor: int = 2, noise_scale: float = 1e-6):
     """Expert upcycling for Kimi-K2-Base (DeepseekV3ForCausalLM variant)."""
-    return GenericMoEExpertUpcyclingExpander(
-        GenericMoEUpcyclingConfig(
+    return GenericMoEExpertCloneExpander(
+        GenericDenseToMoEConfig(
             expand_factor=expand_factor,
             noise_scale=noise_scale,
             router_weight_suffixes=["mlp.gate.weight"],

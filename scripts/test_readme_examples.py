@@ -62,7 +62,9 @@ def main():
     run(
         "import/llama_pro",
         """
-from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
+from llm_grow.expanders.depth.identity_graft import (
+    IdentityGraftConfig, IdentityGraftExpander,
+)
 """,
     )
 
@@ -87,7 +89,9 @@ from llm_grow.safetensor.moe_generic import make_qwen3moe_upcycling
     run(
         "import/msg",
         """
-from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
+from llm_grow.expanders.width.multi_axis_grow import (
+    MultiAxisGrowConfig, MultiAxisGrowExpander,
+)
 """,
     )
 
@@ -95,8 +99,8 @@ from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
     run(
         "import/moe_upcycling",
         """
-from llm_grow.expanders.sparse.moe_upcycling import (
-    MoEUpcyclingConfig, MoEUpcyclingExpander,
+from llm_grow.expanders.sparse.dense_to_moe import (
+    DenseToMoEConfig, DenseToMoEExpander,
 )
 from llm_grow.training.load_balance import combined_moe_loss
 """,
@@ -106,8 +110,8 @@ from llm_grow.training.load_balance import combined_moe_loss
     run(
         "import/expert_upcycling",
         """
-from llm_grow.expanders.sparse.expert_upcycling import (
-    ExpertUpcyclingConfig, ExpertUpcyclingExpander, ExpertSelectionStrategy
+from llm_grow.expanders.sparse.expert_clone import (
+    ExpertCloneConfig, ExpertCloneExpander, ExpertSelectionStrategy
 )
 """,
     )
@@ -341,8 +345,10 @@ assert profile.has_fp8 is False
     run(
         "inmem/llama_pro_config",
         """
-from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
-config = LlamaProConfig(
+from llm_grow.expanders.depth.identity_graft import (
+    IdentityGraftConfig, IdentityGraftExpander,
+)
+config = IdentityGraftConfig(
     num_new_layers=9,
     insert_strategy="uniform",
     freeze_original=True,
@@ -355,8 +361,10 @@ assert config.num_new_layers == 9
     run(
         "inmem/msg_config",
         """
-from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
-config = MSGConfig(
+from llm_grow.expanders.width.multi_axis_grow import (
+    MultiAxisGrowConfig, MultiAxisGrowExpander,
+)
+config = MultiAxisGrowConfig(
     num_new_layers=10,
     hidden_size_expansion=512,
     intermediate_size_expansion=3072,
@@ -370,8 +378,8 @@ assert config.num_new_layers == 10
     run(
         "inmem/moe_upcycling_config",
         """
-from llm_grow.expanders.sparse.moe_upcycling import MoEUpcyclingConfig
-cfg = MoEUpcyclingConfig(num_experts=8, top_k=2)
+from llm_grow.expanders.sparse.dense_to_moe import DenseToMoEConfig
+cfg = DenseToMoEConfig(num_experts=8, top_k=2)
 assert cfg.num_experts == 8
 """,
     )
@@ -380,10 +388,10 @@ assert cfg.num_experts == 8
     run(
         "inmem/expert_upcycling_config",
         """
-from llm_grow.expanders.sparse.expert_upcycling import (
-    ExpertUpcyclingConfig, ExpertSelectionStrategy
+from llm_grow.expanders.sparse.expert_clone import (
+    ExpertCloneConfig, ExpertSelectionStrategy
 )
-cfg = ExpertUpcyclingConfig(
+cfg = ExpertCloneConfig(
     expand_factor=2,
     selection_strategy=ExpertSelectionStrategy.UTILITY,
 )

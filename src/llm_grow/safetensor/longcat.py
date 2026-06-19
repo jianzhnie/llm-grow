@@ -2,7 +2,7 @@
 
 Supports two expansion modes for the LongcatFlash architecture:
 
-1. **LongcatExpertUpcyclingExpander** — Expert count expansion (e.g. 512 → 1024).
+1. **LongcatExpertCloneExpander** — Expert count expansion (e.g. 512 → 1024).
    Uses mmap streaming: processes one shard at a time, never loads all weights.
    Memory peak ≈ largest shard × 2.
 
@@ -57,7 +57,7 @@ def _expert_key_offset(key: str, offset: int) -> str:
 
 
 @dataclass
-class LongcatExpertUpcyclingConfig:
+class LongcatExpertCloneConfig:
     expand_factor: int = 2
     """Expert count multiplier (e.g. 2 → 512 experts × 2 = 1024)."""
 
@@ -83,7 +83,7 @@ class LongcatExpertUpcyclingConfig:
     """
 
 
-class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
+class LongcatExpertCloneExpander(SafetensorExpanderBase):
     """Expand LongCat-Flash expert count using mmap streaming.
 
     Behavioural alignment with the bundled ``expand_experts.py``
@@ -112,23 +112,23 @@ class LongcatExpertUpcyclingExpander(SafetensorExpanderBase):
 
     Example::
 
-        cfg = LongcatExpertUpcyclingConfig(
+        cfg = LongcatExpertCloneConfig(
             expand_factor=2,
             noise_scale=1e-6,
             scale_moe_topk=True,   # 12 → 24 (same activation ratio)
         )
-        LongcatExpertUpcyclingExpander(cfg).expand(
+        LongcatExpertCloneExpander(cfg).expand(
             src_dir="LongCat-Flash-Chat",
             dst_dir="LongCat-Flash-Chat-2x-experts",
         )
 
         # group-routing variant (topk unchanged, add routing flags)
-        cfg2 = LongcatExpertUpcyclingConfig(expand_factor=2, use_group_routing=True)
-        LongcatExpertUpcyclingExpander(cfg2).dry_run("LongCat-Flash-Chat")
+        cfg2 = LongcatExpertCloneConfig(expand_factor=2, use_group_routing=True)
+        LongcatExpertCloneExpander(cfg2).dry_run("LongCat-Flash-Chat")
     """
 
-    def __init__(self, config: LongcatExpertUpcyclingConfig | None = None) -> None:
-        self.config = config or LongcatExpertUpcyclingConfig()
+    def __init__(self, config: LongcatExpertCloneConfig | None = None) -> None:
+        self.config = config or LongcatExpertCloneConfig()
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         cfg = self.config

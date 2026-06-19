@@ -18,7 +18,10 @@ import copy
 
 import torch
 
-from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
+from llm_grow.expanders.width.multi_axis_grow import (
+    MultiAxisGrowConfig,
+    MultiAxisGrowExpander,
+)
 from llm_grow.utils.arch_info import param_diff_report
 from llm_grow.utils.model_io import load_model, load_tokenizer, save_model
 
@@ -50,14 +53,14 @@ def main() -> None:
 
     original_for_verify = copy.deepcopy(model) if args.verify else None
 
-    config = MSGConfig(
+    config = MultiAxisGrowConfig(
         num_new_layers=args.num_new_layers,
         hidden_size_expansion=args.hidden_size_expansion,
         intermediate_size_expansion=args.intermediate_size_expansion,
         freeze_original=not args.no_freeze,
     )
 
-    expander = MSGExpander()
+    expander = MultiAxisGrowExpander()
     expanded = expander.expand(model, config)
 
     param_diff_report(original_for_verify or model, expanded)

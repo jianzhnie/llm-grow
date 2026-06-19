@@ -67,18 +67,21 @@ def run_generate(model, tokenizer, prompt="Hello, I am"):
 # ──────────────────────────────────────────────────────────────────────────────
 def test_llama_pro():
     print_sep("Test 1: LLaMA-Pro — 恒等块插入")
-    from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
+    from llm_grow.expanders.depth.identity_graft import (
+        IdentityGraftConfig,
+        IdentityGraftExpander,
+    )
 
     model = load_fresh()
     orig = copy.deepcopy(model)
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
-    config = LlamaProConfig(
+    config = IdentityGraftConfig(
         num_new_layers=7, insert_strategy="uniform", freeze_original=True
     )
     t0 = time.time()
-    expanded = LlamaProExpander().expand(model, config)
+    expanded = IdentityGraftExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
@@ -102,15 +105,18 @@ def test_llama_pro():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_solar_dus():
     print_sep("Test 2: SOLAR DUS — 层重叠复制")
-    from llm_grow.expanders.depth.solar_dus import SolarDUSConfig, SolarDUSExpander
+    from llm_grow.expanders.depth.overlap_split import (
+        OverlapSplitConfig,
+        OverlapSplitExpander,
+    )
 
     model = load_fresh()
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
-    config = SolarDUSConfig(num_overlap=8)
+    config = OverlapSplitConfig(num_overlap=8)
     t0 = time.time()
-    expanded = SolarDUSExpander().expand(model, config)
+    expanded = OverlapSplitExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
@@ -133,16 +139,19 @@ def test_solar_dus():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_lesa():
     print_sep("Test 3: LESA — SVD 插值（相邻层均值）")
-    from llm_grow.expanders.depth.lesa import LESAConfig, LESAExpander
+    from llm_grow.expanders.depth.interp_graft import (
+        InterpGraftConfig,
+        InterpGraftExpander,
+    )
 
     model = load_fresh()
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
     # 仅在前 4 对相邻层之间插入，快速验证
-    config = LESAConfig(insert_between=[(i, i + 1) for i in range(4)])
+    config = InterpGraftConfig(insert_between=[(i, i + 1) for i in range(4)])
     t0 = time.time()
-    expanded = LESAExpander().expand(model, config)
+    expanded = InterpGraftExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
@@ -159,21 +168,24 @@ def test_lesa():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_msg():
     print_sep("Test 4: MSG — 深度+宽度混合扩增")
-    from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
+    from llm_grow.expanders.width.multi_axis_grow import (
+        MultiAxisGrowConfig,
+        MultiAxisGrowExpander,
+    )
 
     model = load_fresh()
     orig = copy.deepcopy(model)
     orig_layers = len(model.model.layers)
     orig_params = count_params(model)
 
-    config = MSGConfig(
+    config = MultiAxisGrowConfig(
         num_new_layers=4,
         hidden_size_expansion=0,
         intermediate_size_expansion=0,
         freeze_original=False,
     )
     t0 = time.time()
-    expanded = MSGExpander().expand(model, config)
+    expanded = MultiAxisGrowExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_layers = len(expanded.model.layers)
@@ -193,17 +205,17 @@ def test_msg():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_moe_upcycling():
     print_sep("Test 5: MoE Upcycling — Dense FFN → 稀疏 MoE")
-    from llm_grow.expanders.sparse.moe_upcycling import (
-        MoEUpcyclingConfig,
-        MoEUpcyclingExpander,
+    from llm_grow.expanders.sparse.dense_to_moe import (
+        DenseToMoEConfig,
+        DenseToMoEExpander,
     )
 
     model = load_fresh()
     orig_params = count_params(model)
 
-    config = MoEUpcyclingConfig(num_experts=4, top_k=2, noise_std=0.01)
+    config = DenseToMoEConfig(num_experts=4, top_k=2, noise_std=0.01)
     t0 = time.time()
-    expanded = MoEUpcyclingExpander().expand(model, config)
+    expanded = DenseToMoEExpander().expand(model, config)
     elapsed = time.time() - t0
 
     exp_params = count_params(expanded)
@@ -213,7 +225,7 @@ def test_moe_upcycling():
     )
     print(f"  Expand time: {elapsed:.2f}s")
 
-    from llm_grow.expanders.sparse.moe_upcycling import MoELayer
+    from llm_grow.expanders.sparse.dense_to_moe import MoELayer
 
     moe_layers = [m for m in expanded.modules() if isinstance(m, MoELayer)]
     print(f"  MoE layers found: {len(moe_layers)}")
@@ -235,26 +247,26 @@ def test_moe_upcycling():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_expert_upcycling():
     print_sep("Test 6: Expert Upcycling — MoE 专家数扩展 (M1)")
-    from llm_grow.expanders.sparse.expert_upcycling import (
-        ExpertUpcyclingConfig,
-        ExpertUpcyclingExpander,
-    )
-    from llm_grow.expanders.sparse.moe_upcycling import (
+    from llm_grow.expanders.sparse.dense_to_moe import (
+        DenseToMoEConfig,
+        DenseToMoEExpander,
         MoELayer,
-        MoEUpcyclingConfig,
-        MoEUpcyclingExpander,
+    )
+    from llm_grow.expanders.sparse.expert_clone import (
+        ExpertCloneConfig,
+        ExpertCloneExpander,
     )
 
     # 先 upcycle 得到 MoE 基座
     model = load_fresh()
-    moe_cfg = MoEUpcyclingConfig(num_experts=4, top_k=2, noise_std=0.01)
-    moe_model = MoEUpcyclingExpander().expand(model, moe_cfg)
+    moe_cfg = DenseToMoEConfig(num_experts=4, top_k=2, noise_std=0.01)
+    moe_model = DenseToMoEExpander().expand(model, moe_cfg)
     moe_params = count_params(moe_model)
 
     # 再做 expert upcycling（4 → 8 专家）
-    exp_cfg = ExpertUpcyclingConfig(expand_factor=2, symmetry_break="noise")
+    exp_cfg = ExpertCloneConfig(expand_factor=2, symmetry_break="noise")
     t0 = time.time()
-    expanded = ExpertUpcyclingExpander().expand(moe_model, exp_cfg)
+    expanded = ExpertCloneExpander().expand(moe_model, exp_cfg)
     elapsed = time.time() - t0
 
     final_params = count_params(expanded)
@@ -282,15 +294,18 @@ def test_expert_upcycling():
 # ──────────────────────────────────────────────────────────────────────────────
 def test_generation():
     print_sep("Test 7: 生成文本对比（LLaMA-Pro 扩增前后）")
-    from llm_grow.expanders.depth.llama_pro import LlamaProConfig, LlamaProExpander
+    from llm_grow.expanders.depth.identity_graft import (
+        IdentityGraftConfig,
+        IdentityGraftExpander,
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
     prompt = "The key to learning programming is"
 
     model_orig = load_fresh()
     model_exp = copy.deepcopy(model_orig)
-    LlamaProExpander().expand(
-        model_exp, LlamaProConfig(num_new_layers=7, freeze_original=False)
+    IdentityGraftExpander().expand(
+        model_exp, IdentityGraftConfig(num_new_layers=7, freeze_original=False)
     )
 
     print(f"  Prompt: {prompt!r}")

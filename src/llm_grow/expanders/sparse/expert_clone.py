@@ -179,8 +179,3 @@ def _utility_select(scores: list[float], n: int) -> list[int]:
     while len(result) < n:
         result.extend(ranked[: n - len(result)])
     return result[:n]
-
-
-# Backward-compatible aliases
-ExpertUpcyclingConfig = ExpertCloneConfig
-ExpertUpcyclingExpander = ExpertCloneExpander

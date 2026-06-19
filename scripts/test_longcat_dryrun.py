@@ -17,16 +17,16 @@ def check_expert_upcycling():
     print("  scale_moe_topk=False: matches expand_experts.py default")
     print("=" * 60)
     from llm_grow.safetensor.longcat import (
-        LongcatExpertUpcyclingConfig,
-        LongcatExpertUpcyclingExpander,
+        LongcatExpertCloneConfig,
+        LongcatExpertCloneExpander,
     )
     from llm_grow.safetensor.utils import ShardIndex
 
     # Default: scale_moe_topk=False → moe_topk unchanged (matches original default)
-    cfg = LongcatExpertUpcyclingConfig(
+    cfg = LongcatExpertCloneConfig(
         expand_factor=2, noise_scale=1e-6, scale_moe_topk=False
     )
-    expander = LongcatExpertUpcyclingExpander(cfg)
+    expander = LongcatExpertCloneExpander(cfg)
     plan = expander.dry_run(MODEL_DIR)
 
     src_index = ShardIndex.load(MODEL_DIR)
@@ -66,14 +66,14 @@ def check_expert_upcycling():
     )
 
     # scale_moe_topk=True: explicit topk scaling
-    cfg2 = LongcatExpertUpcyclingConfig(expand_factor=2, scale_moe_topk=True)
-    plan2 = LongcatExpertUpcyclingExpander(cfg2)._build_plan(src_index)
+    cfg2 = LongcatExpertCloneConfig(expand_factor=2, scale_moe_topk=True)
+    plan2 = LongcatExpertCloneExpander(cfg2)._build_plan(src_index)
     assert plan2.config_patches.get("moe_topk") == 24
     print("  [OK] scale_moe_topk=True correctly patches moe_topk=24")
 
     # use_group_routing: topk unchanged, routing flags added
-    cfg3 = LongcatExpertUpcyclingConfig(expand_factor=2, use_group_routing=True)
-    plan3 = LongcatExpertUpcyclingExpander(cfg3)._build_plan(src_index)
+    cfg3 = LongcatExpertCloneConfig(expand_factor=2, use_group_routing=True)
+    plan3 = LongcatExpertCloneExpander(cfg3)._build_plan(src_index)
     assert plan3.config_patches.get("use_group_routing") is True
     assert plan3.config_patches.get("expert_expansion_factor") == 2
     assert "moe_topk" not in plan3.config_patches

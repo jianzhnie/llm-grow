@@ -90,7 +90,7 @@ class InterpGraftExpander(AbstractExpander):
 def _interpolate_layers(
     layer_a: nn.Module,
     layer_b: nn.Module,
-    config: LESAConfig,
+    config: InterpGraftConfig,
     alpha: float = 0.5,
 ) -> nn.Module:
     """简单算术平均插值（use_predictor=False 的 baseline）。"""
@@ -103,8 +103,3 @@ def _interpolate_layers(
             if name in state_b and state_a[name].shape == state_b[name].shape:
                 param.copy_(alpha * state_a[name] + (1 - alpha) * state_b[name])
     return new_layer
-
-
-# Backward-compatible aliases
-LESAConfig = InterpGraftConfig
-LESAExpander = InterpGraftExpander
