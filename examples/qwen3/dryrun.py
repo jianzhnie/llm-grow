@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Dry-run expansion tests for Qwen3-30B-A3B (Qwen3MoeForCausalLM).
+"""Dry-run expansion example for Qwen3-30B-A3B (Qwen3MoeForCausalLM).
 
 Tests (no weight files needed, index JSON only):
   1. Expert upcycling  128 -> 256
@@ -20,7 +20,7 @@ from common.model_paths import QWEN3_30B, require_path
 SRC = require_path("QWEN3_30B", QWEN3_30B)
 
 
-def test_expert_clone():
+def check_expert_clone():
     print("\n" + "=" * 62)
     print("  [1] Qwen3-30B-A3B  Expert Upcycling  (128 -> 256 experts)")
     print("=" * 62)
@@ -64,7 +64,7 @@ def test_expert_clone():
     return True
 
 
-def test_depth():
+def check_depth():
     print("\n" + "=" * 62)
     print("  [2] Qwen3-30B-A3B  Depth Expansion  (48 -> 56 layers)")
     print("=" * 62)
@@ -89,7 +89,7 @@ def test_depth():
     return True
 
 
-def test_dryrun_plan():
+def check_dryrun_plan():
     print("\n" + "=" * 62)
     print("  [3] Qwen3-30B-A3B  Dry-run plan verification")
     print("=" * 62)
@@ -111,9 +111,9 @@ if __name__ == "__main__":
     sys.exit(
         run_tests(
             [
-                ("expert_clone", test_expert_clone),
-                ("depth", test_depth),
-                ("dryrun_plan", test_dryrun_plan),
+                ("expert_clone", check_expert_clone),
+                ("depth", check_depth),
+                ("dryrun_plan", check_dryrun_plan),
             ]
         )
     )

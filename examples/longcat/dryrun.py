@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Dry-run analysis for LongCat-Flash-Chat expansion (no weight files needed).
+"""Dry-run example for LongCat-Flash-Chat expansion (no weight files needed).
 
 Tests both:
   1. Expert Upcycling  (512 -> 1024 experts)

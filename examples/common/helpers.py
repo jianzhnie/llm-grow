@@ -1,4 +1,4 @@
-"""Shared test helpers for safetensor verification examples."""
+"""Shared helpers for safetensor verification examples."""
 
 from __future__ import annotations
 
@@ -125,7 +125,7 @@ def count_new_keys(plan, wmap):
 
 
 def run_tests(test_list: list[tuple[str, callable]]) -> int:
-    """Run a list of (name, fn) test pairs and return exit code."""
+    """Run a list of (name, fn) example pairs and return exit code."""
     test_results: dict[str, bool] = {}
     for name, fn in test_list:
         try:

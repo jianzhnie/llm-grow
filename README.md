@@ -519,14 +519,14 @@ tracker.summary()
 | Kimi-K2-Base | expert 384->768 | 139,644 | 277,884 | 138,240 |
 | Kimi-K2-Base | depth 61->65 | 139,644 | 148,952 | 9,308 |
 
-### 运行测试
+### 运行示例
 
 ```bash
 python -m pytest tests/ -q                       # 单元测试
-python examples/qwen3/test_real_model.py         # 集成测试（Qwen3-0.6B）
-python examples/qwen3/test_auto_detect.py        # 自动检测 + 分发测试
-python examples/longcat/test_dryrun.py           # LongCat dry_run
-python examples/qwen3/test_dryrun.py             # Qwen3 dry_run
+python examples/qwen3/in_memory.py               # 内存级扩增集成示例（Qwen3-0.6B）
+python examples/qwen3/auto_detect.py             # 自动检测 + 分发示例
+python examples/longcat/dryrun.py                # LongCat dry_run
+python examples/qwen3/dryrun.py                  # Qwen3 dry_run
 ```
 
 ---

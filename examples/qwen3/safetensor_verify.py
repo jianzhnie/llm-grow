@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Safetensor-level verification tests for Qwen3-0.6B.
+"""Safetensor-level verification example for Qwen3-0.6B.
 
 Tests real weight expansion for dense models:
   1. ZeroBlockInsert (LLaMA-Pro, FP)
@@ -32,7 +32,7 @@ from common.model_paths import QWEN3_06B, require_path
 SRC = require_path("QWEN3_06B", QWEN3_06B)
 
 
-def test_zero_block_insert():
+def check_zero_block_insert():
     label = "zero_block_insert"
     print(f"\n{'=' * 60}\n  {label}: Dense depth expansion (+7 blocks)\n{'=' * 60}")
 
@@ -79,7 +79,7 @@ def test_zero_block_insert():
         verify_fp_logits(SRC, dst, label)
 
 
-def test_overlap_copy():
+def check_overlap_copy():
     label = "overlap_copy"
     print(f"\n{'=' * 60}\n  {label}: Dense DUS (overlap=8)\n{'=' * 60}")
 
@@ -113,7 +113,7 @@ def test_overlap_copy():
         verify_passthrough_keys(src_idx, src_h, dst_idx, dst_h, non_layer, label)
 
 
-def test_msg():
+def check_msg():
     label = "msg"
     print(f"\n{'=' * 60}\n  {label}: Dense depth+4 + FFN+512\n{'=' * 60}")
 
@@ -179,9 +179,9 @@ def test_msg():
 
 
 def main():
-    test_zero_block_insert()
-    test_overlap_copy()
-    test_msg()
+    check_zero_block_insert()
+    check_overlap_copy()
+    check_msg()
 
     sys.exit(print_summary(results))
 

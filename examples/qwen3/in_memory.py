@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""实际模型集成测试：Qwen3-0.6B
+"""In-memory expansion integration example: Qwen3-0.6B
 
-测试内容：
+示例内容：
   1. LLaMA-Pro  — 恒等块插入，FP 验证
   2. SOLAR DUS  — 层重叠复制，层数/参数量确认
   3. MSG        — 深度+宽度混合扩增，FP 验证
@@ -67,9 +67,9 @@ def run_generate(model, tokenizer, prompt="Hello, I am"):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Test 1: LLaMA-Pro
+# Example 1: LLaMA-Pro
 # ──────────────────────────────────────────────────────────────────────────────
-def test_zero_block_insert():
+def check_zero_block_insert():
     print_sep("Test 1: LLaMA-Pro — 恒等块插入")
     from llm_grow.expanders.depth.zero_block_insert import (
         ZeroBlockInsertConfig,
@@ -105,9 +105,9 @@ def test_zero_block_insert():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Test 2: SOLAR DUS
+# Example 2: SOLAR DUS
 # ──────────────────────────────────────────────────────────────────────────────
-def test_overlap_copy():
+def check_overlap_copy():
     print_sep("Test 2: SOLAR DUS — 层重叠复制")
     from llm_grow.expanders.depth.overlap_copy import (
         OverlapCopyConfig,
@@ -139,9 +139,9 @@ def test_overlap_copy():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Test 3: SVDInterpInsert
+# Example 3: SVDInterpInsert
 # ──────────────────────────────────────────────────────────────────────────────
-def test_svd_interp_insert():
+def check_svd_interp_insert():
     print_sep("Test 3: SVDInterpInsert — SVD 插值（相邻层均值）")
     from llm_grow.expanders.depth.svd_interp_insert import (
         SVDInterpInsertConfig,
@@ -168,9 +168,9 @@ def test_svd_interp_insert():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Test 4: MSG（深度 + 宽度）
+# Example 4: MSG（深度 + 宽度）
 # ──────────────────────────────────────────────────────────────────────────────
-def test_msg():
+def check_msg():
     print_sep("Test 4: MSG — 深度+宽度混合扩增")
     from llm_grow.expanders.width.multi_axis_pad import (
         MultiAxisPadConfig,
@@ -205,9 +205,9 @@ def test_msg():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Test 5: MoE Upcycling
+# Example 5: MoE Upcycling
 # ──────────────────────────────────────────────────────────────────────────────
-def test_dense_to_moe():
+def check_dense_to_moe():
     print_sep("Test 5: MoE Upcycling — Dense FFN → 稀疏 MoE")
     from llm_grow.expanders.sparse.dense_to_moe import (
         DenseToMoEConfig,
@@ -247,9 +247,9 @@ def test_dense_to_moe():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Test 6: Expert Upcycling（基于 MoE Upcycling 结果）
+# Example 6: Expert Upcycling（基于 MoE Upcycling 结果）
 # ──────────────────────────────────────────────────────────────────────────────
-def test_expert_clone():
+def check_expert_clone():
     print_sep("Test 6: Expert Upcycling — MoE 专家数扩展 (M1)")
     from llm_grow.expanders.sparse.dense_to_moe import (
         DenseToMoEConfig,
@@ -294,9 +294,9 @@ def test_expert_clone():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Test 7: 生成文本对比（LLaMA-Pro 扩增前后）
+# Example 7: 生成文本对比（LLaMA-Pro 扩增前后）
 # ──────────────────────────────────────────────────────────────────────────────
-def test_generation():
+def check_generation():
     print_sep("Test 7: 生成文本对比（LLaMA-Pro 扩增前后）")
     from llm_grow.expanders.depth.zero_block_insert import (
         ZeroBlockInsertConfig,
@@ -326,13 +326,13 @@ def test_generation():
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     tests = [
-        ("ZeroBlockInsert", test_zero_block_insert),
-        ("OverlapCopy", test_overlap_copy),
-        ("SVDInterpInsert", test_svd_interp_insert),
-        ("MSG", test_msg),
-        ("DenseToMoE", test_dense_to_moe),
-        ("ExpertClone", test_expert_clone),
-        ("Generation check", test_generation),
+        ("ZeroBlockInsert", check_zero_block_insert),
+        ("OverlapCopy", check_overlap_copy),
+        ("SVDInterpInsert", check_svd_interp_insert),
+        ("MSG", check_msg),
+        ("DenseToMoE", check_dense_to_moe),
+        ("ExpertClone", check_expert_clone),
+        ("Generation check", check_generation),
     ]
 
     results = {}

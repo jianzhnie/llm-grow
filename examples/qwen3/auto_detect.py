@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Auto-detect and auto_expand dispatch tests for Qwen3 models."""
+"""Auto-detect and auto_expand dispatch example for Qwen3 models."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ DENSE_SRC = require_path("QWEN3_06B", QWEN3_06B)
 MOE_SRC = require_path("QWEN3_30B", QWEN3_30B)
 
 
-def test_detect():
+def check_detect():
     from llm_grow.safetensor.detect import detect_model
 
     results = {}
@@ -41,7 +41,7 @@ def test_detect():
     return all(results.values())
 
 
-def test_auto_dispatch():
+def check_auto_dispatch():
     from llm_grow.safetensor.auto import auto_expand
 
     scenarios = [
@@ -86,8 +86,8 @@ if __name__ == "__main__":
     sys.exit(
         run_tests(
             [
-                ("detect", test_detect),
-                ("auto_dispatch", test_auto_dispatch),
+                ("detect", check_detect),
+                ("auto_dispatch", check_auto_dispatch),
             ]
         )
     )

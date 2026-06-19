@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Dry-run expansion tests for Kimi-K2-Base (DeepseekV3ForCausalLM).
+"""Dry-run expansion example for Kimi-K2-Base (DeepseekV3ForCausalLM).
 
 Tests (no weight files needed, index JSON only):
   1. Expert upcycling  384 -> 768
@@ -20,7 +20,7 @@ from common.model_paths import KIMI_K2, require_path
 SRC = require_path("KIMI_K2", KIMI_K2)
 
 
-def test_expert_clone():
+def check_expert_clone():
     print("\n" + "=" * 62)
     print("  [1] Kimi-K2-Base  Expert Upcycling  (384 -> 768 experts)")
     print("=" * 62)
@@ -84,7 +84,7 @@ def test_expert_clone():
     return True
 
 
-def test_depth():
+def check_depth():
     print("\n" + "=" * 62)
     print("  [2] Kimi-K2-Base  Depth Expansion  (61 -> 65 layers)")
     print("=" * 62)
@@ -121,7 +121,7 @@ def test_depth():
     return True
 
 
-def test_dryrun_plan():
+def check_dryrun_plan():
     print("\n" + "=" * 62)
     print("  [3] Kimi-K2-Base  Dry-run plan verification")
     print("=" * 62)
@@ -142,9 +142,9 @@ if __name__ == "__main__":
     sys.exit(
         run_tests(
             [
-                ("expert_clone", test_expert_clone),
-                ("depth", test_depth),
-                ("dryrun_plan", test_dryrun_plan),
+                ("expert_clone", check_expert_clone),
+                ("depth", check_depth),
+                ("dryrun_plan", check_dryrun_plan),
             ]
         )
     )

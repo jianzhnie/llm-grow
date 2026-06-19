@@ -2,7 +2,7 @@
 """LLaMA-Pro block expansion script.
 
 用法:
-    python examples/common/expand_zero_block_insert.py \
+    python examples/generic/zero_block_insert.py \
         --model Qwen/Qwen3-8B \
         --num-new-layers 9 \
         --output-dir ./expanded_zero_block_insert \

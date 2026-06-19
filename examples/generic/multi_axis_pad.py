@@ -2,7 +2,7 @@
 """MSG multi-dimensional growth expansion script.
 
 用法:
-    python examples/common/expand_multi_axis_pad.py \
+    python examples/generic/multi_axis_pad.py \
         --model Qwen/Qwen3-8B \
         --num-new-layers 10 \
         --hidden-size-expansion 512 \
