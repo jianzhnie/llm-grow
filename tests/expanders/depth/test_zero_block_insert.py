@@ -1,4 +1,4 @@
-"""Tests for ZeroBlockInsertExpander and OverlapCopyExpander."""
+"""Tests for ZeroBlockInsertExpander."""
 
 from __future__ import annotations
 
@@ -6,19 +6,11 @@ import copy
 
 import torch
 
-from llm_grow.expanders.depth.overlap_copy import (
-    OverlapCopyConfig,
-    OverlapCopyExpander,
-)
 from llm_grow.expanders.depth.zero_block_insert import (
     ZeroBlockInsertConfig,
     ZeroBlockInsertExpander,
 )
 from tests.conftest import FakeModel
-
-# ---------------------------------------------------------------------------
-# LLaMA-Pro tests
-# ---------------------------------------------------------------------------
 
 
 class TestZeroBlockInsertExpander:
@@ -63,23 +55,3 @@ class TestZeroBlockInsertExpander:
         frozen = [p for p in model.parameters() if not p.requires_grad]
         assert len(trainable) > 0
         assert len(frozen) > 0
-
-
-# ---------------------------------------------------------------------------
-# SOLAR DUS tests
-# ---------------------------------------------------------------------------
-
-
-class TestOverlapCopyExpander:
-    def test_layer_count(self):
-        model = FakeModel(num_layers=8)
-        config = OverlapCopyConfig(num_overlap=2)
-        OverlapCopyExpander().expand(model, config)
-        assert len(model.layers) == 12  # 2*(8-2) = 12
-
-    def test_verify_returns_false(self):
-        model = FakeModel(num_layers=8)
-        original = copy.deepcopy(model)
-        expanded = copy.deepcopy(model)
-        result = OverlapCopyExpander().verify(original, expanded)
-        assert result is False

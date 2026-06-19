@@ -1,4 +1,4 @@
-"""Tests for identity initializer and function-preserving verification."""
+"""Tests for identity initializer."""
 
 from __future__ import annotations
 
