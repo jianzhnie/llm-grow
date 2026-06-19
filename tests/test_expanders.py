@@ -16,7 +16,6 @@ from llm_grow.expanders.depth.zero_block_insert import (
 )
 from tests.conftest import FakeModel
 
-
 # ---------------------------------------------------------------------------
 # LLaMA-Pro tests
 # ---------------------------------------------------------------------------

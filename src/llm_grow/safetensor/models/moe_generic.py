@@ -201,14 +201,11 @@ class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
         for layer_id in range(num_layers):
             prefix = f"model.layers.{layer_id}."
             indices = {
-                expert_idx(k)
-                for k in wmap
-                if k.startswith(prefix) and is_expert_key(k)
+                expert_idx(k) for k in wmap if k.startswith(prefix) and is_expert_key(k)
             }
             if indices:
                 return len(indices)
         return 0
-
 
 
 # ── Depth Expansion ───────────────────────────────────────────────────────────

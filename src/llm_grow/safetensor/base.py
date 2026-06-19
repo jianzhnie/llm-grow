@@ -77,6 +77,19 @@ class TensorRecipe:
     # This preserves the identity-block semantics of zero experts.
     router_split: int = 0  # row index separating real from zero experts (0 = disabled)
 
+    # ── interpolation (SVDInterpInsert) ───────────────────────────────────────
+    # When set, output = interp_alpha * src + (1 - interp_alpha) * interp_src
+    interp_src_shard: str = ""
+    interp_src_key: str = ""
+    interp_alpha: float = 0.5
+
+    # ── noise injection (DenseToMoE expert copies) ────────────────────────────
+    add_noise_std: float = 0.0  # Gaussian noise std to add (0 = disabled)
+
+    # ── create new zero tensor (e.g. MoE router weights) ─────────────────────
+    create_shape: tuple = ()  # non-empty → ignore src, create zero tensor
+    create_dtype: str = "F32"  # safetensors dtype string for created tensor
+
 
 @dataclass
 class ExpansionPlan:
@@ -319,8 +332,16 @@ class SafetensorExpanderBase(ABC):
                 tensors: dict[str, torch.Tensor] = {}
                 for new_key in group_keys:
                     recipe = plan.recipes[new_key]
-                    src_t = src_handles[recipe.src_shard].get_tensor(recipe.src_key)
-                    tensors[new_key] = _apply_recipe(src_t, recipe)
+                    if recipe.create_shape:
+                        src_t = torch.zeros(1)
+                    else:
+                        src_t = src_handles[recipe.src_shard].get_tensor(recipe.src_key)
+                    interp_t = None
+                    if recipe.interp_src_key:
+                        interp_t = src_handles[recipe.interp_src_shard].get_tensor(
+                            recipe.interp_src_key
+                        )
+                    tensors[new_key] = _apply_recipe(src_t, recipe, interp_t)
                     weight_map[new_key] = shard_name
                 save_file(tensors, str(dst_dir / shard_name))
                 if verbose:
@@ -363,7 +384,7 @@ class SafetensorExpanderBase(ABC):
                 r = plan.recipes[new_key]
                 items.append(
                     (
-                        str(src_index.model_dir / r.src_shard),
+                        str(src_index.model_dir / r.src_shard) if r.src_shard else "",
                         r.src_key,
                         new_key,
                         (
@@ -373,6 +394,14 @@ class SafetensorExpanderBase(ABC):
                             r.dup_rows,
                             r.dup_rows_noise_scale,
                             r.router_split,
+                            str(src_index.model_dir / r.interp_src_shard)
+                            if r.interp_src_shard
+                            else "",
+                            r.interp_src_key,
+                            r.interp_alpha,
+                            r.add_noise_std,
+                            tuple(r.create_shape) if r.create_shape else (),
+                            r.create_dtype,
                         ),
                     )
                 )
@@ -442,9 +471,7 @@ class SafetensorExpanderBase(ABC):
     # ── shared plan-building helpers ──────────────────────────────────────────
 
     @staticmethod
-    def _passthrough_non_layer_keys(
-        plan: ExpansionPlan, wmap: dict[str, str]
-    ) -> None:
+    def _passthrough_non_layer_keys(plan: ExpansionPlan, wmap: dict[str, str]) -> None:
         """Add passthrough recipes for all non-layer tensors (embed, norm, etc.)."""
         for key, shard in wmap.items():
             if parse_layer_idx(key) is None:
@@ -493,7 +520,26 @@ class SafetensorExpanderBase(ABC):
 # ── tensor transform ──────────────────────────────────────────────────────────
 
 
-def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
+def _apply_recipe(
+    src: torch.Tensor,
+    recipe: TensorRecipe,
+    interp_tensor: torch.Tensor | None = None,
+) -> torch.Tensor:
+    # ── create new zero tensor (router weights etc.) ─────────────────────────
+    if recipe.create_shape:
+        _TORCH_DTYPES = {
+            "F32": torch.float32,
+            "F16": torch.float16,
+            "BF16": torch.bfloat16,
+        }
+        dtype = _TORCH_DTYPES.get(recipe.create_dtype, torch.float32)
+        return torch.zeros(recipe.create_shape, dtype=dtype)
+
+    # ── interpolation: alpha * src + (1 - alpha) * interp_tensor ─────────────
+    if interp_tensor is not None and recipe.interp_src_key:
+        alpha = recipe.interp_alpha
+        return (alpha * src.float() + (1 - alpha) * interp_tensor.float()).to(src.dtype)
+
     # ── dup_rows with router_split: handle real/zero expert rows separately ────
     # rows [0 : router_split]   → real experts → duplicate WITH noise
     # rows [router_split : end] → zero experts → duplicate WITHOUT noise
@@ -532,6 +578,10 @@ def _apply_recipe(src: torch.Tensor, recipe: TensorRecipe) -> torch.Tensor:
     if recipe.zero_out:
         return torch.zeros_like(t)
 
+    if recipe.add_noise_std > 0:
+        noise = torch.randn_like(t) * recipe.add_noise_std
+        return t + noise
+
     return t
 
 
@@ -542,6 +592,15 @@ def _predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe)
     the binary JSON header — no mmap or tensor data needed.
     """
     from llm_grow.safetensor.utils import DTYPE_SIZES, nbytes_from_header
+
+    if recipe.create_shape:
+        from llm_grow.safetensor.utils import DTYPE_SIZES
+
+        elem = DTYPE_SIZES.get(recipe.create_dtype, 4)
+        numel = 1
+        for d in recipe.create_shape:
+            numel *= d
+        return elem * numel
 
     dtype, shape = src_meta
     elem = DTYPE_SIZES.get(dtype, 4)
@@ -599,8 +658,23 @@ def _worker_write_shard(
                 dup_rows,
                 noise_scale,
                 router_split,
+                interp_shard_path,
+                interp_key,
+                interp_alpha,
+                add_noise_std,
+                create_shape,
+                create_dtype,
             ) in triples:
-                t = sf.get_tensor(src_key)
+                if create_shape:
+                    t = torch.zeros(1)
+                else:
+                    t = sf.get_tensor(src_key)
+                interp_t = None
+                if interp_key and interp_shard_path:
+                    with safe_open(
+                        interp_shard_path, framework="pt", device="cpu"
+                    ) as sf2:
+                        interp_t = sf2.get_tensor(interp_key)
                 recipe = TensorRecipe(
                     src_shard="",
                     src_key=src_key,
@@ -610,8 +684,14 @@ def _worker_write_shard(
                     dup_rows=dup_rows,
                     dup_rows_noise_scale=noise_scale,
                     router_split=router_split,
+                    interp_src_shard="",
+                    interp_src_key=interp_key,
+                    interp_alpha=interp_alpha,
+                    add_noise_std=add_noise_std,
+                    create_shape=create_shape,
+                    create_dtype=create_dtype,
                 )
-                tensors[out_key] = _apply_recipe(t, recipe)
+                tensors[out_key] = _apply_recipe(t, recipe, interp_t)
 
     save_file(tensors, out_path_str)
     return (out_path.name, list(tensors.keys()))

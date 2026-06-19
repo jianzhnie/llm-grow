@@ -220,7 +220,6 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
         return len(indices)
 
 
-
 # ── Depth Expansion ───────────────────────────────────────────────────────────
 
 

@@ -73,4 +73,3 @@ class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):
                 sequence.append((i, True))  # identity copy of layer i
 
         return self._build_layer_plan(src_index, layer_sequence=sequence)
-

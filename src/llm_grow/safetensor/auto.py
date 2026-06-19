@@ -172,7 +172,10 @@ def _build_depth_expander(profile: ModelProfile, num_new_layers: int, strategy: 
 
     if profile.has_dual_attn:
         # LongCat-Flash: dual attention + dual MLP + 512 experts
-        from llm_grow.safetensor.models.longcat import LongcatDepthConfig, LongcatDepthExpander
+        from llm_grow.safetensor.models.longcat import (
+            LongcatDepthConfig,
+            LongcatDepthExpander,
+        )
 
         return LongcatDepthExpander(
             LongcatDepthConfig(

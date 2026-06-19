@@ -1,5 +1,9 @@
 from llm_grow.safetensor.auto import auto_expand
 from llm_grow.safetensor.detect import ModelProfile, detect_model
+from llm_grow.safetensor.methods.dense_to_moe import (
+    DenseToMoESafetensorConfig,
+    DenseToMoESafetensorExpander,
+)
 from llm_grow.safetensor.methods.multi_axis_pad import (
     MultiAxisPadSafetensorConfig,
     MultiAxisPadSafetensorExpander,
@@ -7,6 +11,10 @@ from llm_grow.safetensor.methods.multi_axis_pad import (
 from llm_grow.safetensor.methods.overlap_copy import (
     OverlapCopySafetensorConfig,
     OverlapCopySafetensorExpander,
+)
+from llm_grow.safetensor.methods.svd_interp_insert import (
+    SVDInterpInsertSafetensorConfig,
+    SVDInterpInsertSafetensorExpander,
 )
 from llm_grow.safetensor.methods.zero_block_insert import (
     ZeroBlockInsertSafetensorConfig,
@@ -30,6 +38,8 @@ from llm_grow.safetensor.models.moe_generic import (
 )
 
 __all__ = [
+    "DenseToMoESafetensorConfig",
+    "DenseToMoESafetensorExpander",
     "GenericDenseToMoEConfig",
     "GenericMoEDepthConfig",
     "GenericMoEDepthExpander",
@@ -43,6 +53,8 @@ __all__ = [
     "MultiAxisPadSafetensorExpander",
     "OverlapCopySafetensorConfig",
     "OverlapCopySafetensorExpander",
+    "SVDInterpInsertSafetensorConfig",
+    "SVDInterpInsertSafetensorExpander",
     "ZeroBlockInsertSafetensorConfig",
     "ZeroBlockInsertSafetensorExpander",
     "auto_expand",

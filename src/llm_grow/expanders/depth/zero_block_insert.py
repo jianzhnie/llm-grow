@@ -117,7 +117,6 @@ def _make_identity_block(
     return block
 
 
-
 def _get_decoder_layers(model: nn.Module) -> nn.ModuleList:
     for attr in ("layers", "model.layers", "transformer.h", "decoder.layers"):
         obj = model
