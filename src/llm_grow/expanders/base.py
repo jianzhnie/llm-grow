@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
@@ -55,7 +54,7 @@ class AbstractExpander(ABC):
 
     @abstractmethod
     def expand(self, model: nn.Module, config: ExpansionConfig) -> nn.Module:
-        """对 model 执行参数扩增，返回扩增后的新模型。"""
+        """对 model 执行参数扩增（原地修改），返回修改后的模型。"""
 
     def verify(
         self,
@@ -94,7 +93,3 @@ class AbstractExpander(ABC):
             "[FP verify] max |Δlogit| = %.2e  %s (atol=%s)", max_err, status, atol
         )
         return passed
-
-    @staticmethod
-    def _deep_copy_block(block: nn.Module) -> nn.Module:
-        return copy.deepcopy(block)

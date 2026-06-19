@@ -1,6 +1,26 @@
-"""Shared utilities for computing layer insertion positions."""
+"""Shared utilities for computing layer insertion positions and sequences."""
 
 from __future__ import annotations
+
+NEW_GROWTH_ATTR = "_is_new_growth"
+"""Canonical attribute name used to tag newly-grown parameters."""
+
+DECODER_LAYER_ATTRS = ("layers", "model.layers", "transformer.h", "decoder.layers")
+"""Common attribute paths for decoder layer lists in HuggingFace models."""
+
+
+def build_layer_sequence(num_orig: int, insert_pos: set[int]) -> list[tuple[int, bool]]:
+    """Build an ordered layer sequence with identity block markers.
+
+    Returns:
+        List of ``(src_layer_idx, is_identity)`` tuples.
+    """
+    sequence: list[tuple[int, bool]] = []
+    for i in range(num_orig):
+        sequence.append((i, False))
+        if i in insert_pos:
+            sequence.append((i, True))
+    return sequence
 
 
 def insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:

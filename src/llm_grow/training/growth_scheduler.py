@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import torch.nn as nn
 
 from llm_grow.training.freeze import mark_new_params, snapshot_param_ids
+from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 
 @dataclass
@@ -48,8 +50,6 @@ class GrowthScheduler:
         if cfg.strategy == "linear":
             return min(progress, 1.0)
         if cfg.strategy == "cosine":
-            import math
-
             return 0.5 * (1 - math.cos(math.pi * min(progress, 1.0)))
         if cfg.strategy == "step":
             return min(int(progress * 4), 4) * 0.25
@@ -62,7 +62,7 @@ class GrowthScheduler:
         完整实现应维护二进制掩码矩阵。
         """
         for _name, param in model.named_parameters():
-            if getattr(param, "_is_new_growth", False):
+            if getattr(param, NEW_GROWTH_ATTR, False):
                 param.requires_grad_(unlock_ratio > 0)
                 if hasattr(param, "_growth_scale"):
                     param._growth_scale = unlock_ratio  # type: ignore[attr-defined]
@@ -85,7 +85,7 @@ class GrowthScheduler:
             return mark_new_params(model, original_param_ids)
         count = 0
         for param in model.parameters():
-            if getattr(param, "_is_new_growth", False):
+            if getattr(param, NEW_GROWTH_ATTR, False):
                 count += param.numel()
         return count
 

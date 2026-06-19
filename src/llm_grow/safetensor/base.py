@@ -55,6 +55,12 @@ from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
 
+_TORCH_DTYPES: dict[str, torch.dtype] = {
+    "F32": torch.float32,
+    "F16": torch.float16,
+    "BF16": torch.bfloat16,
+}
+
 # ── data classes ─────────────────────────────────────────────────────────────
 
 
@@ -531,11 +537,6 @@ def _apply_recipe(
 ) -> torch.Tensor:
     # ── create new zero tensor (router weights etc.) ─────────────────────────
     if recipe.create_shape:
-        _TORCH_DTYPES = {
-            "F32": torch.float32,
-            "F16": torch.float16,
-            "BF16": torch.bfloat16,
-        }
         dtype = _TORCH_DTYPES.get(recipe.create_dtype, torch.float32)
         return torch.zeros(recipe.create_shape, dtype=dtype)
 
@@ -601,8 +602,6 @@ def _predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe)
     from llm_grow.safetensor.utils import DTYPE_SIZES, nbytes_from_header
 
     if recipe.create_shape:
-        from llm_grow.safetensor.utils import DTYPE_SIZES
-
         elem = DTYPE_SIZES.get(recipe.create_dtype, 4)
         numel = 1
         for d in recipe.create_shape:

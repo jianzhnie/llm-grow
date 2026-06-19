@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import json
 import shutil
-import tempfile
 from pathlib import Path
 
 import torch
@@ -33,8 +32,9 @@ class TestVerifyFp:
         )
 
 
-def _make_fake_safetensor_dir(num_layers: int = 4) -> Path:
-    tmp = Path(tempfile.mkdtemp())
+def _make_fake_safetensor_dir(base_dir: Path, num_layers: int = 4) -> Path:
+    tmp = base_dir / f"model_{num_layers}L"
+    tmp.mkdir(parents=True, exist_ok=True)
     config = {
         "model_type": "llama",
         "architectures": ["LlamaForCausalLM"],
@@ -53,9 +53,10 @@ def _make_fake_safetensor_dir(num_layers: int = 4) -> Path:
 
 
 class TestStructuralVerifier:
-    def test_runs_all_checks(self):
-        src_dir = _make_fake_safetensor_dir(num_layers=4)
-        dst_dir = Path(tempfile.mkdtemp())
+    def test_runs_all_checks(self, tmp_path):
+        src_dir = _make_fake_safetensor_dir(tmp_path, num_layers=4)
+        dst_dir = tmp_path / "dst"
+        dst_dir.mkdir()
         shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
         verifier = StructuralVerifier(src_dir, dst_dir)
         results = verifier.run_all()
@@ -63,18 +64,20 @@ class TestStructuralVerifier:
         assert "tensor_counts" in results
         assert "weights_preserved" in results
         assert "identity_zeroed" in results
+        assert all(results.values())
 
-    def test_tensor_counts_match_for_same_architecture(self):
-        src_dir = _make_fake_safetensor_dir(num_layers=4)
-        dst_dir = Path(tempfile.mkdtemp())
+    def test_tensor_counts_match_for_same_architecture(self, tmp_path):
+        src_dir = _make_fake_safetensor_dir(tmp_path, num_layers=4)
+        dst_dir = tmp_path / "dst"
+        dst_dir.mkdir()
         shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
         verifier = StructuralVerifier(src_dir, dst_dir)
         assert verifier.check_tensor_counts()
 
-    def test_tensor_counts_for_different_depth(self):
-        src_dir = _make_fake_safetensor_dir(num_layers=4)
-        dst_dir = _make_fake_safetensor_dir(num_layers=6)
+    def test_tensor_counts_for_different_depth(self, tmp_path):
+        src_dir = _make_fake_safetensor_dir(tmp_path / "src", num_layers=4)
+        dst_dir = _make_fake_safetensor_dir(tmp_path / "dst", num_layers=6)
         verifier = StructuralVerifier(src_dir, dst_dir)
         # The structural verifier accounts for depth changes in its expected count.
         result = verifier.check_tensor_counts()
-        assert isinstance(result, bool)
+        assert result is True

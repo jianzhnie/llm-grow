@@ -35,6 +35,7 @@ from llm_grow.safetensor.utils import (
     is_expert_key,
     peek_model_config,
 )
+from llm_grow.utils.insertion import build_layer_sequence
 
 # ── ExpertClone ──────────────────────────────────────────────────────────
 
@@ -288,11 +289,7 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         positions = set(
             insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
         )
-        sequence: list[tuple[int, bool]] = []
-        for i in range(num_orig):
-            sequence.append((i, False))
-            if i in positions:
-                sequence.append((i, True))  # identity copy
+        sequence = build_layer_sequence(num_orig, positions)
 
         plan = ExpansionPlan(new_num_hidden_layers=len(sequence))
 

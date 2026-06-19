@@ -13,7 +13,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.utils import ShardIndex, insert_positions, parse_layer_idx
+from llm_grow.safetensor.utils import (
+    ShardIndex,
+    get_hidden_size_from_index,
+    insert_positions,
+    parse_layer_idx,
+)
+from llm_grow.utils.insertion import build_layer_sequence
 
 # Suffixes whose output dimension (rows) expands with intermediate_size
 _FFN_OUT_SUFFIXES = frozenset({"mlp.gate_proj.weight", "mlp.up_proj.weight"})
@@ -108,11 +114,7 @@ class MultiAxisPadSafetensorExpander(SafetensorExpanderBase):
         else:
             positions = set()
 
-        sequence: list[tuple[int, bool]] = []
-        for i in range(num_orig):
-            sequence.append((i, False))
-            if i in positions:
-                sequence.append((i, True))
+        sequence = build_layer_sequence(num_orig, positions)
 
         plan = ExpansionPlan(
             new_num_hidden_layers=len(sequence),
@@ -190,7 +192,7 @@ class MultiAxisPadSafetensorExpander(SafetensorExpanderBase):
             )
         if cfg.hidden_size_expansion > 0:
             patches["hidden_size"] = (
-                _get_hidden_size(src_index) + cfg.hidden_size_expansion
+                get_hidden_size_from_index(src_index) + cfg.hidden_size_expansion
             )
         return patches
 
@@ -206,20 +208,4 @@ def _get_intermediate_size(src_index: ShardIndex) -> int:
             if key in header:
                 _dtype, shape = header[key]
                 return shape[0]
-    return 0
-
-
-def _get_hidden_size(src_index: ShardIndex) -> int:
-    """Infer hidden_size from q_proj shape in layer 0."""
-    from llm_grow.safetensor.utils import read_safetensors_header
-
-    for key in src_index.weight_map:
-        if key.endswith("self_attn.q_proj.weight") and key.startswith(
-            "model.layers.0."
-        ):
-            shard_path = src_index.model_dir / src_index.weight_map[key]
-            header = read_safetensors_header(shard_path)
-            if key in header:
-                _dtype, shape = header[key]
-                return shape[1]
     return 0

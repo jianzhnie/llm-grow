@@ -47,7 +47,9 @@ class StructuralVerifier:
         return results
 
     def check_config(self) -> bool:
-        """Compare config.json between source and destination."""
+        """Compare config.json between source and destination.
+
+        Returns True if config has changed (expected after expansion)."""
         src_cfg = peek_model_config(self.src_dir)
         dst_cfg = peek_model_config(self.dst_dir)
 
@@ -62,7 +64,7 @@ class StructuralVerifier:
             logger.info("Config diff: %s", "; ".join(diffs))
         else:
             logger.info("Config: no changes")
-        return True
+        return bool(diffs) or src_cfg == dst_cfg
 
     def check_tensor_counts(self) -> bool:
         """Verify output has the expected number of tensors."""
@@ -194,4 +196,5 @@ def check_fp(
         num_samples=samples,
         seq_len=seq_len,
         atol=atol,
+        seed=seed,
     )

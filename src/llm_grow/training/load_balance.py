@@ -70,8 +70,8 @@ def combined_moe_loss(
         balance_coeff:     负载均衡损失系数。
         z_coeff:           z-loss 系数。
     """
-    total = lm_loss
+    aux = torch.tensor(0.0, device=lm_loss.device, dtype=lm_loss.dtype)
     for logits in router_logits_list:
-        total = total + load_balance_loss(logits, num_experts, top_k, balance_coeff)
-        total = total + z_loss(logits, z_coeff)
-    return total
+        aux = aux + load_balance_loss(logits, num_experts, top_k, balance_coeff)
+        aux = aux + z_loss(logits, z_coeff)
+    return lm_loss + aux

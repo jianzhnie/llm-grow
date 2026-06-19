@@ -24,6 +24,7 @@ import torch
 import torch.nn as nn
 
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 
 @dataclass
@@ -128,7 +129,7 @@ def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
     new_w[:old_out, :old_in] = old_w
 
     new_param = nn.Parameter(new_w)
-    new_param._is_new_growth = True  # type: ignore[attr-defined]
+    setattr(new_param, NEW_GROWTH_ATTR, True)
     module.weight = new_param
     module.out_features = new_out
     module.in_features = new_in
@@ -138,18 +139,17 @@ def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
         new_b = torch.zeros(new_out, dtype=old_b.dtype, device=old_b.device)
         new_b[:old_out] = old_b
         new_bias_param = nn.Parameter(new_b)
-        new_bias_param._is_new_growth = True  # type: ignore[attr-defined]
+        setattr(new_bias_param, NEW_GROWTH_ATTR, True)
         module.bias = new_bias_param
 
 
 def _classify_linear(name: str) -> str:
-    """根据参数名称的叶子节点粗略分类线性层的语义角色。"""
-    leaf = name.split(".")[-1]
-    if any(k in leaf for k in ("lm_head", "embed", "layernorm", "norm")):
+    """Classify a linear layer's semantic role based on its full dotted path."""
+    if any(k in name for k in ("lm_head", "embed", "layernorm", "norm")):
         return "skip"
-    if any(k in leaf for k in ("gate_proj", "up_proj")):
+    if any(k in name for k in ("gate_proj", "up_proj")):
         return "hidden_to_inter"
-    if "down_proj" in leaf:
+    if "down_proj" in name:
         return "inter_to_hidden"
     return "hidden_to_hidden"
 
@@ -183,5 +183,5 @@ def _expand_depth(model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
 def _freeze_original_params(model: nn.Module) -> None:
     """冻结所有被标记为原始参数的层（未被 zero_output_projections 触碰的层）。"""
     for param in model.parameters():
-        if not getattr(param, "_is_new_growth", False):
+        if not getattr(param, NEW_GROWTH_ATTR, False):
             param.requires_grad_(False)

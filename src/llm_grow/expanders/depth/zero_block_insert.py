@@ -22,6 +22,7 @@ import torch.nn as nn
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
 from llm_grow.initializers.identity import zero_output_projections
 from llm_grow.utils import insert_positions
+from llm_grow.utils.insertion import DECODER_LAYER_ATTRS, NEW_GROWTH_ATTR
 
 
 @dataclass
@@ -113,12 +114,12 @@ def _make_identity_block(
     block = copy.deepcopy(source_block)
     zero_output_projections(block, attn_proj_names, mlp_proj_names)
     for param in block.parameters():
-        param._is_new_growth = True  # type: ignore[attr-defined]
+        setattr(param, NEW_GROWTH_ATTR, True)
     return block
 
 
 def _get_decoder_layers(model: nn.Module) -> nn.ModuleList:
-    for attr in ("layers", "model.layers", "transformer.h", "decoder.layers"):
+    for attr in DECODER_LAYER_ATTRS:
         obj: nn.Module | None = model
         for part in attr.split("."):
             if obj is None:
@@ -130,7 +131,7 @@ def _get_decoder_layers(model: nn.Module) -> nn.ModuleList:
 
 
 def _set_decoder_layers(model: nn.Module, new_layers: nn.ModuleList) -> None:
-    for attr in ("layers", "model.layers", "transformer.h", "decoder.layers"):
+    for attr in DECODER_LAYER_ATTRS:
         parts = attr.split(".")
         obj: nn.Module | None = model
         for part in parts[:-1]:

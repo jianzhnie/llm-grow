@@ -20,6 +20,7 @@ def verify_fp(
     atol: float = 1e-4,
     device: str | None = None,
     verbose: bool = True,
+    seed: int = 42,
 ) -> bool:
     """验证扩增后模型与原始模型在随机输入下的输出一致性。
 
@@ -31,6 +32,7 @@ def verify_fp(
         atol:        允许的最大 logit 误差。
         device:      运行设备，默认自动选择。
         verbose:     是否打印详细报告。
+        seed:        随机种子，确保结果可复现。
 
     Returns:
         True 表示通过验证（max error < atol）。
@@ -47,10 +49,11 @@ def verify_fp(
     expanded.eval().to(device)
 
     vocab_size = get_vocab_size(original)
+    torch.manual_seed(seed)
     input_ids = torch.randint(0, vocab_size, (num_samples, seq_len), device=device)
 
     results = []
-    with torch.no_grad():
+    with torch.inference_mode():
         for i in range(num_samples):
             ids = input_ids[i].unsqueeze(0)
             logits_orig = original(input_ids=ids).logits

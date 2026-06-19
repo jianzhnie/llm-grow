@@ -15,6 +15,9 @@ from tests.conftest import FakeMLP
 
 
 class TestRouterNoiseInit:
+    def setup_method(self):
+        torch.manual_seed(42)
+
     def test_changes_router_weights(self):
         router = nn.Linear(16, 4, bias=False)
         orig_weight = router.weight.clone()
@@ -25,6 +28,9 @@ class TestRouterNoiseInit:
 
 
 class TestClusterAwareUpcycling:
+    def setup_method(self):
+        torch.manual_seed(42)
+
     def test_changes_expert_weights(self):
         d = 16
         mlp = FakeMLP(d=d)

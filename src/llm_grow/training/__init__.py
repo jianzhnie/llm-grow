@@ -1,4 +1,4 @@
-from llm_grow.training.distillation import DistillationLoss
+from llm_grow.training.distillation import DistillationLoss, DistillConfig
 from llm_grow.training.freeze import (
     freeze_layers_by_index,
     freeze_original_layers,
@@ -11,6 +11,7 @@ from llm_grow.training.growth_scheduler import GrowthScheduleConfig, GrowthSched
 from llm_grow.training.load_balance import combined_moe_loss, load_balance_loss, z_loss
 
 __all__ = [
+    "DistillConfig",
     "DistillationLoss",
     "GrowthScheduleConfig",
     "GrowthScheduler",

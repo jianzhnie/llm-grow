@@ -14,6 +14,9 @@ from tests.conftest import FakeModel
 
 
 class TestMultiAxisPadExpander:
+    def setup_method(self):
+        torch.manual_seed(42)
+
     def _make_model(self, num_layers=8):
         return FakeModel(num_layers=num_layers, d=32)
 

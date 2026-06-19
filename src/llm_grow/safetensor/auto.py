@@ -186,12 +186,6 @@ def _build_expander(
             "profile": profile,
         }
     elif method == "expert":
-        if not profile.is_moe:
-            raise ValueError(
-                f"method='expert' requires a MoE model, but detected "
-                f"family='{profile.family}' (Dense). "
-                f"Use method='depth' or method='width' for Dense models."
-            )
         kwargs = {
             "expand_factor": expand_factor,
             "noise_scale": noise_scale,

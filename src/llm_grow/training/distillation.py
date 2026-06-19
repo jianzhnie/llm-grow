@@ -91,7 +91,7 @@ def run_teacher_inference(
         batch_mask = (
             attention_mask[i : i + batch_size] if attention_mask is not None else None
         )
-        with torch.no_grad():
+        with torch.inference_mode():
             out = teacher(input_ids=batch_ids, attention_mask=batch_mask)
         all_logits.append(out.logits.cpu())
     return torch.cat(all_logits, dim=0)

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
-    read_safetensors_header,
+    get_hidden_size_from_index,
 )
 
 _FFN_SUFFIXES = frozenset(
@@ -79,7 +79,7 @@ class DenseToMoESafetensorExpander(SafetensorExpanderBase):
         suffixes = src_index.layer_suffixes()
         num_layers = src_index.num_hidden_layers()
 
-        hidden_size = _get_hidden_size(src_index)
+        hidden_size = get_hidden_size_from_index(src_index)
 
         plan = ExpansionPlan(
             new_num_hidden_layers=num_layers,
@@ -125,24 +125,3 @@ class DenseToMoESafetensorExpander(SafetensorExpanderBase):
 
         self._passthrough_non_layer_keys(plan, wmap)
         return plan
-
-
-def _get_hidden_size(src_index: ShardIndex) -> int:
-    """Infer hidden_size from q_proj or embed shape in layer 0."""
-    for key in src_index.weight_map:
-        if key.endswith("self_attn.q_proj.weight") and key.startswith(
-            "model.layers.0."
-        ):
-            shard_path = src_index.model_dir / src_index.weight_map[key]
-            header = read_safetensors_header(shard_path)
-            if key in header:
-                _dtype, shape = header[key]
-                return shape[1]
-    for key in src_index.weight_map:
-        if key == "model.embed_tokens.weight":
-            shard_path = src_index.model_dir / src_index.weight_map[key]
-            header = read_safetensors_header(shard_path)
-            if key in header:
-                _dtype, shape = header[key]
-                return shape[1]
-    return 4096

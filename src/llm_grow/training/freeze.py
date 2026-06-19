@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import torch.nn as nn
 
+from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -17,7 +18,7 @@ def freeze_original_layers(model: nn.Module) -> int:
     """
     frozen = 0
     for param in model.parameters():
-        if not getattr(param, "_is_new_growth", False):
+        if not getattr(param, NEW_GROWTH_ATTR, False):
             param.requires_grad_(False)
             frozen += param.numel()
     return frozen
@@ -37,7 +38,7 @@ def mark_new_params(model: nn.Module, original_param_ids: set[int]) -> int:
     count = 0
     for param in model.parameters():
         if id(param) not in original_param_ids:
-            param._is_new_growth = True  # type: ignore[attr-defined]
+            setattr(param, NEW_GROWTH_ATTR, True)
             count += param.numel()
     return count
 

@@ -14,7 +14,22 @@ from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
 
-__all__ = ["insert_positions"]
+__all__ = [
+    "DTYPE_SIZES",
+    "ShardIndex",
+    "auto_detect_shard_size",
+    "expert_idx",
+    "expert_key_offset",
+    "get_hidden_size_from_index",
+    "insert_positions",
+    "is_expert_key",
+    "layer_suffix",
+    "nbytes_from_header",
+    "parse_layer_idx",
+    "peek_model_config",
+    "read_safetensors_header",
+    "rename_layer_idx",
+]
 
 # ── dtype → bytes per element (mirrors safetensors dtype strings) ─────────────
 DTYPE_SIZES: dict[str, int] = {
@@ -279,3 +294,28 @@ def expert_key_offset(key: str, offset: int) -> str:
     if m is None:
         return key
     return f"{m.group(1)}{int(m.group(2)) + offset}{m.group(3)}"
+
+
+def get_hidden_size_from_index(src_index: ShardIndex) -> int:
+    """Infer hidden_size from q_proj or embed_tokens shape (header-only).
+
+    Tries ``self_attn.q_proj.weight`` in layer 0 first, then falls back
+    to ``model.embed_tokens.weight``.  Returns 0 if neither is found.
+    """
+    for key in src_index.weight_map:
+        if key.endswith("self_attn.q_proj.weight") and key.startswith(
+            "model.layers.0."
+        ):
+            shard_path = src_index.model_dir / src_index.weight_map[key]
+            header = read_safetensors_header(shard_path)
+            if key in header:
+                _dtype, shape = header[key]
+                return shape[1]
+    for key in src_index.weight_map:
+        if key == "model.embed_tokens.weight":
+            shard_path = src_index.model_dir / src_index.weight_map[key]
+            header = read_safetensors_header(shard_path)
+            if key in header:
+                _dtype, shape = header[key]
+                return shape[1]
+    return 0

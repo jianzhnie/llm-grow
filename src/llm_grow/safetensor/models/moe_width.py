@@ -28,10 +28,12 @@ from dataclasses import dataclass, field
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
+    get_hidden_size_from_index,
     insert_positions,
     parse_layer_idx,
     read_safetensors_header,
 )
+from llm_grow.utils.insertion import build_layer_sequence
 
 
 @dataclass
@@ -105,11 +107,7 @@ class MoEWidthExpander(SafetensorExpanderBase):
         else:
             pos_set = set()
 
-        sequence: list[tuple[int, bool]] = []
-        for i in range(num_orig):
-            sequence.append((i, False))
-            if i in pos_set:
-                sequence.append((i, True))
+        sequence = build_layer_sequence(num_orig, pos_set)
 
         plan = ExpansionPlan(
             new_num_hidden_layers=len(sequence),
@@ -219,7 +217,7 @@ class MoEWidthExpander(SafetensorExpanderBase):
             if orig > 0:
                 patches["moe_intermediate_size"] = orig + cfg.ffn_size_expansion
         if cfg.hidden_size_expansion > 0:
-            orig = _get_hidden_size(src_index)
+            orig = get_hidden_size_from_index(src_index)
             if orig > 0:
                 patches["hidden_size"] = orig + cfg.hidden_size_expansion
         return patches
@@ -234,23 +232,4 @@ def _get_expert_intermediate_size(src_index: ShardIndex) -> int:
             if key in header:
                 _dtype, shape = header[key]
                 return shape[0]
-    return 0
-
-
-def _get_hidden_size(src_index: ShardIndex) -> int:
-    """Infer hidden_size from q_proj or embed shape."""
-    for key in src_index.weight_map:
-        if key.endswith("self_attn.q_proj.weight") and "layers.0." in key:
-            shard_path = src_index.model_dir / src_index.weight_map[key]
-            header = read_safetensors_header(shard_path)
-            if key in header:
-                _dtype, shape = header[key]
-                return shape[1]
-    for key in src_index.weight_map:
-        if key == "model.embed_tokens.weight":
-            shard_path = src_index.model_dir / src_index.weight_map[key]
-            header = read_safetensors_header(shard_path)
-            if key in header:
-                _dtype, shape = header[key]
-                return shape[1]
     return 0

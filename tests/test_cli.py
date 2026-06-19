@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -14,8 +13,9 @@ from safetensors.torch import save_file as safetensors_save
 from llm_grow.cli import main
 
 
-def _make_model_dir(num_layers: int = 4) -> Path:
-    tmp = Path(tempfile.mkdtemp())
+def _make_model_dir(base_dir: Path, num_layers: int = 4) -> Path:
+    tmp = base_dir / f"model_{num_layers}L"
+    tmp.mkdir(parents=True, exist_ok=True)
     config = {
         "model_type": "llama",
         "architectures": ["LlamaForCausalLM"],
@@ -37,11 +37,9 @@ def _make_model_dir(num_layers: int = 4) -> Path:
 
 
 class TestCliInfo:
-    def test_info_command(self, monkeypatch, capsys):
-        src_dir = _make_model_dir(num_layers=4)
-        monkeypatch.setattr(
-            "sys.argv", ["llm-grow", "info", "--src", str(src_dir)]
-        )
+    def test_info_command(self, monkeypatch, capsys, tmp_path):
+        src_dir = _make_model_dir(tmp_path, num_layers=4)
+        monkeypatch.setattr("sys.argv", ["llm-grow", "info", "--src", str(src_dir)])
         main()
         captured = capsys.readouterr()
         assert "dense" in captured.out
@@ -49,9 +47,9 @@ class TestCliInfo:
 
 
 class TestCliExpand:
-    def test_expand_depth_dry_run(self, monkeypatch):
-        src_dir = _make_model_dir(num_layers=4)
-        dst_dir = Path(tempfile.mkdtemp())
+    def test_expand_depth_dry_run(self, monkeypatch, tmp_path):
+        src_dir = _make_model_dir(tmp_path, num_layers=4)
+        dst_dir = tmp_path / "output"
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -71,9 +69,9 @@ class TestCliExpand:
         )
         main()
 
-    def test_expand_expert_on_dense_fails(self, monkeypatch):
-        src_dir = _make_model_dir(num_layers=4)
-        dst_dir = Path(tempfile.mkdtemp())
+    def test_expand_expert_on_dense_fails(self, monkeypatch, tmp_path):
+        src_dir = _make_model_dir(tmp_path, num_layers=4)
+        dst_dir = tmp_path / "output2"
         monkeypatch.setattr(
             "sys.argv",
             [
@@ -94,9 +92,10 @@ class TestCliExpand:
 
 
 class TestCliVerify:
-    def test_verify_command(self, monkeypatch):
-        src_dir = _make_model_dir(num_layers=4)
-        dst_dir = Path(tempfile.mkdtemp())
+    def test_verify_command(self, monkeypatch, tmp_path):
+        src_dir = _make_model_dir(tmp_path, num_layers=4)
+        dst_dir = tmp_path / "dst"
+        dst_dir.mkdir()
         shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
         monkeypatch.setattr(
             "sys.argv",

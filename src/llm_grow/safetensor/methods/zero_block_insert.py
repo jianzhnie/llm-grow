@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase
 from llm_grow.safetensor.utils import ShardIndex, insert_positions
+from llm_grow.utils.insertion import build_layer_sequence
 
 
 @dataclass
@@ -65,11 +66,6 @@ class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):
         positions = insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
         pos_set = set(positions)
 
-        # Build ordered layer sequence: (src_orig_idx, is_identity)
-        sequence: list[tuple[int, bool]] = []
-        for i in range(num_orig):
-            sequence.append((i, False))
-            if i in pos_set:
-                sequence.append((i, True))  # identity copy of layer i
+        sequence = build_layer_sequence(num_orig, pos_set)
 
         return self._build_layer_plan(src_index, layer_sequence=sequence)

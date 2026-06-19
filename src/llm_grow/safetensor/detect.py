@@ -30,7 +30,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from llm_grow.safetensor.utils import expert_idx, is_expert_key
+from llm_grow.safetensor.utils import expert_idx, is_expert_key, parse_layer_idx
 
 # ── data class ────────────────────────────────────────────────────────────────
 
@@ -224,7 +224,10 @@ def _detect_router(wmap: dict) -> tuple[str, str | None]:
         "mlp.router.e_score_correction_bias",
     ]
     found_w = found_b = None
-    for layer in range(5):
+    layer_indices = sorted(
+        {parse_layer_idx(k) for k in wmap if parse_layer_idx(k) is not None}
+    )
+    for layer in layer_indices:
         prefix = f"model.layers.{layer}."
         for suf in router_w_candidates:
             if f"{prefix}{suf}" in wmap:

@@ -5,7 +5,12 @@ from llm_grow.utils.arch_info import (
     param_diff_report,
     parse_arch_info,
 )
-from llm_grow.utils.insertion import insert_positions
+from llm_grow.utils.insertion import (
+    DECODER_LAYER_ATTRS,
+    NEW_GROWTH_ATTR,
+    build_layer_sequence,
+    insert_positions,
+)
 from llm_grow.utils.logger_utils import get_logger
 from llm_grow.utils.model_io import (
     load_model,
@@ -15,7 +20,10 @@ from llm_grow.utils.model_io import (
 )
 
 __all__ = [
+    "DECODER_LAYER_ATTRS",
+    "NEW_GROWTH_ATTR",
     "ArchInfo",
+    "build_layer_sequence",
     "count_params",
     "get_logger",
     "get_vocab_size",
