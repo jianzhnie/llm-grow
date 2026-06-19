@@ -1,4 +1,4 @@
-"""SOLAR DUS: Depth Up-Scaling via layer overlap-copy (arXiv:2312.15166).
+"""OverlapSplit: 层重叠拼接深度扩增 (arXiv:2312.15166, SOLAR DUS).
 
 核心思路：将原模型复制两份，取上段前 N 层与下段后 N 层拼接，
 中间重叠区保证拼接点分布平滑。非 function-preserving，需要 100B+ CPT。
@@ -23,21 +23,21 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class SolarDUSConfig(ExpansionConfig):
+class OverlapSplitConfig(ExpansionConfig):
     num_overlap: int = 8
     """重叠层数。上段保留前 (L - num_overlap) 层；下段从第 num_overlap 层开始。
     实际: len(upper) + len(lower) = 2*(L - num_overlap)
     """
 
 
-class SolarDUSExpander(AbstractExpander):
-    """SOLAR Depth Up-Scaling 扩增器。
+class OverlapSplitExpander(AbstractExpander):
+    """OverlapSplit 层重叠拼接扩增器。
 
     WARNING: 非 function-preserving，verify() 始终返回 False。
     扩增后需要大量 continued pretraining（建议 100B+ tokens）。
     """
 
-    def expand(self, model: nn.Module, config: SolarDUSConfig) -> nn.Module:
+    def expand(self, model: nn.Module, config: OverlapSplitConfig) -> nn.Module:
         layers = _get_decoder_layers(model)
         num_layers = len(layers)
         overlap = config.num_overlap
@@ -61,5 +61,10 @@ class SolarDUSExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        logger.info("SOLAR DUS is NOT function-preserving — skipping output check.")
+        logger.info("OverlapSplit is NOT function-preserving — skipping output check.")
         return False
+
+
+# Backward-compatible aliases
+SolarDUSConfig = OverlapSplitConfig
+SolarDUSExpander = OverlapSplitExpander

@@ -1,4 +1,4 @@
-"""MoE Upcycling: Dense → Sparse MoE (arXiv:2212.05055, Komatsuzaki et al., ICLR 2023).
+"""DenseToMoE: Dense FFN 转稀疏 MoE (arXiv:2212.05055, Sparse Upcycling).
 
 核心思路：将 Dense FFN 复制 num_experts 份作为专家初始权重，
 新增 Router（随机初始化）；每个 token 通过 Top-K 路由激活 K 个专家。
@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class MoEUpcyclingConfig(ExpansionConfig):
+class DenseToMoEConfig(ExpansionConfig):
     num_experts: int = 8
     """每层的专家数量（Dense FFN 被复制的份数）。"""
 
@@ -88,14 +88,14 @@ class MoELayer(nn.Module):
         return expert_outputs.view(bsz, seq_len, hidden)
 
 
-class MoEUpcyclingExpander(AbstractExpander):
-    """Dense → MoE 扩增器（Sparse Upcycling）。
+class DenseToMoEExpander(AbstractExpander):
+    """DenseToMoE 扩增器（Dense → Sparse MoE）。
 
     WARNING: 非 function-preserving（Router 随机初始化）。
     扩增后需要 50-100B tokens CPT + load balancing loss。
     """
 
-    def expand(self, model: nn.Module, config: MoEUpcyclingConfig) -> nn.Module:
+    def expand(self, model: nn.Module, config: DenseToMoEConfig) -> nn.Module:
         hidden_size = _get_hidden_size(model)
 
         replaced = 0
@@ -128,8 +128,13 @@ class MoEUpcyclingExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        logger.info("MoE Upcycling is NOT function-preserving — skipping.")
+        logger.info("DenseToMoE is NOT function-preserving — skipping.")
         return False
+
+
+# Backward-compatible aliases
+MoEUpcyclingConfig = DenseToMoEConfig
+MoEUpcyclingExpander = DenseToMoEExpander
 
 
 # ---------------------------------------------------------------------------

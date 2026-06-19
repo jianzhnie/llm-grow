@@ -1,4 +1,4 @@
-"""MSG: Masked Structural Growth for multi-dimensional LLM expansion (arXiv:2305.02869).
+"""MultiAxisGrow: 多维掩码生长扩增 (arXiv:2305.02869, MSG).
 
 支持四维度任意组合扩增：
   - 深度（+层数）：恒等块插入
@@ -20,7 +20,7 @@ from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
 
 
 @dataclass
-class MSGConfig(ExpansionConfig):
+class MultiAxisGrowConfig(ExpansionConfig):
     num_new_layers: int = 0
     """新增层数（均匀插入恒等块）。"""
 
@@ -55,14 +55,14 @@ class MSGConfig(ExpansionConfig):
         self.depth_expansion = self.num_new_layers
 
 
-class MSGExpander(AbstractExpander):
-    """Masked Structural Growth 多维度扩增器。
+class MultiAxisGrowExpander(AbstractExpander):
+    """MultiAxisGrow 多维度扩增器。
 
     建议搭配 GrowthScheduler 使用（training/growth_scheduler.py），
     实现渐进式掩码解锁以避免训练震荡。
     """
 
-    def expand(self, model: nn.Module, config: MSGConfig) -> nn.Module:
+    def expand(self, model: nn.Module, config: MultiAxisGrowConfig) -> nn.Module:
         if config.hidden_size_expansion > 0 or config.intermediate_size_expansion > 0:
             model = _expand_width(model, config)
 
@@ -80,7 +80,7 @@ class MSGExpander(AbstractExpander):
 # ---------------------------------------------------------------------------
 
 
-def _expand_width(model: nn.Module, config: MSGConfig) -> nn.Module:
+def _expand_width(model: nn.Module, config: MultiAxisGrowConfig) -> nn.Module:
     """对所有线性层做零填充宽度扩展。"""
     dh = config.hidden_size_expansion
     di = config.intermediate_size_expansion
@@ -151,7 +151,7 @@ def _classify_linear(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _expand_depth(model: nn.Module, config: MSGConfig) -> nn.Module:
+def _expand_depth(model: nn.Module, config: MultiAxisGrowConfig) -> nn.Module:
     from llm_grow.expanders.depth.llama_pro import (
         LlamaProConfig,
         LlamaProExpander,
@@ -177,3 +177,8 @@ def _freeze_original_params(model: nn.Module) -> None:
     for param in model.parameters():
         if not getattr(param, "_is_new_growth", False):
             param.requires_grad_(False)
+
+
+# Backward-compatible aliases
+MSGConfig = MultiAxisGrowConfig
+MSGExpander = MultiAxisGrowExpander

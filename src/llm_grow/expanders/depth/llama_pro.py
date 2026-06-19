@@ -1,4 +1,4 @@
-"""LLaMA-Pro: Progressive LLaMA with Block Expansion (arXiv:2401.02415).
+"""IdentityGraft: 恒等块插入深度扩增 (arXiv:2401.02415, LLaMA-Pro).
 
 核心思路：在均匀间隔处插入恒等块（o_proj & down_proj 置零），
 扩增后模型与原始模型函数完全一致（function-preserving）。
@@ -16,7 +16,7 @@ from llm_grow.initializers.identity import zero_output_projections
 
 
 @dataclass
-class LlamaProConfig(ExpansionConfig):
+class IdentityGraftConfig(ExpansionConfig):
     num_new_layers: int = 8
     """插入的新层数量。建议 = 原层数 // 4。
     向后兼容：也可使用 num_new_blocks 传参（等效别名）。
@@ -48,21 +48,21 @@ class LlamaProConfig(ExpansionConfig):
         self.num_new_blocks = self.num_new_layers
 
 
-class LlamaProExpander(AbstractExpander):
-    """恒等块插入扩增器。
+class IdentityGraftExpander(AbstractExpander):
+    """IdentityGraft 恒等块插入扩增器。
 
     用法::
 
-        from llm_grow import LlamaProExpander
-        from llm_grow.expanders.depth.llama_pro import LlamaProConfig
+        from llm_grow import IdentityGraftExpander
+        from llm_grow.expanders.depth.llama_pro import IdentityGraftConfig
 
-        config = LlamaProConfig(num_new_layers=9)
-        expander = LlamaProExpander()
+        config = IdentityGraftConfig(num_new_layers=9)
+        expander = IdentityGraftExpander()
         expanded_model = expander(original_model, config)
         expander.verify(original_model, expanded_model)
     """
 
-    def expand(self, model: nn.Module, config: LlamaProConfig) -> nn.Module:
+    def expand(self, model: nn.Module, config: IdentityGraftConfig) -> nn.Module:
         layers = _get_decoder_layers(model)
         num_orig = len(layers)
         insert_positions = _compute_insert_positions(
@@ -168,3 +168,8 @@ def _update_num_hidden_layers(model: nn.Module, new_num: int) -> None:
         if hasattr(cfg, attr):
             setattr(cfg, attr, new_num)
             break
+
+
+# Backward-compatible aliases
+LlamaProConfig = IdentityGraftConfig
+LlamaProExpander = IdentityGraftExpander

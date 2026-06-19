@@ -1,4 +1,4 @@
-"""Expert Upcycling: MoE base model expert count expansion (arXiv:2604.19835).
+"""ExpertClone: MoE 专家克隆扩展 (arXiv:2604.19835, Expert Upcycling).
 
 核心思路（M1 方案）：将已有 E 个专家各复制一份得到 mE 个专家，
 保持 Top-K 路由不变，推理激活参数量不变，总参数量线性增长。
@@ -31,7 +31,7 @@ class ExpertSelectionStrategy(str, Enum):
 
 
 @dataclass
-class ExpertUpcyclingConfig(ExpansionConfig):
+class ExpertCloneConfig(ExpansionConfig):
     expand_factor: int = 2
     """专家数扩展倍数（原 E 个专家 → expand_factor × E 个专家）。"""
 
@@ -55,14 +55,14 @@ class ExpertUpcyclingConfig(ExpansionConfig):
     """目标 MoE 层的类名（用于识别哪些模块需要扩展）。"""
 
 
-class ExpertUpcyclingExpander(AbstractExpander):
-    """MoE 基座专家数扩展器（M1 方案）。
+class ExpertCloneExpander(AbstractExpander):
+    """ExpertClone MoE 专家克隆扩展器（M1 方案）。
 
     适用于基座已经是 MoE 架构的模型（Qwen3-MoE、DeepSeek-V3、Mixtral 等）。
     扩展后推理激活参数量几乎不变（Router 计算量微增），总参数线性增长。
     """
 
-    def expand(self, model: nn.Module, config: ExpertUpcyclingConfig) -> nn.Module:
+    def expand(self, model: nn.Module, config: ExpertCloneConfig) -> nn.Module:
         expanded_count = 0
         for _name, module in model.named_modules():
             is_target_cls = type(module).__name__ == config.moe_layer_cls_name
@@ -85,7 +85,7 @@ class ExpertUpcyclingExpander(AbstractExpander):
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
         logger.info(
-            "Expert Upcycling requires symmetry breaking — "
+            "ExpertClone requires symmetry breaking — "
             "output will differ; skipping strict FP check."
         )
         return False
@@ -98,7 +98,7 @@ class ExpertUpcyclingExpander(AbstractExpander):
 
 def _expand_experts(
     moe_module: nn.Module,
-    config: ExpertUpcyclingConfig,
+    config: ExpertCloneConfig,
 ) -> tuple[nn.ModuleList, torch.Tensor]:
     experts: nn.ModuleList = moe_module.experts
     num_orig = len(experts)
@@ -172,3 +172,8 @@ def _utility_select(scores: list[float], n: int) -> list[int]:
     while len(result) < n:
         result.extend(ranked[: n - len(result)])
     return result[:n]
+
+
+# Backward-compatible aliases
+ExpertUpcyclingConfig = ExpertCloneConfig
+ExpertUpcyclingExpander = ExpertCloneExpander

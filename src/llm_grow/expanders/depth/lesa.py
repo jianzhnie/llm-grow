@@ -1,4 +1,4 @@
-"""LESA: Learnable Layer Scaling-Up via SVD interpolation (arXiv:2502.13794).
+"""InterpGraft: SVD 插值嫁接扩层 (arXiv:2502.13794, LESA).
 
 核心思路：对相邻层权重矩阵做 SVD 分解，训练轻量预测网络预测插入层参数，
 新层从"有意义"的初始化出发，收敛速度优于 DUS。
@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class LESAConfig(ExpansionConfig):
+class InterpGraftConfig(ExpansionConfig):
     insert_between: list[tuple[int, int]] = field(default_factory=list)
     """指定在哪两层之间插入新层，格式 [(i, i+1), ...]。
     空列表时默认在每对相邻层之间插入（层数翻倍）。"""
@@ -41,15 +41,15 @@ class LESAConfig(ExpansionConfig):
     True 时使用 MLP 预测网络（需额外训练步骤）。"""
 
 
-class LESAExpander(AbstractExpander):
-    """LESA SVD 插值扩增器。
+class InterpGraftExpander(AbstractExpander):
+    """InterpGraft SVD 插值扩增器。
 
     当 use_predictor=False 时，使用相邻层参数的简单算术平均作为插入层初始化，
     可快速获得比 DUS 更好的初始精度。完整 LESA 实现（训练预测网络）请设置
     use_predictor=True 并先调用 train_predictor()。
     """
 
-    def expand(self, model: nn.Module, config: LESAConfig) -> nn.Module:
+    def expand(self, model: nn.Module, config: InterpGraftConfig) -> nn.Module:
         layers = _get_decoder_layers(model)
         num_layers = len(layers)
 
@@ -69,7 +69,9 @@ class LESAExpander(AbstractExpander):
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:
-        logger.info("LESA is approximately FP (~80-90%%) — running output diff check.")
+        logger.info(
+            "InterpGraft is approximately FP (~80-90%%) — running output diff check."
+        )
         return super().verify(original, expanded, atol=0.5, **kwargs)
 
 
@@ -94,3 +96,8 @@ def _interpolate_layers(
             if name in state_b and state_a[name].shape == state_b[name].shape:
                 param.copy_(alpha * state_a[name] + (1 - alpha) * state_b[name])
     return new_layer
+
+
+# Backward-compatible aliases
+LESAConfig = InterpGraftConfig
+LESAExpander = InterpGraftExpander

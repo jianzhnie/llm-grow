@@ -103,18 +103,18 @@ auto_expand(
 import copy
 from transformers import AutoModelForCausalLM
 from llm_grow.expanders.depth.llama_pro import (
-    LlamaProConfig, LlamaProExpander,
+    IdentityGraftConfig, IdentityGraftExpander,
 )
 
 model = AutoModelForCausalLM.from_pretrained(
     "Qwen/Qwen3-8B", torch_dtype="auto",
 )
 original = copy.deepcopy(model)
-expanded = LlamaProExpander().expand(
+expanded = IdentityGraftExpander().expand(
     model,
-    LlamaProConfig(num_new_layers=9, freeze_original=True),
+    IdentityGraftConfig(num_new_layers=9, freeze_original=True),
 )
-LlamaProExpander().verify(original, expanded)
+IdentityGraftExpander().verify(original, expanded)
 ```
 
 ---
@@ -125,48 +125,48 @@ LlamaProExpander().verify(original, expanded)
 
 | 方法 | FP | 扩展方向 | 即时精度 | 推荐 CPT | 推理延迟 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| **LLaMA-Pro** | yes | 深度 | **100%** | 8-16B tokens | +线性 |
-| **SOLAR DUS** | no | 深度 | 50-80% | 100B+ tokens | +线性 |
-| **LESA** | ~yes | 深度 | 80-90% | <50B tokens | +线性 |
-| **MSG** | yes | 深度+宽度 | **100%** | 30-60B tokens | ~1.4x |
-| **MoE Upcycling** | no | Dense->MoE | 70-85% | 50-100B tokens | ~不变 |
-| **Expert Upcycling** | ~yes | MoE 专家 | -- | 节省 32-67% | ~不变 |
+| **IdentityGraft** | yes | 深度 | **100%** | 8-16B tokens | +线性 |
+| **OverlapSplit** | no | 深度 | 50-80% | 100B+ tokens | +线性 |
+| **InterpGraft** | ~yes | 深度 | 80-90% | <50B tokens | +线性 |
+| **MultiAxisGrow** | yes | 深度+宽度 | **100%** | 30-60B tokens | ~1.4x |
+| **DenseToMoE** | no | Dense->MoE | 70-85% | 50-100B tokens | ~不变 |
+| **ExpertClone** | ~yes | MoE 专家 | -- | 节省 32-67% | ~不变 |
 
 > **FP** = Function-Preserving：扩增后输出与原始模型完全一致（zero-shot 精度零损失）。
 
 ### 原理图
 
-#### LLaMA-Pro -- 恒等块插入
+#### IdentityGraft -- 恒等块嫁接
 
 在均匀间隔处插入 identity block（`o_proj` / `down_proj` 置零），残差连接保证 `output = x + 0 = x`。
 
 <p align="center"><img src="docs/images/llama_pro.svg" width="720"/></p>
 
-#### SOLAR DUS -- 层重叠拼接
+#### OverlapSplit -- 层重叠拼接
 
 将原模型分为 upper / lower 两段（重叠区保证平滑），拼接后层数倍增。非 FP，需大量 CPT。
 
 <p align="center"><img src="docs/images/solar_dus.svg" width="720"/></p>
 
-#### LESA -- SVD 插值扩层
+#### InterpGraft -- SVD 插值嫁接
 
 对相邻层权重做算术平均插值，新层从有意义的初始化出发，收敛速度优于 DUS。
 
 <p align="center"><img src="docs/images/lesa.svg" width="720"/></p>
 
-#### MSG -- 多维掩码生长
+#### MultiAxisGrow -- 多维掩码生长
 
 同时扩增深度（identity block）和宽度（零填充 hidden / FFN 维度），所有新参数初始化为零，严格 FP。
 
 <p align="center"><img src="docs/images/msg.svg" width="720"/></p>
 
-#### MoE Upcycling -- Dense 转稀疏 MoE
+#### DenseToMoE -- Dense 转稀疏 MoE
 
 将 Dense FFN 复制为 N 个专家 + 随机初始化 Router。Top-K 路由使推理成本近似不变。
 
 <p align="center"><img src="docs/images/moe_upcycling.svg" width="720"/></p>
 
-#### Expert Upcycling -- MoE 专家数扩展
+#### ExpertClone -- MoE 专家克隆
 
 复制已有专家并施加对称性破坏（noise / drop），Router 权重对应扩展。推理成本不变。
 
@@ -188,11 +188,11 @@ LlamaProExpander().verify(original, expanded)
 |       +-- 深度扩增（层数增加）      llm-grow expand --method depth
 |
 +-- 中小模型（可加载进内存）--> 内存级扩增
-    +-- 精度最优先，数据有限   --> LLaMA-Pro（FP, 8-16B tokens）
-    +-- 精确 2x，控制延迟     --> MSG（深度+宽度, ~1.4x 延迟）
-    +-- 最简实现，数据充足     --> SOLAR DUS
-    +-- 推理延迟不能增加       --> MoE Upcycling（top-1 激活量不变）
-    +-- 基座已是 MoE           --> Expert Upcycling
+    +-- 精度最优先，数据有限   --> IdentityGraft（FP, 8-16B tokens）
+    +-- 精确 2x，控制延迟     --> MultiAxisGrow（深度+宽度, ~1.4x 延迟）
+    +-- 最简实现，数据充足     --> OverlapSplit
+    +-- 推理延迟不能增加       --> DenseToMoE（top-1 激活量不变）
+    +-- 基座已是 MoE           --> ExpertClone
 ```
 
 ---
@@ -280,26 +280,28 @@ plan = ExpansionPlan.load_json("my_plan.json")
 
 ### 内存级扩增
 
-#### LLaMA-Pro
+#### IdentityGraft
 
 ```python
 from llm_grow.expanders.depth.llama_pro import (
-    LlamaProConfig, LlamaProExpander,
+    IdentityGraftConfig, IdentityGraftExpander,
 )
 
-expanded = LlamaProExpander().expand(model, LlamaProConfig(
+expanded = IdentityGraftExpander().expand(model, IdentityGraftConfig(
     num_new_layers=9,           # 建议 = 原层数 // 4
     insert_strategy="uniform",  # "uniform" | "front" | "rear"
     freeze_original=True,       # Phase-1 仅训练新块
 ))
 ```
 
-#### MSG
+#### MultiAxisGrow
 
 ```python
-from llm_grow.expanders.width.msg import MSGConfig, MSGExpander
+from llm_grow.expanders.width.msg import (
+    MultiAxisGrowConfig, MultiAxisGrowExpander,
+)
 
-expanded = MSGExpander().expand(model, MSGConfig(
+expanded = MultiAxisGrowExpander().expand(model, MultiAxisGrowConfig(
     num_new_layers=10,
     hidden_size_expansion=512,
     intermediate_size_expansion=3072,
@@ -307,29 +309,29 @@ expanded = MSGExpander().expand(model, MSGConfig(
 ))
 ```
 
-#### MoE Upcycling
+#### DenseToMoE
 
 ```python
 from llm_grow.expanders.sparse.moe_upcycling import (
-    MoEUpcyclingConfig, MoEUpcyclingExpander,
+    DenseToMoEConfig, DenseToMoEExpander,
 )
 
-expanded = MoEUpcyclingExpander().expand(
-    model, MoEUpcyclingConfig(num_experts=8, top_k=2),
+expanded = DenseToMoEExpander().expand(
+    model, DenseToMoEConfig(num_experts=8, top_k=2),
 )
 ```
 
-#### Expert Upcycling
+#### ExpertClone
 
 ```python
 from llm_grow.expanders.sparse.expert_upcycling import (
-    ExpertUpcyclingConfig, ExpertUpcyclingExpander,
+    ExpertCloneConfig, ExpertCloneExpander,
     ExpertSelectionStrategy,
 )
 
-expanded = ExpertUpcyclingExpander().expand(
+expanded = ExpertCloneExpander().expand(
     moe_model,
-    ExpertUpcyclingConfig(
+    ExpertCloneConfig(
         expand_factor=2,
         selection_strategy=ExpertSelectionStrategy.UTILITY,
     ),
@@ -432,12 +434,12 @@ tracker.summary()
 
 | 方法 | 层数 | 参数量 | 倍率 | FP 验证 | 耗时 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| LLaMA-Pro (+7) | 28->35 | 596M->706M | 1.19x | max\|d\|=**0.000** | 0.2s |
-| SOLAR DUS (overlap=8) | 28->40 | 596M->785M | 1.32x | 非FP（预期） | 0.2s |
-| LESA (+4) | 28->32 | 596M->659M | 1.11x | 近似FP | 0.05s |
-| MSG (+4) | 28->32 | 596M->659M | 1.11x | max\|d\|=**0.000** | 0.05s |
-| MoE Upcycling (x4) | 28->MoE | 596M->1.39B | 2.33x | 非FP（预期） | 6.1s |
-| Expert Upcycling (4->8) | -- | 1.39B->2.45B | 1.76x | 对称破坏后通过 | 1.7s |
+| IdentityGraft (+7) | 28->35 | 596M->706M | 1.19x | max\|d\|=**0.000** | 0.2s |
+| OverlapSplit (overlap=8) | 28->40 | 596M->785M | 1.32x | 非FP（预期） | 0.2s |
+| InterpGraft (+4) | 28->32 | 596M->659M | 1.11x | 近似FP | 0.05s |
+| MultiAxisGrow (+4) | 28->32 | 596M->659M | 1.11x | max\|d\|=**0.000** | 0.05s |
+| DenseToMoE (x4) | 28->MoE | 596M->1.39B | 2.33x | 非FP（预期） | 6.1s |
+| ExpertClone (4->8) | -- | 1.39B->2.45B | 1.76x | 对称破坏后通过 | 1.7s |
 
 ### Safetensor 扩增（dry-run 验证）
 
