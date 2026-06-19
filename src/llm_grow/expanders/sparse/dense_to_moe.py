@@ -9,7 +9,7 @@
 
 Related:
     - ``ExpertClone`` (expert_clone.py): 已有 MoE 专家数扩展
-    - ``MultiAxisPad`` (multi_axis_grow.py): Dense 宽度/深度扩增
+    - ``MultiAxisPad`` (multi_axis_pad.py): Dense 宽度/深度扩增
 """
 
 from __future__ import annotations

@@ -11,7 +11,7 @@ model:
 
 expansion:
   method: expert                  # Dense → MoE Upcycling（架构发生变化）
-  algorithm: moe_upcycling
+  algorithm: dense_to_moe
   num_experts: 8                  # 每层创建 8 个专家（复制 Dense FFN）
   top_k: 2                        # top-2 路由，激活参数 ≈ 原始 Dense
   noise_std: 0.01                 # 对称性破坏噪声
@@ -20,5 +20,5 @@ expansion:
   note: "架构从 Dense 变为 MoE；需 MoE 推理框架（vLLM/DeepSpeed-MoE）"
 
 output:
-  dir: ./outputs/Qwen3-8B/moe_upcycling
+  dir: ./outputs/Qwen3-8B/dense_to_moe
   target_shard_gb: 4.0

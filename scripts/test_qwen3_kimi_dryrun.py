@@ -36,7 +36,7 @@ def _count_new_keys(plan, wmap):
 # ── Test 1: Qwen3-30B-A3B Expert Upcycling ───────────────────────────────────
 
 
-def test_qwen3_expert_upcycling():
+def test_qwen3_expert_clone():
     print("\n" + "=" * 62)
     print("  [1] Qwen3-30B-A3B  Expert Upcycling  (128 → 256 experts)")
     print("=" * 62)
@@ -117,7 +117,7 @@ def test_qwen3_depth():
 # ── Test 3: Kimi-K2-Base Expert Upcycling ────────────────────────────────────
 
 
-def test_kimik2_expert_upcycling():
+def test_kimik2_expert_clone():
     print("\n" + "=" * 62)
     print("  [3] Kimi-K2-Base  Expert Upcycling  (384 → 768 experts)")
     print("=" * 62)
@@ -244,9 +244,9 @@ def test_kimik2_depth():
 if __name__ == "__main__":
     results = {}
     for name, fn in [
-        ("qwen3_expert_upcycling", test_qwen3_expert_upcycling),
+        ("qwen3_expert_clone", test_qwen3_expert_clone),
         ("qwen3_depth", test_qwen3_depth),
-        ("kimik2_expert_upcycling", test_kimik2_expert_upcycling),
+        ("kimik2_expert_clone", test_kimik2_expert_clone),
         ("kimik2_depth", test_kimik2_depth),
     ]:
         try:

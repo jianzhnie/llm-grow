@@ -17,7 +17,7 @@ model:
 
 expansion:
   method: expert
-  algorithm: generic_moe_upcycling
+  algorithm: expert_clone
   expand_factor: 2                # 384 → 768 路由专家
   noise_scale: 1.0e-6
   config_patches:
@@ -29,5 +29,5 @@ expansion:
   fp8_note: "weight_scale_inv 随对应 weight 同步复制；训练需 fp8 感知框架"
 
 output:
-  dir: ./outputs/Kimi-K2-Base/expert_upcycling
+  dir: ./outputs/Kimi-K2-Base/expert_clone
   target_shard_gb: 2.0            # 建议较小分片（单层专家约 1.3GB）

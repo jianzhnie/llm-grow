@@ -2,7 +2,7 @@
 """Expert Upcycling script: expand MoE expert count (M1 strategy).
 
 用法:
-    python scripts/expert_upcycling.py \
+    python scripts/expert_clone.py \
         --model path/to/qwen3-moe \
         --expand-factor 2 \
         --selection-strategy utility \
@@ -49,7 +49,7 @@ def main() -> None:
     args = parse_args()
     dtype = getattr(torch, args.dtype)
 
-    print(f"[expert_upcycling] Loading {args.model} ...")
+    print(f"[ExpertClone] Loading {args.model} ...")
     model = load_model(args.model, dtype=dtype)
     tokenizer = load_tokenizer(args.model)
     original_ref = copy.deepcopy(model)

@@ -60,7 +60,7 @@ def main():
 
     # README line 160-161
     run(
-        "import/llama_pro",
+        "import/zero_block_insert",
         """
 from llm_grow.expanders.depth.zero_block_insert import (
     ZeroBlockInsertConfig, ZeroBlockInsertExpander,
@@ -97,7 +97,7 @@ from llm_grow.expanders.width.multi_axis_pad import (
 
     # README line 389-390
     run(
-        "import/moe_upcycling",
+        "import/dense_to_moe",
         """
 from llm_grow.expanders.sparse.dense_to_moe import (
     DenseToMoEConfig, DenseToMoEExpander,
@@ -108,7 +108,7 @@ from llm_grow.training.load_balance import combined_moe_loss
 
     # README line 404-406
     run(
-        "import/expert_upcycling",
+        "import/expert_clone",
         """
 from llm_grow.expanders.sparse.expert_clone import (
     ExpertCloneConfig, ExpertCloneExpander, ExpertSelectionStrategy
@@ -245,18 +245,18 @@ assert profile.family == "longcat"
         expect_ok=False,
     )
 
-    # README line 264-265: explicit llama_pro
+    # README line 264-265: explicit zero_block_insert
     with tempfile.TemporaryDirectory() as d:
         run_cmd(
-            "cli/llama_pro",
+            "cli/zero_block_insert",
             f"python scripts/safetensor_expand.py llama_pro "
             f"--src {SRC} --dst {d}/out --num-new-layers 7",
         )
 
-    # README line 267-268: explicit solar_dus
+    # README line 267-268: explicit overlap_copy
     with tempfile.TemporaryDirectory() as d:
         run_cmd(
-            "cli/solar_dus",
+            "cli/overlap_copy",
             f"python scripts/safetensor_expand.py solar_dus "
             f"--src {SRC} --dst {d}/out --num-overlap 8",
         )
@@ -343,7 +343,7 @@ assert profile.has_fp8 is False
 
     # README line 355-363: LLaMA-Pro config
     run(
-        "inmem/llama_pro_config",
+        "inmem/zero_block_insert_config",
         """
 from llm_grow.expanders.depth.zero_block_insert import (
     ZeroBlockInsertConfig, ZeroBlockInsertExpander,
@@ -376,7 +376,7 @@ assert config.num_new_layers == 10
 
     # README line 393-394: MoE Upcycling config
     run(
-        "inmem/moe_upcycling_config",
+        "inmem/dense_to_moe_config",
         """
 from llm_grow.expanders.sparse.dense_to_moe import DenseToMoEConfig
 cfg = DenseToMoEConfig(num_experts=8, top_k=2)
@@ -386,7 +386,7 @@ assert cfg.num_experts == 8
 
     # README line 408-411: Expert Upcycling config
     run(
-        "inmem/expert_upcycling_config",
+        "inmem/expert_clone_config",
         """
 from llm_grow.expanders.sparse.expert_clone import (
     ExpertCloneConfig, ExpertSelectionStrategy

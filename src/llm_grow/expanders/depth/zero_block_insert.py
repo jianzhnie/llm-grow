@@ -7,9 +7,9 @@
     arXiv:2401.02415, 2024.
 
 Related:
-    - ``OverlapCopy`` (overlap_split.py): 非 FP 的层重叠拷贝深度扩增
-    - ``SVDInterpInsert`` (interp_graft.py): SVD 插值近似 FP 深度扩增
-    - ``MultiAxisPad`` (multi_axis_grow.py): 深度+宽度联合 FP 扩增
+    - ``OverlapCopy`` (overlap_copy.py): 非 FP 的层重叠拷贝深度扩增
+    - ``SVDInterpInsert`` (svd_interp_insert.py): SVD 插值近似 FP 深度扩增
+    - ``MultiAxisPad`` (multi_axis_pad.py): 深度+宽度联合 FP 扩增
 """
 
 from __future__ import annotations

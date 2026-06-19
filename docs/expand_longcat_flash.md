@@ -41,7 +41,7 @@ Router weight 形状：[512+256, 6144] = [768, 6144]
 
 | 方案 | 方法 | 专家变化 | moe_topk | 参考配置 |
 |------|------|:---:|:---:|------|
-| **专家扩增 2x** ★ | expert_upcycling | 512→1024 (256+256 zero → 512+512 zero) | 12→24 | `configs/LongCat-Flash-Chat/expert_clone.yaml` |
+| **专家扩增 2x** ★ | expert_clone | 512→1024 (256+256 zero → 512+512 zero) | 12→24 | `configs/LongCat-Flash-Chat/expert_clone.yaml` |
 
 > **注**：`moe_topk` 默认**不会**自动翻倍（`scale_moe_topk=False` 是默认值）。
 > 上表中 `moe_topk: 12→24` 需要在配置中显式设置 `scale_moe_topk=True`，

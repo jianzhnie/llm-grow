@@ -2,7 +2,7 @@
 """MoE Upcycling script: Dense FFN → Sparse MoE.
 
 用法:
-    python scripts/moe_upcycling.py \
+    python scripts/dense_to_moe.py \
         --model Qwen/Qwen3-8B \
         --num-experts 8 \
         --top-k 2 \
@@ -42,7 +42,7 @@ def main() -> None:
     args = parse_args()
     dtype = getattr(torch, args.dtype)
 
-    print(f"[moe_upcycling] Loading {args.model} ...")
+    print(f"[DenseToMoE] Loading {args.model} ...")
     model = load_model(args.model, dtype=dtype)
     tokenizer = load_tokenizer(args.model)
 

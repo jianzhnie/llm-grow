@@ -8,8 +8,8 @@
     SVD-based Adaptation", arXiv:2502.13794, 2025.
 
 Related:
-    - ``ZeroBlockInsert`` (identity_graft.py): 严格 FP 恒等块嫁接
-    - ``OverlapCopy`` (overlap_split.py): 非 FP 层重叠拷贝
+    - ``ZeroBlockInsert`` (zero_block_insert.py): 严格 FP 恒等块嫁接
+    - ``OverlapCopy`` (overlap_copy.py): 非 FP 层重叠拷贝
 """
 
 from __future__ import annotations

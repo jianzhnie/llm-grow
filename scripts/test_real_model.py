@@ -65,7 +65,7 @@ def run_generate(model, tokenizer, prompt="Hello, I am"):
 # ──────────────────────────────────────────────────────────────────────────────
 # Test 1: LLaMA-Pro
 # ──────────────────────────────────────────────────────────────────────────────
-def test_llama_pro():
+def test_zero_block_insert():
     print_sep("Test 1: LLaMA-Pro — 恒等块插入")
     from llm_grow.expanders.depth.zero_block_insert import (
         ZeroBlockInsertConfig,
@@ -103,7 +103,7 @@ def test_llama_pro():
 # ──────────────────────────────────────────────────────────────────────────────
 # Test 2: SOLAR DUS
 # ──────────────────────────────────────────────────────────────────────────────
-def test_solar_dus():
+def test_overlap_copy():
     print_sep("Test 2: SOLAR DUS — 层重叠复制")
     from llm_grow.expanders.depth.overlap_copy import (
         OverlapCopyConfig,
@@ -137,7 +137,7 @@ def test_solar_dus():
 # ──────────────────────────────────────────────────────────────────────────────
 # Test 3: LESA
 # ──────────────────────────────────────────────────────────────────────────────
-def test_lesa():
+def test_svd_interp_insert():
     print_sep("Test 3: LESA — SVD 插值（相邻层均值）")
     from llm_grow.expanders.depth.svd_interp_insert import (
         SVDInterpInsertConfig,
@@ -203,7 +203,7 @@ def test_msg():
 # ──────────────────────────────────────────────────────────────────────────────
 # Test 5: MoE Upcycling
 # ──────────────────────────────────────────────────────────────────────────────
-def test_moe_upcycling():
+def test_dense_to_moe():
     print_sep("Test 5: MoE Upcycling — Dense FFN → 稀疏 MoE")
     from llm_grow.expanders.sparse.dense_to_moe import (
         DenseToMoEConfig,
@@ -245,7 +245,7 @@ def test_moe_upcycling():
 # ──────────────────────────────────────────────────────────────────────────────
 # Test 6: Expert Upcycling（基于 MoE Upcycling 结果）
 # ──────────────────────────────────────────────────────────────────────────────
-def test_expert_upcycling():
+def test_expert_clone():
     print_sep("Test 6: Expert Upcycling — MoE 专家数扩展 (M1)")
     from llm_grow.expanders.sparse.dense_to_moe import (
         DenseToMoEConfig,
@@ -322,12 +322,12 @@ def test_generation():
 # ──────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     tests = [
-        ("LLaMA-Pro", test_llama_pro),
-        ("SOLAR DUS", test_solar_dus),
-        ("LESA", test_lesa),
+        ("ZeroBlockInsert", test_zero_block_insert),
+        ("OverlapCopy", test_overlap_copy),
+        ("SVDInterpInsert", test_svd_interp_insert),
         ("MSG", test_msg),
-        ("MoE Upcycling", test_moe_upcycling),
-        ("Expert Upcycling", test_expert_upcycling),
+        ("DenseToMoE", test_dense_to_moe),
+        ("ExpertClone", test_expert_clone),
         ("Generation check", test_generation),
     ]
 

@@ -7,8 +7,8 @@
     with Simple yet Effective Depth Up-Scaling", arXiv:2312.15166, 2023.
 
 Related:
-    - ``ZeroBlockInsert`` (identity_graft.py): FP 恒等块嫁接
-    - ``SVDInterpInsert`` (interp_graft.py): SVD 插值近似 FP 扩增
+    - ``ZeroBlockInsert`` (zero_block_insert.py): FP 恒等块嫁接
+    - ``SVDInterpInsert`` (svd_interp_insert.py): SVD 插值近似 FP 扩增
 """
 
 from __future__ import annotations

@@ -102,7 +102,7 @@ auto_expand(
 # ── 内存级扩增（适合小模型 / 快速实验）────────────────────────
 import copy
 from transformers import AutoModelForCausalLM
-from llm_grow.expanders.depth.llama_pro import (
+from llm_grow.expanders.depth.zero_block_insert import (
     ZeroBlockInsertConfig, ZeroBlockInsertExpander,
 )
 
@@ -140,37 +140,37 @@ ZeroBlockInsertExpander().verify(original, expanded)
 
 在均匀间隔处插入 identity block（`o_proj` / `down_proj` 置零），残差连接保证 `output = x + 0 = x`。
 
-<p align="center"><img src="docs/images/llama_pro.svg" width="720"/></p>
+<p align="center"><img src="docs/images/zero_block_insert.svg" width="720"/></p>
 
 #### OverlapCopy -- 层重叠拼接
 
 将原模型分为 upper / lower 两段（重叠区保证平滑），拼接后层数倍增。非 FP，需大量 CPT。
 
-<p align="center"><img src="docs/images/solar_dus.svg" width="720"/></p>
+<p align="center"><img src="docs/images/overlap_copy.svg" width="720"/></p>
 
 #### SVDInterpInsert -- SVD 插值嫁接
 
 对相邻层权重做算术平均插值，新层从有意义的初始化出发，收敛速度优于 DUS。
 
-<p align="center"><img src="docs/images/lesa.svg" width="720"/></p>
+<p align="center"><img src="docs/images/svd_interp_insert.svg" width="720"/></p>
 
 #### MultiAxisPad -- 多维掩码生长
 
 同时扩增深度（identity block）和宽度（零填充 hidden / FFN 维度），所有新参数初始化为零，严格 FP。
 
-<p align="center"><img src="docs/images/msg.svg" width="720"/></p>
+<p align="center"><img src="docs/images/multi_axis_pad.svg" width="720"/></p>
 
 #### DenseToMoE -- Dense 转稀疏 MoE
 
 将 Dense FFN 复制为 N 个专家 + 随机初始化 Router。Top-K 路由使推理成本近似不变。
 
-<p align="center"><img src="docs/images/moe_upcycling.svg" width="720"/></p>
+<p align="center"><img src="docs/images/dense_to_moe.svg" width="720"/></p>
 
 #### ExpertClone -- MoE 专家克隆
 
 复制已有专家并施加对称性破坏（noise / drop），Router 权重对应扩展。推理成本不变。
 
-<p align="center"><img src="docs/images/expert_upcycling.svg" width="720"/></p>
+<p align="center"><img src="docs/images/expert_clone.svg" width="720"/></p>
 
 ---
 
@@ -283,7 +283,7 @@ plan = ExpansionPlan.load_json("my_plan.json")
 #### ZeroBlockInsert
 
 ```python
-from llm_grow.expanders.depth.llama_pro import (
+from llm_grow.expanders.depth.zero_block_insert import (
     ZeroBlockInsertConfig, ZeroBlockInsertExpander,
 )
 
@@ -312,7 +312,7 @@ expanded = MultiAxisPadExpander().expand(model, MultiAxisPadConfig(
 #### DenseToMoE
 
 ```python
-from llm_grow.expanders.sparse.moe_upcycling import (
+from llm_grow.expanders.sparse.dense_to_moe import (
     DenseToMoEConfig, DenseToMoEExpander,
 )
 
@@ -324,7 +324,7 @@ expanded = DenseToMoEExpander().expand(
 #### ExpertClone
 
 ```python
-from llm_grow.expanders.sparse.expert_upcycling import (
+from llm_grow.expanders.sparse.expert_clone import (
     ExpertCloneConfig, ExpertCloneExpander,
     ExpertSelectionStrategy,
 )
@@ -474,8 +474,8 @@ llm-grow/
 |   |   +-- auto.py             #   auto_expand() 统一入口
 |   |   +-- detect.py           #   ModelProfile 架构自动检测
 |   |   +-- base.py             #   ExpansionPlan + 两阶段写出
-|   |   +-- llama_pro.py        #   Dense 深度扩增
-|   |   +-- solar_dus.py        #   Dense 深度扩增（DUS）
+|   |   +-- zero_block_insert.py        #   Dense 深度扩增
+|   |   +-- overlap_copy.py             #   Dense 深度扩增（DUS）
 |   |   +-- msg.py              #   Dense 深度+宽度扩增
 |   |   +-- moe_generic.py      #   Qwen3MoE / KimiK2 通用 MoE
 |   |   +-- longcat.py          #   LongCat 专用

@@ -17,7 +17,7 @@ model:
 
 expansion:
   method: expert
-  algorithm: longcat_expert_upcycling
+  algorithm: expert_clone
   expand_factor: 2                # 512 → 1024 real experts
   noise_scale: 1.0e-6             # router.classifier.weight 真实专家行的对称性破坏噪声
   double_zero_experts: true       # zero_expert_num 256 → 512
@@ -29,5 +29,5 @@ expansion:
     # moe_topk: 24               # 取消注释以启用 topk 同步翻倍（scale_moe_topk=true 时自动）
 
 output:
-  dir: ./outputs/LongCat-Flash-Chat/expert_upcycling
+  dir: ./outputs/LongCat-Flash-Chat/expert_clone
   target_shard_gb: 2.0            # 预计输出 ~150 分片

@@ -124,9 +124,9 @@ expansion:
 ## Python API
 
 ```python
-from llm_grow.safetensor.moe_generic import make_qwen3moe_upcycling
+from llm_grow.safetensor.moe_generic import make_qwen3dense_to_moe
 
-make_qwen3moe_upcycling(expand_factor=2, noise_scale=1e-6).expand(
+make_qwen3dense_to_moe(expand_factor=2, noise_scale=1e-6).expand(
     src_dir="./models/Qwen3-30B-A3B",
     dst_dir="./outputs/Qwen3-30B-A3B-2x",
     workers=4,

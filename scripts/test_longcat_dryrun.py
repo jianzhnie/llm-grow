@@ -11,7 +11,7 @@ import sys
 MODEL_DIR = "/Users/robin/hfhub/models/meituan-longcat/LongCat-Flash-Chat"
 
 
-def check_expert_upcycling():
+def check_expert_clone():
     print("\n" + "=" * 60)
     print("  Expert Upcycling  (512 -> 1024 experts)")
     print("  scale_moe_topk=False: matches expand_experts.py default")
@@ -147,7 +147,7 @@ def check_depth_expansion():
 def main():
     results = {}
     for name, fn in [
-        ("expert_upcycling", check_expert_upcycling),
+        ("expert_clone", check_expert_clone),
         ("depth_expansion", check_depth_expansion),
     ]:
         try:

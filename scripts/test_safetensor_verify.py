@@ -128,7 +128,7 @@ def verify_config(dst_dir: str, expected_patches: dict, label: str) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def test_llama_pro():
+def test_zero_block_insert():
     label = "llama_pro"
     print(f"\n{'=' * 60}\n  {label}: Dense depth expansion (+7 blocks)\n{'=' * 60}")
 
@@ -182,7 +182,7 @@ def test_llama_pro():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def test_solar_dus():
+def test_overlap_copy():
     label = "solar_dus"
     print(f"\n{'=' * 60}\n  {label}: Dense DUS (overlap=8)\n{'=' * 60}")
 
@@ -433,8 +433,8 @@ def test_dryrun_plans():
 
 def main():
     test_dup_rows_router_split()
-    test_llama_pro()
-    test_solar_dus()
+    test_zero_block_insert()
+    test_overlap_copy()
     test_msg()
     test_dryrun_plans()
 

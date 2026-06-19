@@ -1,7 +1,7 @@
 # Kimi-K2-Base  →  ~1.07T  |  深度扩增（LLaMA-Pro）
 # 61 层 → 65 层，~1T → ~1.07T，~1.07x
 # FP: ✓  layer 0 (dense) 零化 mlp.down_proj；layer 1-60 (MoE) 零化 384 expert down_proj
-# 注：MoE 深度扩增增量有限，推荐 expert_upcycling
+# 注：MoE 深度扩增增量有限，推荐 expert_clone
 
 model:
   src_dir: /Users/robin/hfhub/models/moonshotai/Kimi-K2-Base

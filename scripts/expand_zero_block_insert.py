@@ -2,10 +2,10 @@
 """LLaMA-Pro block expansion script.
 
 用法:
-    python scripts/expand_llama_pro.py \
+    python scripts/expand_zero_block_insert.py \
         --model Qwen/Qwen3-8B \
         --num-new-layers 9 \
-        --output-dir ./expanded_llama_pro \
+        --output-dir ./expanded_zero_block_insert \
         --verify
 """
 
@@ -37,7 +37,7 @@ def parse_args() -> argparse.Namespace:
         "--insert-strategy", default="uniform", choices=["uniform", "front", "rear"]
     )
     p.add_argument("--no-freeze", action="store_true", help="不冻结原始层")
-    p.add_argument("--output-dir", default="./expanded_llama_pro")
+    p.add_argument("--output-dir", default="./expanded_zero_block_insert")
     p.add_argument(
         "--verify", action="store_true", help="扩增后验证 function-preserving"
     )
@@ -51,7 +51,7 @@ def main() -> None:
     args = parse_args()
     dtype = getattr(torch, args.dtype)
 
-    print(f"[expand_llama_pro] Loading {args.model} ...")
+    print(f"[ZeroBlockInsert] Loading {args.model} ...")
     model = load_model(args.model, dtype=dtype)
     tokenizer = load_tokenizer(args.model)
 

@@ -124,7 +124,7 @@ python scripts/verify_safetensor.py \
 ```
 [Config diff]  n_routed_experts: 384 → 768
 [Tensor counts]  [✓] expected 277884, got 277884
-[Identity blocks zeroed]  [~] No zeroed projections (expert_upcycling，非 FP）
+[Identity blocks zeroed]  [~] No zeroed projections (expert_clone，非 FP）
 ```
 
 ---

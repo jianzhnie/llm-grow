@@ -11,7 +11,7 @@ model:
 
 expansion:
   method: depth
-  algorithm: solar_dus
+  algorithm: overlap_copy
   num_overlap: 8                  # 上段 0~19 层 + 下段 8~27 层 = 40 层
   target_params: 785M
   target_ratio: 1.32x
@@ -19,5 +19,5 @@ expansion:
   note: "纯深度扩增，实现最简单（10行代码），但需大量 CPT"
 
 output:
-  dir: ./outputs/Qwen3-0.6B/solar_dus
+  dir: ./outputs/Qwen3-0.6B/overlap_copy
   target_shard_gb: 4.0

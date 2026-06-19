@@ -20,7 +20,7 @@ expansion:
   target_ratio: ~1.13x
   function_preserving: true
   identity_zero_count: 129        # 每个 identity 层：128 expert down_proj + 1 o_proj
-  note: "MoE 深度扩增增量有限（专家参数占 96%），推荐 expert_upcycling"
+  note: "MoE 深度扩增增量有限（专家参数占 96%），推荐 expert_clone"
 
 output:
   dir: ./outputs/Qwen3-30B-A3B/depth

@@ -23,7 +23,7 @@ expansion:
     - mlps.1.down_proj.weight
     - mlp.experts.{0..511}.down_proj.weight  # 512 个专家输出
   identity_zero_count: 516        # 2 + 2 + 512 = 516 per identity layer
-  note: "推荐 expert_upcycling；深度扩增增量对超大 MoE 意义有限"
+  note: "推荐 expert_clone；深度扩增增量对超大 MoE 意义有限"
 
 output:
   dir: ./outputs/LongCat-Flash-Chat/depth

@@ -2,7 +2,7 @@
 """MSG multi-dimensional growth expansion script.
 
 用法:
-    python scripts/expand_msg.py \
+    python scripts/expand_multi_axis_pad.py \
         --model Qwen/Qwen3-8B \
         --num-new-layers 10 \
         --hidden-size-expansion 512 \
@@ -47,7 +47,7 @@ def main() -> None:
     args = parse_args()
     dtype = getattr(torch, args.dtype)
 
-    print(f"[expand_msg] Loading {args.model} ...")
+    print(f"[MultiAxisPad] Loading {args.model} ...")
     model = load_model(args.model, dtype=dtype)
     tokenizer = load_tokenizer(args.model)
 
