@@ -56,7 +56,7 @@ huggingface-cli download Qwen/Qwen3-30B-A3B \
 ## Step 1  Dry-run（无权重验证方案）
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/Qwen3-30B-A3B \
     --dst /tmp/qwen3_30b_2x \
     --method expert \
@@ -77,7 +77,7 @@ python scripts/safetensor_expand.py auto \
 ## Step 2  执行扩增
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/Qwen3-30B-A3B \
     --dst ./outputs/Qwen3-30B-A3B-2x \
     --method expert \
@@ -97,7 +97,7 @@ outputs/Qwen3-30B-A3B-2x/
 ## Step 3  验证
 
 ```bash
-python scripts/verify_safetensor.py \
+python examples/common/verify_safetensor.py \
     --src ./models/Qwen3-30B-A3B \
     --dst ./outputs/Qwen3-30B-A3B-2x
 # --fp 需要加载完整模型（~30B），内存充足时可加
@@ -124,9 +124,9 @@ expansion:
 ## Python API
 
 ```python
-from llm_grow.safetensor.moe_generic import make_qwen3dense_to_moe
+from llm_grow.safetensor.models.moe_generic import make_qwen3moe_expert_clone
 
-make_qwen3dense_to_moe(expand_factor=2, noise_scale=1e-6).expand(
+make_qwen3moe_expert_clone(expand_factor=2, noise_scale=1e-6).expand(
     src_dir="./models/Qwen3-30B-A3B",
     dst_dir="./outputs/Qwen3-30B-A3B-2x",
     workers=4,

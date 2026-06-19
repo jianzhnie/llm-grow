@@ -67,7 +67,7 @@ print(f'Total: {len(idx.shard_files)} shards, {idx.total_size_bytes()/1e9:.1f} G
 ## Step 1  Dry-run（无权重验证方案）
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/Kimi-K2-Base \
     --dst /tmp/kimi_k2_2x \
     --method expert \
@@ -88,7 +88,7 @@ python scripts/safetensor_expand.py auto \
 ## Step 2  执行扩增
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/Kimi-K2-Base \
     --dst ./outputs/Kimi-K2-Base-2x \
     --method expert \
@@ -102,7 +102,7 @@ python scripts/safetensor_expand.py auto \
 
 ```bash
 # 内存受限时
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/Kimi-K2-Base \
     --dst ./outputs/Kimi-K2-Base-2x \
     --method expert \
@@ -114,7 +114,7 @@ python scripts/safetensor_expand.py auto \
 ## Step 3  验证
 
 ```bash
-python scripts/verify_safetensor.py \
+python examples/common/verify_safetensor.py \
     --src ./models/Kimi-K2-Base \
     --dst ./outputs/Kimi-K2-Base-2x
 # 注：不加 --fp，加载 1T 模型需要极大内存
@@ -150,7 +150,7 @@ mlp.experts.0.gate_proj.weight_scale_inv  # 量化 scale [16, 56]
 ## Python API
 
 ```python
-from llm_grow.safetensor.moe_generic import make_kimik2_expert_clone
+from llm_grow.safetensor.models.moe_generic import make_kimik2_expert_clone
 
 make_kimik2_expert_clone(expand_factor=2, noise_scale=1e-6).expand(
     src_dir="./models/Kimi-K2-Base",

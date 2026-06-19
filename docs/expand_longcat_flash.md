@@ -71,7 +71,7 @@ print(f'{present}/{len(idx.shard_files)} shards present')
 ## Step 1  Dry-run（无需权重文件）
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/LongCat-Flash-Chat \
     --dst /tmp/longcat_2x \
     --method expert \
@@ -105,7 +105,7 @@ router.classifier.weight 扩增逻辑：
 ## Step 2  执行扩增
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/LongCat-Flash-Chat \
     --dst ./outputs/LongCat-Flash-Chat-2x \
     --method expert \
@@ -116,7 +116,7 @@ python scripts/safetensor_expand.py auto \
 ## Step 3  验证
 
 ```bash
-python scripts/verify_safetensor.py \
+python examples/common/verify_safetensor.py \
     --src ./models/LongCat-Flash-Chat \
     --dst ./outputs/LongCat-Flash-Chat-2x
 ```
@@ -159,7 +159,7 @@ print(model.config.moe_topk)           # 24
 ## Python API
 
 ```python
-from llm_grow.safetensor.longcat import (
+from llm_grow.safetensor.models.longcat import (
     LongcatExpertCloneConfig, LongcatExpertCloneExpander,
 )
 
@@ -182,7 +182,7 @@ LongcatExpertCloneExpander(cfg).expand(
 若希望增加层数而非专家数：
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/LongCat-Flash-Chat \
     --dst ./outputs/LongCat-Flash-Chat-deeper \
     --method depth \

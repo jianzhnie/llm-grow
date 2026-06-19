@@ -249,12 +249,12 @@ auto_expand(
 
 #### 预配置工厂函数
 
-| 函数 | 适用模型 | 说明 |
-|------|---------|------|
-| `make_qwen3moe_expert_clone(factor)` | Qwen3-30B-A3B | 专家数扩增 |
-| `make_qwen3moe_zero_block_insert(n)` | Qwen3-30B-A3B | 深度扩增 |
-| `make_kimik2_expert_clone(factor)` | Kimi-K2-Base | 专家数扩增（含 fp8 处理） |
-| `make_kimik2_zero_block_insert(n)` | Kimi-K2-Base | 深度扩增（含 dense 首层处理） |
+| 函数 | 导入路径 | 适用模型 | 说明 |
+|------|---------|---------|------|
+| `make_qwen3moe_expert_clone(factor)` | `llm_grow.safetensor.models.moe_generic` | Qwen3-30B-A3B | 专家数扩增 |
+| `make_qwen3moe_zero_block_insert(n)` | `llm_grow.safetensor.models.moe_generic` | Qwen3-30B-A3B | 深度扩增 |
+| `make_kimik2_expert_clone(factor)` | `llm_grow.safetensor.models.moe_generic` | Kimi-K2-Base | 专家数扩增（含 fp8 处理） |
+| `make_kimik2_zero_block_insert(n)` | `llm_grow.safetensor.models.moe_generic` | Kimi-K2-Base | 深度扩增（含 dense 首层处理） |
 
 #### ExpansionPlan 序列化
 
@@ -278,6 +278,26 @@ plan = ExpansionPlan.load_json("my_plan.json")
 
 > `auto_expand()` 通过 `detect_model()` 自动选择正确的 expander，避免用错。
 
+#### MoE 宽度扩增（M3/M4）
+
+```python
+from llm_grow.safetensor.models.moe_width import (
+    MoEWidthConfig, MoEWidthExpander,
+)
+
+# M3: 扩增专家 FFN 宽度
+MoEWidthExpander(MoEWidthConfig(ffn_size_expansion=1024)).expand(
+    src_dir="/path/to/moe_model",
+    dst_dir="./moe_wider",
+)
+
+# M4: 扩增 hidden_size（同步处理 attention / router / embedding / lm_head）
+MoEWidthExpander(MoEWidthConfig(hidden_size_expansion=256)).expand(
+    src_dir="/path/to/moe_model",
+    dst_dir="./moe_wider_hidden",
+)
+```
+
 ### 内存级扩增
 
 #### ZeroBlockInsert
@@ -297,7 +317,7 @@ expanded = ZeroBlockInsertExpander().expand(model, ZeroBlockInsertConfig(
 #### MultiAxisPad
 
 ```python
-from llm_grow.expanders.width.msg import (
+from llm_grow.expanders.width.multi_axis_pad import (
     MultiAxisPadConfig, MultiAxisPadExpander,
 )
 
@@ -335,6 +355,36 @@ expanded = ExpertCloneExpander().expand(
         expand_factor=2,
         selection_strategy=ExpertSelectionStrategy.UTILITY,
     ),
+)
+```
+
+#### SVDInterpInsert
+
+```python
+from llm_grow.expanders.depth.svd_interp_insert import (
+    SVDInterpInsertConfig, SVDInterpInsertExpander,
+)
+
+# use_predictor=False: fast linear interpolation baseline (~80-90% FP)
+expanded = SVDInterpInsertExpander().expand(
+    model,
+    SVDInterpInsertConfig(use_predictor=False),
+)
+```
+
+#### Net2Net
+
+```python
+from llm_grow.expanders.width.net2net import (
+    Net2NetConfig, Net2NetExpander,
+)
+
+# Net2NetExpander.expand() is not yet fully implemented for Transformer LLMs.
+# The underlying wider() helper can be used directly:
+w_in_new, w_out_new = Net2NetExpander().wider(
+    w_in=layer.weight,
+    w_out=next_layer.weight,
+    new_width=layer.out_features * 2,
 )
 ```
 
@@ -386,6 +436,23 @@ loss = combined_moe_loss(
     num_experts=8, top_k=2,
     balance_coeff=1e-2, z_coeff=1e-3,
 )
+```
+
+### 渐进式掩码生长（MSG）
+
+```python
+from llm_grow.training.growth_scheduler import (
+    GrowthScheduleConfig, GrowthScheduler,
+)
+
+scheduler = GrowthScheduler(GrowthScheduleConfig(
+    total_steps=100_000,
+    warmup_ratio=0.3,
+    strategy="linear",  # "linear" | "cosine" | "step"
+))
+
+ratio = scheduler.get_unlock_ratio(step)
+scheduler.apply_masks(model, ratio)
 ```
 
 ### Function-Preserving 验证
@@ -455,11 +522,11 @@ tracker.summary()
 ### 运行测试
 
 ```bash
-python -m pytest tests/ -q                  # 27 unit tests
-python scripts/test_real_model.py           # 集成测试（Qwen3-0.6B）
-python scripts/test_auto_detect.py          # 自动检测 + 分发测试
-python scripts/test_longcat_dryrun.py       # LongCat dry_run
-python scripts/test_qwen3_kimi_dryrun.py    # Qwen3-30B + Kimi-K2 dry_run
+python -m pytest tests/ -q                       # 单元测试
+python examples/qwen3/test_real_model.py         # 集成测试（Qwen3-0.6B）
+python examples/qwen3/test_auto_detect.py        # 自动检测 + 分发测试
+python examples/longcat/test_dryrun.py           # LongCat dry_run
+python examples/qwen3/test_dryrun.py             # Qwen3 dry_run
 ```
 
 ---
@@ -474,12 +541,16 @@ llm-grow/
 |   |   +-- auto.py             #   auto_expand() 统一入口
 |   |   +-- detect.py           #   ModelProfile 架构自动检测
 |   |   +-- base.py             #   ExpansionPlan + 两阶段写出
-|   |   +-- zero_block_insert.py        #   Dense 深度扩增
-|   |   +-- overlap_copy.py             #   Dense 深度扩增（DUS）
-|   |   +-- multi_axis_pad.py     #   Dense 深度+宽度扩增
-|   |   +-- moe_generic.py      #   Qwen3MoE / KimiK2 通用 MoE
-|   |   +-- longcat.py          #   LongCat 专用
 |   |   +-- utils.py            #   ShardIndex / header 扫描
+|   |   +-- methods/            #   按扩增方法组织的实现
+|   |   |   +-- zero_block_insert.py    #   Dense 深度扩增
+|   |   |   +-- overlap_copy.py         #   Dense 深度扩增（DUS）
+|   |   |   +-- svd_interp_insert.py    #   SVD 插值深度扩增
+|   |   |   +-- multi_axis_pad.py       #   Dense 深度+宽度扩增
+|   |   +-- models/             #   按模型架构组织的实现
+|   |   |   +-- moe_generic.py  #   Qwen3MoE / KimiK2 通用 MoE
+|   |   |   +-- moe_width.py    #   MoE 宽度扩增
+|   |   |   +-- longcat.py      #   LongCat 专用
 |   +-- expanders/              # 内存级扩增
 |   |   +-- base.py             #   AbstractExpander 基类
 |   |   +-- depth/              #   ZeroBlockInsert / OverlapCopy / SVDInterpInsert
@@ -488,8 +559,8 @@ llm-grow/
 |   +-- initializers/           # 权重初始化（identity, SVD, 对称破坏）
 |   +-- training/               # 冻结 / 蒸馏 / 调度 / 负载均衡
 |   +-- eval/                   # FP 验证 / 结构验证 / 恢复曲线
-+-- scripts/                    # CLI 脚本 + 集成测试
-+-- tests/                      # 单元测试 (27 tests)
++-- examples/                   # 示例脚本 + 集成测试
++-- tests/                      # 单元测试
 +-- configs/                    # 按模型分类的 YAML 配置
 +-- docs/                       # 教程 + 架构图
 ```
@@ -506,6 +577,8 @@ configs/
 +-- Kimi-K2-Base/      expert_clone.yaml  depth.yaml
 +-- LongCat-Flash-Chat/  expert_clone.yaml  depth.yaml
 ```
+
+> 注：`configs/` 下的 YAML 文件目前仅作为人工可读的参考配置，尚未被 CLI 或 Python API 自动加载。请直接阅读文件内容并对应到 `llm-grow expand` 的参数或 Python API 的 config 类。
 
 ---
 

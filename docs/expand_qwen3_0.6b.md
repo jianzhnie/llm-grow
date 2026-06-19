@@ -52,7 +52,7 @@ huggingface-cli download Qwen/Qwen3-0.6B --local-dir ./models/Qwen3-0.6B
 ### Step 1  Dry-run 验证方案（无需权重）
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/Qwen3-0.6B \
     --dst /tmp/qwen3_0.6b_2x \
     --method depth \
@@ -72,7 +72,7 @@ python scripts/safetensor_expand.py auto \
 ### Step 2  执行扩增
 
 ```bash
-python scripts/safetensor_expand.py auto \
+python examples/common/safetensor_expand.py auto \
     --src ./models/Qwen3-0.6B \
     --dst ./outputs/Qwen3-0.6B-2x \
     --method depth \
@@ -92,7 +92,7 @@ outputs/Qwen3-0.6B-2x/
 ### Step 3  验证
 
 ```bash
-python scripts/verify_safetensor.py \
+python examples/common/verify_safetensor.py \
     --src ./models/Qwen3-0.6B \
     --dst ./outputs/Qwen3-0.6B-2x \
     --fp
@@ -111,7 +111,7 @@ python scripts/verify_safetensor.py \
 ## 方案 B：MultiAxisPad 深度+宽度（推理延迟更小）
 
 ```bash
-python scripts/safetensor_expand.py msg \
+python examples/common/safetensor_expand.py multi_axis_pad \
     --src ./models/Qwen3-0.6B \
     --dst ./outputs/Qwen3-0.6B-msg \
     --num-new-layers 14 \
