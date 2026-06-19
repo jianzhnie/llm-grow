@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 import torch.nn as nn
 
+from llm_grow.training.freeze import mark_new_params, snapshot_param_ids
+
 
 @dataclass
 class GrowthScheduleConfig:
@@ -50,12 +52,7 @@ class GrowthScheduler:
 
             return 0.5 * (1 - math.cos(math.pi * min(progress, 1.0)))
         if cfg.strategy == "step":
-            thresholds = [0.25, 0.5, 0.75, 1.0]
-            values = [0.25, 0.5, 0.75, 1.0]
-            for t, v in zip(thresholds, values, strict=False):
-                if progress < t:
-                    return v - 0.25
-            return 1.0
+            return min(int(progress * 4), 4) * 0.25
         raise ValueError(f"Unknown growth strategy: {cfg.strategy!r}")
 
     def apply_masks(self, model: nn.Module, unlock_ratio: float) -> None:
@@ -75,27 +72,21 @@ class GrowthScheduler:
     ) -> int:
         """标记模型中的新增参数为"新增"（设置 ``_is_new_growth = True``）。
 
-        使用参数 ``id()`` 快照来精确区分新旧参数：仅标记扩增后新增的参数，
-        而非所有 ``requires_grad=True`` 的参数。
-
         Args:
             model: 扩增后的模型。
             original_param_ids: 扩增前通过 ``snapshot_param_ids(model)`` 获取的
-                参数 id 集合。如果为 None，则退化为标记所有已设置
-                ``_is_new_growth`` 的参数（即依赖扩增步骤中的标记）。
+                参数 id 集合。如果为 None，则退化为计算所有已设置
+                ``_is_new_growth`` 的参数数量。
 
         Returns:
             被标记的新增参数元素数量。
         """
+        if original_param_ids is not None:
+            return mark_new_params(model, original_param_ids)
         count = 0
         for param in model.parameters():
-            if original_param_ids is not None:
-                if id(param) not in original_param_ids:
-                    param._is_new_growth = True
-                    count += param.numel()
-            else:
-                if getattr(param, "_is_new_growth", False):
-                    count += param.numel()
+            if getattr(param, "_is_new_growth", False):
+                count += param.numel()
         return count
 
     @staticmethod
@@ -108,4 +99,4 @@ class GrowthScheduler:
             expander.expand(model, config)
             scheduler.register_new_params(model, original_ids)
         """
-        return {id(p) for p in model.parameters()}
+        return snapshot_param_ids(model)

@@ -186,8 +186,8 @@ class SafetensorExpanderBase(ABC):
             target_shard_bytes = auto_detect_shard_size(src_dir, src_index.shard_files)
 
         if verbose:
-            _log(f"{type(self).__name__}  {src_dir} → {dst_dir}")
-            _log(
+            logger.info(f"{type(self).__name__}  {src_dir} → {dst_dir}")
+            logger.info(
                 f"  source: {len(src_index.shard_files)} shard(s), "
                 f"{src_index.total_size_bytes() / 1e9:.2f} GB, "
                 f"{len(src_index.all_keys)} tensors"
@@ -196,7 +196,7 @@ class SafetensorExpanderBase(ABC):
         plan = self._build_plan(src_index)
 
         if verbose:
-            _log(
+            logger.info(
                 f"  plan: {len(plan.recipes)} output tensors, "
                 f"new num_hidden_layers={plan.new_num_hidden_layers}"
             )
@@ -208,7 +208,7 @@ class SafetensorExpanderBase(ABC):
         src_index.copy_non_weight_files(dst_dir)
 
         if verbose:
-            _log(f"  Done → {dst_dir}")
+            logger.info(f"  Done → {dst_dir}")
 
     # ── abstract ──────────────────────────────────────────────────────────────
 
@@ -222,16 +222,16 @@ class SafetensorExpanderBase(ABC):
         src_index = ShardIndex.load(src_dir)
         plan = self._build_plan(src_index)
 
-        _log(f"[dry_run] {type(self).__name__}  src={src_dir}")
-        _log(
+        logger.info(f"[dry_run] {type(self).__name__}  src={src_dir}")
+        logger.info(
             f"  source:  {len(src_index.all_keys)} tensors, "
             f"{len(src_index.shard_files)} shard(s)"
         )
-        _log(
+        logger.info(
             f"  output:  {len(plan.recipes)} tensors, "
             f"num_hidden_layers → {plan.new_num_hidden_layers}"
         )
-        _log(f"  config patches: {plan.config_patches}")
+        logger.info(f"  config patches: {plan.config_patches}")
 
         zero_keys = [k for k, r in plan.recipes.items() if r.zero_out]
         dup_keys = [k for k, r in plan.recipes.items() if r.dup_rows]
@@ -242,12 +242,12 @@ class SafetensorExpanderBase(ABC):
         ]
         new_keys = [k for k in plan.recipes if k not in src_index.weight_map]
 
-        _log(f"  zero-out tensors : {len(zero_keys)}")
-        _log(f"  dup-rows tensors : {len(dup_keys)}")
-        _log(f"  padded tensors   : {len(padded_keys)}")
-        _log(f"  brand-new keys   : {len(new_keys)}")
+        logger.info(f"  zero-out tensors : {len(zero_keys)}")
+        logger.info(f"  dup-rows tensors : {len(dup_keys)}")
+        logger.info(f"  padded tensors   : {len(padded_keys)}")
+        logger.info(f"  brand-new keys   : {len(new_keys)}")
         if new_keys[:3]:
-            _log(f"    sample: {new_keys[:3]}")
+            logger.info(f"    sample: {new_keys[:3]}")
         return plan
 
     def _write_shards(
@@ -301,7 +301,7 @@ class SafetensorExpanderBase(ABC):
         weight_map: dict[str, str] = {}
 
         if verbose:
-            _log(f"  Pass 1 done: {n} output shard(s) planned")
+            logger.info(f"  Pass 1 done: {n} output shard(s) planned")
 
         # ── Pass 2: write output shards ───────────────────────────────────────
         if workers > 1:
@@ -325,7 +325,7 @@ class SafetensorExpanderBase(ABC):
                 save_file(tensors, str(dst_dir / shard_name))
                 if verbose:
                     size_mb = (dst_dir / shard_name).stat().st_size / 1e6
-                    _log(
+                    logger.info(
                         f"  wrote {shard_name}  "
                         f"({len(tensors)} tensors, {size_mb:.0f} MB)"
                     )
@@ -441,6 +441,15 @@ class SafetensorExpanderBase(ABC):
 
     # ── shared plan-building helpers ──────────────────────────────────────────
 
+    @staticmethod
+    def _passthrough_non_layer_keys(
+        plan: ExpansionPlan, wmap: dict[str, str]
+    ) -> None:
+        """Add passthrough recipes for all non-layer tensors (embed, norm, etc.)."""
+        for key, shard in wmap.items():
+            if parse_layer_idx(key) is None:
+                plan.passthrough(key, shard)
+
     def _build_layer_plan(
         self,
         src_index: ShardIndex,
@@ -476,9 +485,7 @@ class SafetensorExpanderBase(ABC):
                 )
 
         # Non-layer tensors pass through unchanged
-        for key, shard in wmap.items():
-            if parse_layer_idx(key) is None:
-                plan.passthrough(key, shard)
+        self._passthrough_non_layer_keys(plan, wmap)
 
         return plan
 
@@ -608,7 +615,3 @@ def _worker_write_shard(
 
     save_file(tensors, out_path_str)
     return (out_path.name, list(tensors.keys()))
-
-
-def _log(msg: str) -> None:
-    logger.info(msg)

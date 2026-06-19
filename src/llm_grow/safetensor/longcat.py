@@ -29,7 +29,7 @@ import re
 from dataclasses import dataclass
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
+from llm_grow.safetensor.utils import ShardIndex, peek_model_config
 
 # ── regex helpers ─────────────────────────────────────────────────────────────
 
@@ -138,7 +138,7 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
         new_n_experts = orig_n_experts * cfg.expand_factor
 
         # Config patches
-        orig_cfg = self._peek_config(src_index.model_dir)
+        orig_cfg = peek_model_config(src_index.model_dir)
         zero_expert_num: int = orig_cfg.get("zero_expert_num") or 0
 
         if cfg.use_group_routing and cfg.scale_moe_topk:
@@ -236,15 +236,6 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
         }
         return len(indices)
 
-    @staticmethod
-    def _peek_config(model_dir) -> dict:
-        import json
-
-        cfg_path = model_dir / "config.json"
-        if cfg_path.exists():
-            with open(cfg_path) as f:
-                return json.load(f)
-        return {}
 
 
 # ── Depth Expansion ───────────────────────────────────────────────────────────
@@ -339,8 +330,6 @@ class LongcatDepthExpander(SafetensorExpanderBase):
                 )
 
         # Non-layer tensors (embed, norm, mtp.*) pass through unchanged
-        for key, shard in wmap.items():
-            if parse_layer_idx(key) is None:
-                plan.passthrough(key, shard)
+        self._passthrough_non_layer_keys(plan, wmap)
 
         return plan

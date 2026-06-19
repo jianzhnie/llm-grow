@@ -9,12 +9,11 @@ memory usage is minimal even for 100B+ models.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import torch
 
-from llm_grow.safetensor.utils import ShardIndex
+from llm_grow.safetensor.utils import ShardIndex, peek_model_config
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -49,8 +48,8 @@ class StructuralVerifier:
 
     def check_config(self) -> bool:
         """Compare config.json between source and destination."""
-        src_cfg = _load_config(self.src_dir)
-        dst_cfg = _load_config(self.dst_dir)
+        src_cfg = peek_model_config(self.src_dir)
+        dst_cfg = peek_model_config(self.dst_dir)
 
         keys = sorted(set(src_cfg) | set(dst_cfg))
         diffs: list[str] = []
@@ -185,45 +184,14 @@ def check_fp(
     """Full function-preserving check: load both models and compare logits.
 
     Requires both models to fit in memory. Use for models <= ~30B parameters.
+    Delegates to ``verify_fp`` from ``llm_grow.eval.fp_verifier``.
     """
-    from transformers import AutoModelForCausalLM
+    from llm_grow.eval.fp_verifier import verify_fp
 
-    logger.info("Loading original model from %s", src_dir)
-    orig = AutoModelForCausalLM.from_pretrained(str(src_dir), torch_dtype=torch.float32)
-    logger.info("Loading expanded model from %s", dst_dir)
-    try:
-        exp = AutoModelForCausalLM.from_pretrained(
-            str(dst_dir), torch_dtype=torch.float32
-        )
-    except Exception as exc:
-        logger.error("Cannot load expanded model: %s", exc)
-        return False
-
-    orig.eval()
-    exp.eval()
-
-    vocab = orig.config.vocab_size
-    torch.manual_seed(seed)
-    ids = torch.randint(0, vocab, (samples, seq_len))
-    max_err = 0.0
-    with torch.no_grad():
-        lo = orig(input_ids=ids).logits
-        le = exp(input_ids=ids).logits
-        max_err = (lo - le).abs().max().item()
-
-    ok = max_err < atol
-    logger.info(
-        "FP check: max|delta_logit| = %.3e (atol=%.1e) %s",
-        max_err,
-        atol,
-        "PASS" if ok else "FAIL",
+    return verify_fp(
+        str(src_dir),
+        str(dst_dir),
+        num_samples=samples,
+        seq_len=seq_len,
+        atol=atol,
     )
-    return ok
-
-
-def _load_config(model_dir: Path) -> dict:
-    cfg_path = model_dir / "config.json"
-    if cfg_path.exists():
-        with open(cfg_path) as f:
-            return json.load(f)
-    return {}

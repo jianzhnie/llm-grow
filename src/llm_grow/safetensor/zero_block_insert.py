@@ -79,11 +79,24 @@ class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):
 
 
 def _insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
-    if num_new == 0:
+    if num_new <= 0:
         return []
+    if num_new > num_orig:
+        raise ValueError(
+            f"num_new_layers ({num_new}) cannot exceed num_orig_layers ({num_orig})."
+        )
     if strategy == "uniform":
         step = num_orig / (num_new + 1)
-        return sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
+        positions = sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
+        if len(positions) < num_new:
+            import warnings
+
+            warnings.warn(
+                f"Uniform insertion produced {len(positions)} unique positions "
+                f"(requested {num_new}). Consider reducing num_new_layers.",
+                stacklevel=2,
+            )
+        return positions
     if strategy == "front":
         return list(range(num_new))
     if strategy == "rear":

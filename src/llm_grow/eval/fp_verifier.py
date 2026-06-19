@@ -81,13 +81,12 @@ def verify_fp(
 
 
 def _load_model(path: str) -> nn.Module:
-    from transformers import AutoModelForCausalLM
+    from llm_grow.utils.model_io import load_model
 
-    return AutoModelForCausalLM.from_pretrained(path, torch_dtype="auto")
+    return load_model(path, dtype=torch.float32, device_map="cpu")
 
 
 def _get_vocab_size(model: nn.Module) -> int:
-    cfg = getattr(model, "config", None)
-    if cfg is not None and hasattr(cfg, "vocab_size"):
-        return cfg.vocab_size
-    return 32000
+    from llm_grow.expanders.base import _get_vocab_size as _base_get_vocab_size
+
+    return _base_get_vocab_size(model)

@@ -29,7 +29,7 @@ from llm_grow.safetensor.longcat import (
     _expert_key_offset,
     _is_expert_key,
 )
-from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
+from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx, peek_model_config
 from llm_grow.safetensor.zero_block_insert import _insert_positions
 
 # ── config dataclasses ────────────────────────────────────────────────────────
@@ -115,7 +115,7 @@ class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
             raise ValueError("No mlp.experts.* tensors found in weight map.")
 
         # Config patches
-        orig_model_cfg = self._peek_config(src_index.model_dir)
+        orig_model_cfg = peek_model_config(src_index.model_dir)
         zero_expert_num: int = orig_model_cfg.get("zero_expert_num") or 0
         patches: dict[str, Any] = {}
         if cfg.config_expert_count_key:
@@ -207,15 +207,6 @@ class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
                 return len(indices)
         return 0
 
-    @staticmethod
-    def _peek_config(model_dir) -> dict:
-        import json
-
-        p = model_dir / "config.json"
-        if not p.exists():
-            return {}
-        with open(p) as f:
-            return json.load(f)
 
 
 # ── Depth Expansion ───────────────────────────────────────────────────────────
@@ -285,9 +276,7 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
                     ),
                 )
 
-        for key, shard in wmap.items():
-            if parse_layer_idx(key) is None:
-                plan.passthrough(key, shard)
+        self._passthrough_non_layer_keys(plan, wmap)
 
         return plan
 

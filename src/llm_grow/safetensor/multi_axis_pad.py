@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
-from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
+from llm_grow.safetensor.utils import ShardIndex
 from llm_grow.safetensor.zero_block_insert import _insert_positions
 
 # Suffixes whose output dimension (rows) expands with intermediate_size
@@ -138,9 +138,7 @@ class MultiAxisPadSafetensorExpander(SafetensorExpanderBase):
                 )
 
         # ── non-layer tensors pass through ───────────────────────────────────
-        for key, shard in wmap.items():
-            if parse_layer_idx(key) is None:
-                plan.passthrough(key, shard)
+        self._passthrough_non_layer_keys(plan, wmap)
 
         return plan
 

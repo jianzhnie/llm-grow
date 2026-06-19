@@ -225,6 +225,15 @@ def nbytes_from_header(dtype: str, shape: list[int]) -> int:
     return elem * numel
 
 
+def peek_model_config(model_dir: Path) -> dict:
+    """Load config.json from a model directory; return {} if missing."""
+    cfg_path = model_dir / "config.json"
+    if not cfg_path.exists():
+        return {}
+    with open(cfg_path) as f:
+        return json.load(f)
+
+
 def auto_detect_shard_size(model_dir: Path, shard_files: list[str]) -> int:
     """Infer target shard size from existing files (arithmetic mean).
 
