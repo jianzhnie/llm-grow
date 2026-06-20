@@ -17,6 +17,7 @@ from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, Tens
 from llm_grow.safetensor.utils import (
     ShardIndex,
     get_hidden_size_from_index,
+    read_safetensors_header,
 )
 
 _FFN_SUFFIXES = frozenset(
@@ -81,6 +82,7 @@ class DenseToMoESafetensorExpander(SafetensorExpanderBase):
         num_layers = src_index.num_hidden_layers()
 
         hidden_size = get_hidden_size_from_index(src_index)
+        router_dtype = self._infer_router_dtype(src_index)
 
         plan = ExpansionPlan(
             new_num_hidden_layers=num_layers,
@@ -120,9 +122,24 @@ class DenseToMoESafetensorExpander(SafetensorExpanderBase):
                     src_shard="",
                     src_key="",
                     create_shape=(cfg.num_experts, hidden_size),
-                    create_dtype="BF16",
+                    create_dtype=router_dtype,
                 ),
             )
 
         self._passthrough_non_layer_keys(plan, wmap)
         return plan
+
+    @staticmethod
+    def _infer_router_dtype(src_index: ShardIndex) -> str:
+        """Infer router dtype from the first dense FFN weight in layer 0."""
+        for suffix in _FFN_SUFFIXES:
+            key = f"model.layers.0.{suffix}"
+            if key in src_index.weight_map:
+                shard_path = src_index.model_dir / src_index.weight_map[key]
+                header = read_safetensors_header(shard_path)
+                if key in header:
+                    dtype, _shape = header[key]
+                    return dtype
+        raise ValueError(
+            "Cannot infer router dtype: no dense FFN weight found in layer 0."
+        )

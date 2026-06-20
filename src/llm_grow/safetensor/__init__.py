@@ -1,4 +1,9 @@
 from llm_grow.safetensor.auto import auto_expand
+from llm_grow.safetensor.base import (
+    ExpansionPlan,
+    SafetensorExpanderBase,
+    TensorRecipe,
+)
 from llm_grow.safetensor.detect import ModelProfile, detect_model
 from llm_grow.safetensor.methods.dense_to_moe import (
     DenseToMoESafetensorConfig,
@@ -44,6 +49,7 @@ from llm_grow.safetensor.models.moe_width import (
 __all__ = [
     "DenseToMoESafetensorConfig",
     "DenseToMoESafetensorExpander",
+    "ExpansionPlan",
     "GenericDenseToMoEConfig",
     "GenericMoEDepthConfig",
     "GenericMoEDepthExpander",
@@ -61,6 +67,8 @@ __all__ = [
     "OverlapCopySafetensorExpander",
     "SVDInterpInsertSafetensorConfig",
     "SVDInterpInsertSafetensorExpander",
+    "SafetensorExpanderBase",
+    "TensorRecipe",
     "ZeroBlockInsertSafetensorConfig",
     "ZeroBlockInsertSafetensorExpander",
     "auto_expand",

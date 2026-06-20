@@ -10,6 +10,9 @@ memory usage is minimal even for 100B+ models.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+
+from safetensors import safe_open
 
 from llm_grow.configs.constants import (
     DEFAULT_VERIFY_ATOL,
@@ -65,10 +68,12 @@ class StructuralVerifier:
 
         keys = sorted(set(src_cfg) | set(dst_cfg))
         diffs: list[str] = []
+        changed_keys: set[str] = set()
         for k in keys:
             sv, dv = src_cfg.get(k), dst_cfg.get(k)
             if sv != dv:
                 diffs.append(f"{k}: {sv} -> {dv}")
+                changed_keys.add(k)
 
         if not diffs:
             logger.info("Config: no changes")
@@ -88,10 +93,7 @@ class StructuralVerifier:
             "expert_expansion_factor",
             "use_group_routing",
         }
-        changed_expected = any(
-            k in expected_keys for k, _ in (d.split(":", 1) for d in diffs)
-        )
-        if not changed_expected:
+        if not (changed_keys & expected_keys):
             logger.warning(
                 "Config changed but no expected expansion key modified: %s",
                 "; ".join(diffs),
@@ -141,28 +143,46 @@ class StructuralVerifier:
     def check_original_weights_preserved(self, sample: int = 4) -> bool:
         """Spot-check that original layer tensors are preserved in output.
 
-        Uses layer offset mapping for O(1) candidate lookup instead of
-        brute-force scanning all destination layers.
+        Uses layer offset mapping for O(added) candidate lookup instead of
+        brute-force scanning all destination layers.  Shards are opened
+        lazily and closed after the check to avoid holding many file handles.
         """
-        src_handles = self.src_idx.open_all_shards()
-        dst_handles = self.dst_idx.open_all_shards()
+        wmap_src = self.src_idx.weight_map
+        wmap_dst = self.dst_idx.weight_map
+
+        src_layers = self.src_idx.num_hidden_layers()
+        dst_layers = self.dst_idx.num_hidden_layers()
+        suf = "mlp.gate_proj.weight"
+
+        added = dst_layers - src_layers
+
+        src_handles: dict[str, Any] = {}
+        dst_handles: dict[str, Any] = {}
+
+        def _get_src_handle(shard: str) -> Any:
+            if shard not in src_handles:
+                src_handles[shard] = safe_open(
+                    str(self.src_idx.model_dir / shard), framework="pt", device="cpu"
+                )
+            return src_handles[shard]
+
+        def _get_dst_handle(shard: str) -> Any:
+            if shard not in dst_handles:
+                dst_handles[shard] = safe_open(
+                    str(self.dst_idx.model_dir / shard), framework="pt", device="cpu"
+                )
+            return dst_handles[shard]
+
         try:
-            wmap_src = self.src_idx.weight_map
-            wmap_dst = self.dst_idx.weight_map
-
-            src_layers = self.src_idx.num_hidden_layers()
-            dst_layers = self.dst_idx.num_hidden_layers()
-            suf = "mlp.gate_proj.weight"
-
-            added = dst_layers - src_layers
-
             step = max(1, src_layers // sample)
             all_ok = True
             for orig_idx in range(0, src_layers, step):
                 src_key = f"model.layers.{orig_idx}.{suf}"
                 if src_key not in wmap_src:
                     continue
-                src_t = src_handles[wmap_src[src_key]].get_tensor(src_key).float()
+                src_t = (
+                    _get_src_handle(wmap_src[src_key]).get_tensor(src_key).float()
+                )
 
                 best_idx, best_diff = -1, float("inf")
                 if added >= 0:
@@ -176,7 +196,11 @@ class StructuralVerifier:
                     dst_key = f"model.layers.{dst_i}.{suf}"
                     if dst_key not in wmap_dst:
                         continue
-                    dst_t = dst_handles[wmap_dst[dst_key]].get_tensor(dst_key).float()
+                    dst_t = (
+                        _get_dst_handle(wmap_dst[dst_key])
+                        .get_tensor(dst_key)
+                        .float()
+                    )
                     if dst_t.shape != src_t.shape:
                         continue
                     diff = (src_t - dst_t).abs().max().item()
@@ -186,7 +210,9 @@ class StructuralVerifier:
                         break
 
                 if best_idx == -1:
-                    logger.info("  layer %d: shapes differ (width expansion)", orig_idx)
+                    logger.info(
+                        "  layer %d: shapes differ (width expansion)", orig_idx
+                    )
                 else:
                     ok = best_diff < WEIGHT_PRESERVE_ATOL
                     logger.info(
@@ -199,7 +225,10 @@ class StructuralVerifier:
                     all_ok = all_ok and ok
             return all_ok
         finally:
-            del src_handles, dst_handles  # release mmap handles
+            for handle in list(src_handles.values()) + list(dst_handles.values()):
+                handle.__exit__(None, None, None)
+            src_handles.clear()
+            dst_handles.clear()
 
     def check_identity_blocks_zeroed(self) -> bool:
         """Verify that identity blocks have zeroed output projections."""
@@ -249,6 +278,7 @@ def check_fp(
     samples: int = DEFAULT_VERIFY_NUM_SAMPLES,
     atol: float = DEFAULT_VERIFY_ATOL,
     seed: int = DEFAULT_VERIFY_SEED,
+    max_size_gb: float = 80.0,
 ) -> bool:
     """Full function-preserving check: load both models and compare logits.
 
@@ -264,4 +294,5 @@ def check_fp(
         seq_len=seq_len,
         atol=atol,
         seed=seed,
+        max_size_gb=max_size_gb,
     )

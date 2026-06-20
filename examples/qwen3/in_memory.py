@@ -185,7 +185,7 @@ def check_msg():
     config = MultiAxisPadConfig(
         num_new_layers=4,
         hidden_size_expansion=0,
-        intermediate_size_expansion=0,
+        ffn_size_expansion=0,
         freeze_original=False,
     )
     t0 = time.time()

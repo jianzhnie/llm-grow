@@ -23,20 +23,17 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn as nn
 
-from llm_grow.configs.base import BaseDepthConfig
+from llm_grow.configs.base import BaseDepthConfig, BaseWidthConfig
 from llm_grow.expanders.base import AbstractExpander
 from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 
 @dataclass
-class MultiAxisPadConfig(BaseDepthConfig):
+class MultiAxisPadConfig(BaseDepthConfig, BaseWidthConfig):
     """MultiAxisPad 多维度扩增配置。"""
 
-    hidden_size_expansion: int = 0
-    """hidden_size 增量（需为 head_dim 的整数倍）。"""
-
-    intermediate_size_expansion: int = 0
-    """intermediate_size（FFN 宽度）增量。"""
+    intermediate_size_expansion: int | None = None
+    """Deprecated alias for ``ffn_size_expansion``."""
 
     freeze_original: bool = True
     """是否冻结原始参数。"""
@@ -54,6 +51,12 @@ class MultiAxisPadConfig(BaseDepthConfig):
         default_factory=lambda: ["down_proj", "fc2"]
     )
 
+    def __post_init__(self) -> None:
+        if self.intermediate_size_expansion is not None:
+            self.ffn_size_expansion = self.intermediate_size_expansion
+        self.intermediate_size_expansion = self.ffn_size_expansion
+        super().__post_init__()
+
 
 class MultiAxisPadExpander(AbstractExpander[MultiAxisPadConfig]):
     """MultiAxisPad 多维度扩增器。
@@ -63,7 +66,7 @@ class MultiAxisPadExpander(AbstractExpander[MultiAxisPadConfig]):
     """
 
     def expand(self, model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
-        if config.hidden_size_expansion > 0 or config.intermediate_size_expansion > 0:
+        if config.hidden_size_expansion > 0 or config.ffn_size_expansion > 0:
             model = _expand_width(model, config)
 
         if config.num_new_layers > 0:
@@ -83,7 +86,7 @@ class MultiAxisPadExpander(AbstractExpander[MultiAxisPadConfig]):
 def _expand_width(model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
     """对所有线性层做零填充宽度扩展。"""
     dh = config.hidden_size_expansion
-    di = config.intermediate_size_expansion
+    di = config.ffn_size_expansion
 
     for name, module in model.named_modules():
         if not isinstance(module, nn.Linear):

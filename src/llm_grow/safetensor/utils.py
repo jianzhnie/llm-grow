@@ -172,11 +172,13 @@ class ShardIndex:
 
     def write_index_json(self, dst_dir: Path) -> None:
         """Write model.safetensors.index.json for multi-shard output."""
-        total_size = sum(
-            (dst_dir / sf).stat().st_size
-            for sf in set(self.weight_map.values())
-            if (dst_dir / sf).exists()
-        )
+        shard_files = set(self.weight_map.values())
+        missing = [sf for sf in shard_files if not (dst_dir / sf).exists()]
+        if missing:
+            raise FileNotFoundError(
+                f"Cannot write index: {len(missing)} shard(s) missing: {missing}"
+            )
+        total_size = sum((dst_dir / sf).stat().st_size for sf in shard_files)
         index = {"metadata": {"total_size": total_size}, "weight_map": self.weight_map}
         with open(dst_dir / self.INDEX_FILENAME, "w") as f:
             json.dump(index, f, indent=2)

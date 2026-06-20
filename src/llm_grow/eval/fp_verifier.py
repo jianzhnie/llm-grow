@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 
@@ -9,6 +11,19 @@ from llm_grow.utils import get_vocab_size
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
+
+# Default size guard: ~30B FP16 model + overhead. Users with more RAM/GPU memory
+# can raise this; the check exists to prevent accidental OOM on 100B+ models.
+DEFAULT_FP_MAX_SIZE_GB: float = 80.0
+
+
+def _estimate_size_gb(path: str) -> float:
+    """Estimate model size in GB from safetensors files on disk."""
+    model_dir = Path(path)
+    total = 0
+    for pattern in ("*.safetensors", "*.bin", "*.pt"):
+        total += sum(f.stat().st_size for f in model_dir.glob(pattern))
+    return total / (1024**3)
 
 
 def verify_fp(
@@ -21,6 +36,7 @@ def verify_fp(
     device: str | None = None,
     verbose: bool = True,
     seed: int = 42,
+    max_size_gb: float = DEFAULT_FP_MAX_SIZE_GB,
 ) -> bool:
     """验证扩增后模型与原始模型在随机输入下的输出一致性。
 
@@ -33,13 +49,31 @@ def verify_fp(
         device:      运行设备，默认自动选择。
         verbose:     是否打印详细报告。
         seed:        随机种子，确保结果可复现。
+        max_size_gb: 路径模式下允许加载的最大模型大小（GB）。超过则抛出
+                     ``ValueError`` 以避免 100B+ 模型导致 OOM。
 
     Returns:
         True 表示通过验证（max error < atol）。
     """
     if isinstance(original, str):
+        size = _estimate_size_gb(original)
+        if size > max_size_gb:
+            raise ValueError(
+                f"Original model at {original!r} is estimated at {size:.1f} GB, "
+                f"exceeds max_size_gb={max_size_gb:.1f}. "
+                "FP verification loads the full model; use structural checks for "
+                "100B+ models or increase max_size_gb if you have enough memory."
+            )
         original = _load_model(original)
     if isinstance(expanded, str):
+        size = _estimate_size_gb(expanded)
+        if size > max_size_gb:
+            raise ValueError(
+                f"Expanded model at {expanded!r} is estimated at {size:.1f} GB, "
+                f"exceeds max_size_gb={max_size_gb:.1f}. "
+                "FP verification loads the full model; use structural checks for "
+                "100B+ models or increase max_size_gb if you have enough memory."
+            )
         expanded = _load_model(expanded)
 
     if device is None:

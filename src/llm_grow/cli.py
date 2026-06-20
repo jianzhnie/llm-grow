@@ -83,6 +83,12 @@ def main() -> None:
         "--fp", action="store_true", help="Run full FP logit check (loads models)"
     )
     verify_p.add_argument("--fp-atol", type=float, default=1e-4)
+    verify_p.add_argument(
+        "--fp-max-size-gb",
+        type=float,
+        default=80.0,
+        help="Max model size (GB) allowed for --fp verification",
+    )
 
     # ── info ──────────────────────────────────────────────────────────────────
     info_p = subparsers.add_parser("info", help="Detect and display model architecture")
@@ -104,6 +110,11 @@ def main() -> None:
 
 def _cmd_expand(args: argparse.Namespace) -> None:
     """Execute model expansion via auto_expand."""
+    if args.target_shard_gb <= 0:
+        raise ValueError(f"--target-shard-gb must be > 0, got {args.target_shard_gb}")
+    if args.workers < 1:
+        raise ValueError(f"--workers must be >= 1, got {args.workers}")
+
     from llm_grow.safetensor.auto import auto_expand
 
     auto_expand(
@@ -140,6 +151,7 @@ def _cmd_verify(args: argparse.Namespace) -> None:
             Path(args.src),
             Path(args.dst),
             atol=args.fp_atol,
+            max_size_gb=args.fp_max_size_gb,
         )
 
     all_ok = all(results.values())

@@ -28,9 +28,7 @@ class TestMultiAxisPadExpander:
 
     def test_width_expansion_changes_sizes(self):
         model = self._make_model(4)
-        config = MultiAxisPadConfig(
-            intermediate_size_expansion=16, freeze_original=False
-        )
+        config = MultiAxisPadConfig(ffn_size_expansion=16, freeze_original=False)
         expanded = MultiAxisPadExpander().expand(model, config)
         assert expanded.config.intermediate_size == 64 + 16
 
@@ -43,9 +41,7 @@ class TestMultiAxisPadExpander:
     def test_function_preserving_width(self):
         model = self._make_model(4)
         original = copy.deepcopy(model)
-        config = MultiAxisPadConfig(
-            intermediate_size_expansion=16, freeze_original=False
-        )
+        config = MultiAxisPadConfig(ffn_size_expansion=16, freeze_original=False)
         expanded = MultiAxisPadExpander().expand(model, config)
 
         input_ids = torch.randint(0, 256, (2, 8))
@@ -79,7 +75,7 @@ class TestMultiAxisPadExpander:
         original = copy.deepcopy(model)
         config = MultiAxisPadConfig(
             num_new_layers=2,
-            intermediate_size_expansion=16,
+            ffn_size_expansion=16,
             freeze_original=False,
         )
         expanded = MultiAxisPadExpander().expand(model, config)
