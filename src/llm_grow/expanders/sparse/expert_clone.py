@@ -174,8 +174,8 @@ def _compute_utility_scores(experts: nn.ModuleList) -> list[float]:
     """粗略的参数 L2 范数作为效用得分（完整实现应使用梯度重要性）。"""
     scores = []
     for expert in experts:
-        total = sum(p.data.norm().item() for p in expert.parameters())
-        scores.append(total)
+        norms = torch.stack([p.data.norm() for p in expert.parameters()])
+        scores.append(norms.sum().item())
     return scores
 
 

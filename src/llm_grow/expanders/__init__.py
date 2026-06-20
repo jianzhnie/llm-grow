@@ -31,8 +31,6 @@ __all__ = [
     "ExpertCloneExpander",
     "MultiAxisPadConfig",
     "MultiAxisPadExpander",
-    "Net2NetConfig",
-    "Net2NetExpander",
     "OverlapCopyConfig",
     "OverlapCopyExpander",
     "SVDInterpInsertConfig",
@@ -40,3 +38,9 @@ __all__ = [
     "ZeroBlockInsertConfig",
     "ZeroBlockInsertExpander",
 ]
+
+# Deprecated — kept importable but excluded from __all__
+__deprecated__ = {
+    "Net2NetConfig": Net2NetConfig,
+    "Net2NetExpander": Net2NetExpander,
+}

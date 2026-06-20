@@ -7,6 +7,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
+from llm_grow.configs.constants import DEFAULT_FP_MAX_SIZE_GB
 from llm_grow.utils import get_vocab_size
 from llm_grow.utils.logger_utils import get_logger
 
@@ -14,7 +15,6 @@ logger = get_logger(__name__)
 
 # Default size guard: ~30B FP16 model + overhead. Users with more RAM/GPU memory
 # can raise this; the check exists to prevent accidental OOM on 100B+ models.
-DEFAULT_FP_MAX_SIZE_GB: float = 80.0
 
 
 def _estimate_size_gb(path: str) -> float:

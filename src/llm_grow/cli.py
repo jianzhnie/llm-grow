@@ -17,6 +17,8 @@ from __future__ import annotations
 import argparse
 import sys
 
+from llm_grow.configs.constants import DEFAULT_FP_MAX_SIZE_GB
+
 
 def main() -> None:
     """Main CLI entry point registered as `llm-grow` console script."""
@@ -86,7 +88,7 @@ def main() -> None:
     verify_p.add_argument(
         "--fp-max-size-gb",
         type=float,
-        default=80.0,
+        default=DEFAULT_FP_MAX_SIZE_GB,
         help="Max model size (GB) allowed for --fp verification",
     )
 
@@ -155,6 +157,9 @@ def _cmd_verify(args: argparse.Namespace) -> None:
         )
 
     all_ok = all(results.values())
+    if not results:
+        print("ERROR: No verification checks were performed.")
+        sys.exit(1)
     print("\n" + "=" * 50)
     print("Summary")
     print("=" * 50)

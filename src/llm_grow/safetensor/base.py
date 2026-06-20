@@ -50,6 +50,7 @@ from typing import Any
 import torch
 from safetensors.torch import save_file
 
+from llm_grow.configs.constants import DEFAULT_TARGET_SHARD_BYTES
 from llm_grow.safetensor.recipe import ExpansionPlan, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -90,7 +91,7 @@ class SafetensorExpanderBase(ABC):
     )
 
     #: Default output shard size (4 GB); override per-instance if needed
-    DEFAULT_TARGET_SHARD_BYTES: int = 4 * 1024**3
+    DEFAULT_TARGET_SHARD_BYTES: int = DEFAULT_TARGET_SHARD_BYTES
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -536,6 +537,26 @@ class SafetensorExpanderBase(ABC):
         Subclasses (MoE, LongCat) override for architecture-specific logic.
         """
         return suf in self.IDENTITY_ZERO_SUFFIXES
+
+    @staticmethod
+    def _should_zero_moe(
+        suf: str,
+        *,
+        zero_suffixes: frozenset[str] | set[str],
+        zero_expert_down: bool = True,
+        zero_shared_expert_down: bool = True,
+    ) -> bool:
+        """Shared helper for MoE identity-block zeroing logic.
+
+        Reusable by subclass ``_should_zero`` overrides to avoid duplication.
+        """
+        if suf in zero_suffixes:
+            return True
+        if suf.endswith(".down_proj.weight") and "mlp.experts." in suf:
+            return zero_expert_down
+        return bool(
+            zero_shared_expert_down and suf == "mlp.shared_experts.down_proj.weight"
+        )
 
     def _build_layer_plan(
         self,

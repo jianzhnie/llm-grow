@@ -68,12 +68,11 @@ class MoEWidthExpander(SafetensorExpanderBase):
     def _should_zero(self, suf: str) -> bool:
         """Determine if a tensor suffix should be zeroed in an identity block."""
         cfg = self.config
-        if suf in cfg.zero_suffixes:
-            return True
-        if suf.endswith(".down_proj.weight") and "mlp.experts." in suf:
-            return cfg.zero_expert_down
-        return bool(
-            cfg.zero_shared_expert_down and suf == "mlp.shared_experts.down_proj.weight"
+        return self._should_zero_moe(
+            suf,
+            zero_suffixes=cfg.zero_suffixes,
+            zero_expert_down=cfg.zero_expert_down,
+            zero_shared_expert_down=cfg.zero_shared_expert_down,
         )
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:

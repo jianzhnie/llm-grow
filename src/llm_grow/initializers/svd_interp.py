@@ -195,7 +195,9 @@ def train_predictor(
             for i in range(num_layers)
         ]
 
+        avg_loss = 0.0
         for _step in range(steps):
+            optimizer.zero_grad()
             total_loss = 0.0
             count = 0
             for i in range(num_layers - 2):
@@ -204,9 +206,8 @@ def train_predictor(
                 loss = nn.functional.mse_loss(pred, target)
                 total_loss += loss.item()
                 count += 1
-                optimizer.zero_grad()
                 loss.backward()
-                optimizer.step()
+            optimizer.step()
             avg_loss = total_loss / max(count, 1)
 
         predictors[pname] = predictor.eval()

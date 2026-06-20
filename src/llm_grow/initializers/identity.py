@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import torch.nn as nn
 
+from llm_grow.configs.constants import ATTN_OUTPUT_PROJ_NAMES, MLP_OUTPUT_PROJ_NAMES
+
 
 def zero_output_projections(
     block: nn.Module,
@@ -24,9 +26,9 @@ def zero_output_projections(
         原地修改后的 block。
     """
     if attn_proj_names is None:
-        attn_proj_names = ["o_proj", "out_proj"]
+        attn_proj_names = ATTN_OUTPUT_PROJ_NAMES
     if mlp_proj_names is None:
-        mlp_proj_names = ["down_proj", "fc2"]
+        mlp_proj_names = MLP_OUTPUT_PROJ_NAMES
 
     target_names = set(attn_proj_names) | set(mlp_proj_names)
 
@@ -48,9 +50,9 @@ def is_identity_block(
 ) -> bool:
     """检查 block 是否已被初始化为恒等块（输出投影权重全零）。"""
     if attn_proj_names is None:
-        attn_proj_names = ["o_proj", "out_proj"]
+        attn_proj_names = ATTN_OUTPUT_PROJ_NAMES
     if mlp_proj_names is None:
-        mlp_proj_names = ["down_proj", "fc2"]
+        mlp_proj_names = MLP_OUTPUT_PROJ_NAMES
 
     target_names = set(attn_proj_names) | set(mlp_proj_names)
     found = False

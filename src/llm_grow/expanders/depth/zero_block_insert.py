@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 import torch.nn as nn
 
 from llm_grow.configs.base import BaseDepthConfig
+from llm_grow.configs.constants import ATTN_OUTPUT_PROJ_NAMES, MLP_OUTPUT_PROJ_NAMES
 from llm_grow.expanders.base import AbstractExpander
 from llm_grow.initializers.identity import zero_output_projections
 from llm_grow.utils import (
@@ -42,10 +43,10 @@ class ZeroBlockInsertConfig(BaseDepthConfig):
     """Phase-1 训练时是否冻结原始块（仅训练新增块）。"""
 
     attn_output_proj_names: list[str] = field(
-        default_factory=lambda: ["o_proj", "out_proj"]
+        default_factory=lambda: list(ATTN_OUTPUT_PROJ_NAMES)
     )
     mlp_output_proj_names: list[str] = field(
-        default_factory=lambda: ["down_proj", "fc2"]
+        default_factory=lambda: list(MLP_OUTPUT_PROJ_NAMES)
     )
 
 

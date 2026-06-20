@@ -28,3 +28,16 @@ ZERO_CHECK_ATOL: float = 1e-9
 
 DEFAULT_TARGET_SHARD_BYTES: int = 4 * 1024**3
 """Default output shard size (4 GB)."""
+
+# ── FP verification ───────────────────────────────────────────────────────────
+
+DEFAULT_FP_MAX_SIZE_GB: float = 80.0
+"""Max model size (GB) allowed for function-preserving verification."""
+
+# ── Identity block projection names ──────────────────────────────────────────
+
+ATTN_OUTPUT_PROJ_NAMES: list[str] = ["o_proj", "out_proj"]
+"""Default attention output projection layer names to zero for identity blocks."""
+
+MLP_OUTPUT_PROJ_NAMES: list[str] = ["down_proj", "fc2"]
+"""Default MLP output projection layer names to zero for identity blocks."""
