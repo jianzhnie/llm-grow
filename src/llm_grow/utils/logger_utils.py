@@ -150,47 +150,34 @@ def get_logger(
     if logger.handlers:
         logger.handlers.clear()
 
-    # Only configure handlers for main process or if explicitly requested
-    if is_main_process or not force_main_process:
-        # Initialize handlers list
-        handlers: list[logging.Handler] = []
-
-        # Add StreamHandler for main process only
-        if is_main_process:
-            stream_handler = logging.StreamHandler(sys.stdout)
-            handlers.append(stream_handler)
-
-        # Add FileHandler for rank 0 process if log_file is specified
-        if is_main_process and log_file is not None:
+    # Build handlers for this process.  By default only the main process emits
+    # to stdout/file; non-main processes are throttled to ERROR (or disabled
+    # entirely when force_main_process=True).
+    handlers: list[logging.Handler] = []
+    if is_main_process:
+        handlers.append(logging.StreamHandler(sys.stdout))
+        if log_file is not None:
             log_file = Path(log_file)
             log_file.parent.mkdir(parents=True, exist_ok=True)
             handlers.append(logging.FileHandler(str(log_file), file_mode))
 
-        # Configure formatter with rank information
-        if is_main_process:
-            fmt = (
-                "%(asctime)s - [Rank %(rank)d] - "
-                "%(name)s.%(funcName)s:%(lineno)d - "
-                "%(levelname)s - %(message)s"
-            )
-        else:
-            fmt = (
-                "%(asctime)s - [Rank %(rank)d] - %(name)s - %(levelname)s - %(message)s"
-            )
+    fmt = (
+        "%(asctime)s - [Rank %(rank)d] - "
+        "%(name)s.%(funcName)s:%(lineno)d - "
+        "%(levelname)s - %(message)s"
+        if is_main_process
+        else "%(asctime)s - [Rank %(rank)d] - %(name)s - %(levelname)s - %(message)s"
+    )
+    formatter = ColorfulFormatter(fmt=fmt, datefmt="%Y-%m-%d %H:%M:%S")
 
-        formatter = ColorfulFormatter(fmt=fmt, datefmt="%Y-%m-%d %H:%M:%S")
-
-        # Apply configuration to all handlers
-        for handler in handlers:
-            handler.setFormatter(formatter)
-            handler.setLevel(log_level if is_main_process else logging.ERROR)
-            logger.addHandler(handler)
+    for handler in handlers:
+        handler.setFormatter(formatter)
+        handler.setLevel(log_level)
+        logger.addHandler(handler)
 
     # Set logger level based on rank and configuration
-    if force_main_process:
-        logger.setLevel(
-            log_level if is_main_process else logging.CRITICAL + 1
-        )  # Disable logging for non-main processes
+    if force_main_process and not is_main_process:
+        logger.setLevel(logging.CRITICAL + 1)  # Disable logging for non-main processes
     else:
         logger.setLevel(log_level if is_main_process else logging.ERROR)
 

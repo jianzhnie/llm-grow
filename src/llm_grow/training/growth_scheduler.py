@@ -55,17 +55,22 @@ class GrowthScheduler:
             return min(int(progress * 4), 4) * 0.25
         raise ValueError(f"Unknown growth strategy: {cfg.strategy!r}")
 
-    def apply_masks(self, model: nn.Module, unlock_ratio: float) -> None:
+    def apply_grad_scale(self, model: nn.Module, unlock_ratio: float) -> None:
         """按 unlock_ratio 调整新增参数的 requires_grad 和梯度缩放。
 
-        简化实现：unlock_ratio < 1 时对新增参数施加梯度缩放，
-        完整实现应维护二进制掩码矩阵。
+        当前实现：unlock_ratio <= 0 时冻结新增参数；
+        unlock_ratio > 0 时解冻并设置 ``_growth_scale`` 供训练循环读取。
+        注意：这不维护二进制掩码矩阵；如需严格 MSG 掩码，需在外部包装。
         """
         for _name, param in model.named_parameters():
             if getattr(param, NEW_GROWTH_ATTR, False):
                 param.requires_grad_(unlock_ratio > 0)
                 if hasattr(param, "_growth_scale"):
                     param._growth_scale = unlock_ratio  # type: ignore[attr-defined]
+
+    def apply_masks(self, model: nn.Module, unlock_ratio: float) -> None:
+        """Deprecated alias for :meth:`apply_grad_scale`."""
+        self.apply_grad_scale(model, unlock_ratio)
 
     def register_new_params(
         self, model: nn.Module, original_param_ids: set[int] | None = None

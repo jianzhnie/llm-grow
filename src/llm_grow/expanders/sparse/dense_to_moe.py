@@ -42,6 +42,11 @@ class DenseToMoEConfig(ExpansionConfig):
     ffn_module_pattern: str = "mlp"
     """用于定位 FFN 模块的名称模式（前缀匹配）。"""
 
+    hidden_size: int | None = None
+    """显式指定 hidden_size。若未提供，则从 model.config 或参数推断；
+    推断失败时抛出 ValueError，不再使用魔法默认值。
+    """
+
 
 class MoELayer(nn.Module):
     """替换 Dense FFN 的 MoE 层。
@@ -103,7 +108,7 @@ class DenseToMoEExpander(AbstractExpander):
     """
 
     def expand(self, model: nn.Module, config: DenseToMoEConfig) -> nn.Module:
-        hidden_size = _get_hidden_size(model)
+        hidden_size = _get_hidden_size(model, config.hidden_size)
 
         replaced = 0
         for name, module in list(model.named_modules()):
@@ -152,20 +157,25 @@ def _is_ffn_module(module: nn.Module) -> bool:
     )
 
 
-def _get_hidden_size(model: nn.Module) -> int:
+def _get_hidden_size(model: nn.Module, explicit_hidden_size: int | None = None) -> int:
+    """推断或返回 hidden_size。无法推断时抛出 ValueError。"""
+    if explicit_hidden_size is not None:
+        return explicit_hidden_size
+
     cfg = getattr(model, "config", None)
     if cfg is not None:
         for attr in ("hidden_size", "d_model", "n_embd"):
             if hasattr(cfg, attr):
                 return getattr(cfg, attr)
+
     for name, param in model.named_parameters():
         if param.dim() == 2 and "embed" not in name:
             return min(param.shape)
-    logger.warning(
-        "Cannot infer hidden_size from config or parameters; "
-        "falling back to default 4096."
+
+    raise ValueError(
+        "Cannot infer hidden_size from config or parameters. "
+        "Please provide DenseToMoEConfig(hidden_size=...)."
     )
-    return 4096
 
 
 def _replace_submodule(model: nn.Module, name: str, new_module: nn.Module) -> None:

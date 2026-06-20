@@ -54,13 +54,13 @@ def verify_fp(
 
     results = []
     with torch.inference_mode():
-        for i in range(num_samples):
-            ids = input_ids[i].unsqueeze(0)
-            logits_orig = original(input_ids=ids).logits
-            logits_exp = expanded(input_ids=ids).logits
-            max_err = (logits_orig - logits_exp).abs().max().item()
-            mean_err = (logits_orig - logits_exp).abs().mean().item()
-            results.append((max_err, mean_err))
+        logits_orig = original(input_ids=input_ids).logits
+        logits_exp = expanded(input_ids=input_ids).logits
+        diff = (logits_orig - logits_exp).abs()
+        # Per-sample max/mean while keeping the forward pass batched.
+        max_errs = diff.view(num_samples, -1).max(dim=1).values.tolist()
+        mean_errs = diff.view(num_samples, -1).mean(dim=1).tolist()
+        results = list(zip(max_errs, mean_errs, strict=True))
 
     max_errs = [r[0] for r in results]
     mean_errs = [r[1] for r in results]

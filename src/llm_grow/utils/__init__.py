@@ -18,6 +18,11 @@ from llm_grow.utils.model_io import (
     save_model,
     verify_state_dict_keys,
 )
+from llm_grow.utils.model_utils import (
+    get_decoder_layers,
+    set_decoder_layers,
+    update_num_hidden_layers,
+)
 
 __all__ = [
     "DECODER_LAYER_ATTRS",
@@ -25,6 +30,7 @@ __all__ = [
     "ArchInfo",
     "build_layer_sequence",
     "count_params",
+    "get_decoder_layers",
     "get_logger",
     "get_vocab_size",
     "insert_positions",
@@ -33,5 +39,7 @@ __all__ = [
     "param_diff_report",
     "parse_arch_info",
     "save_model",
+    "set_decoder_layers",
+    "update_num_hidden_layers",
     "verify_state_dict_keys",
 ]

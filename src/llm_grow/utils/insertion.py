@@ -38,17 +38,27 @@ def insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
             f"num_new_layers ({num_new}) cannot exceed num_orig_layers ({num_orig})."
         )
     if strategy == "uniform":
-        step = num_orig / (num_new + 1)
-        positions = sorted({round(step * (i + 1)) - 1 for i in range(num_new)})
-        if len(positions) < num_new:
-            import warnings
+        if num_new >= num_orig:
+            return list(range(num_orig))
+        positions = []
+        for i in range(num_new):
+            pos = int((i + 0.5) * num_orig / num_new)
+            positions.append(pos)
 
-            warnings.warn(
-                f"Uniform insertion produced {len(positions)} unique positions "
-                f"(requested {num_new}). Consider reducing num_new_layers.",
-                stacklevel=2,
-            )
-        return positions
+        # Resolve rare rounding collisions by shifting forward.
+        seen: set[int] = set()
+        result: list[int] = []
+        for p in positions:
+            while p in seen:
+                p += 1
+            if p >= num_orig:
+                raise RuntimeError(
+                    "Uniform insertion position overflow. "
+                    "This should not happen when num_new < num_orig."
+                )
+            seen.add(p)
+            result.append(p)
+        return sorted(result)
     if strategy == "front":
         return list(range(num_new))
     if strategy == "rear":

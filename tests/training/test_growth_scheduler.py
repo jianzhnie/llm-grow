@@ -52,8 +52,29 @@ class TestGrowthSchedulerGetUnlockRatio:
             scheduler.get_unlock_ratio(50)
 
 
-class TestGrowthSchedulerApplyMasks:
-    def test_apply_masks_zero_ratio(self):
+class TestGrowthSchedulerApplyGradScale:
+    def test_apply_grad_scale_zero_ratio(self):
+        model = FakeModel(num_layers=2, d=32)
+        for p in model.layers[0].parameters():
+            p._is_new_growth = True
+        cfg = GrowthScheduleConfig(total_steps=100)
+        scheduler = GrowthScheduler(cfg)
+        scheduler.apply_grad_scale(model, 0.0)
+        for p in model.layers[0].parameters():
+            assert not p.requires_grad
+
+    def test_apply_grad_scale_positive_ratio(self):
+        model = FakeModel(num_layers=2, d=32)
+        for p in model.layers[0].parameters():
+            p._is_new_growth = True
+            p.requires_grad_(False)
+        cfg = GrowthScheduleConfig(total_steps=100)
+        scheduler = GrowthScheduler(cfg)
+        scheduler.apply_grad_scale(model, 0.5)
+        for p in model.layers[0].parameters():
+            assert p.requires_grad
+
+    def test_apply_masks_alias(self):
         model = FakeModel(num_layers=2, d=32)
         for p in model.layers[0].parameters():
             p._is_new_growth = True
@@ -62,17 +83,6 @@ class TestGrowthSchedulerApplyMasks:
         scheduler.apply_masks(model, 0.0)
         for p in model.layers[0].parameters():
             assert not p.requires_grad
-
-    def test_apply_masks_positive_ratio(self):
-        model = FakeModel(num_layers=2, d=32)
-        for p in model.layers[0].parameters():
-            p._is_new_growth = True
-            p.requires_grad_(False)
-        cfg = GrowthScheduleConfig(total_steps=100)
-        scheduler = GrowthScheduler(cfg)
-        scheduler.apply_masks(model, 0.5)
-        for p in model.layers[0].parameters():
-            assert p.requires_grad
 
 
 class TestGrowthSchedulerRegisterNewParams:

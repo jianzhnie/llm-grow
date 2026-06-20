@@ -19,10 +19,10 @@ from dataclasses import dataclass
 import torch.nn as nn
 
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
-from llm_grow.expanders.depth.zero_block_insert import (
-    _get_decoder_layers,
-    _set_decoder_layers,
-    _update_num_hidden_layers,
+from llm_grow.utils import (
+    get_decoder_layers,
+    set_decoder_layers,
+    update_num_hidden_layers,
 )
 from llm_grow.utils.logger_utils import get_logger
 
@@ -45,7 +45,7 @@ class OverlapCopyExpander(AbstractExpander):
     """
 
     def expand(self, model: nn.Module, config: OverlapCopyConfig) -> nn.Module:
-        layers = _get_decoder_layers(model)
+        layers = get_decoder_layers(model)
         num_layers = len(layers)
         overlap = config.num_overlap
 
@@ -63,8 +63,8 @@ class OverlapCopyExpander(AbstractExpander):
         for i in range(lower_start, num_layers):
             new_layers.append(copy.deepcopy(layers[i]))
 
-        _set_decoder_layers(model, new_layers)
-        _update_num_hidden_layers(model, len(new_layers))
+        set_decoder_layers(model, new_layers)
+        update_num_hidden_layers(model, len(new_layers))
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:

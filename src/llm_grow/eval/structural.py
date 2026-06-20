@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import torch
-
 from llm_grow.safetensor.utils import ShardIndex, peek_model_config
 from llm_grow.utils.logger_utils import get_logger
 
@@ -49,7 +47,11 @@ class StructuralVerifier:
     def check_config(self) -> bool:
         """Compare config.json between source and destination.
 
-        Returns True if config has changed (expected after expansion)."""
+        Returns True if the destination config is a valid expansion of the source.
+        Identical configs are accepted (passthrough/no-op). If configs differ,
+        at least one known expansion key must have changed, and layer counts must
+        remain consistent with the weight map.
+        """
         src_cfg = peek_model_config(self.src_dir)
         dst_cfg = peek_model_config(self.dst_dir)
 
@@ -60,11 +62,54 @@ class StructuralVerifier:
             if sv != dv:
                 diffs.append(f"{k}: {sv} -> {dv}")
 
-        if diffs:
-            logger.info("Config diff: %s", "; ".join(diffs))
-        else:
+        if not diffs:
             logger.info("Config: no changes")
-        return bool(diffs) or src_cfg == dst_cfg
+            return True
+
+        expected_keys = {
+            "num_hidden_layers",
+            "num_layers",
+            "num_experts",
+            "n_routed_experts",
+            "num_experts_per_tok",
+            "moe_topk",
+            "intermediate_size",
+            "hidden_size",
+            "moe_intermediate_size",
+            "zero_expert_num",
+            "expert_expansion_factor",
+            "use_group_routing",
+        }
+        changed_expected = any(
+            k in expected_keys for k, _ in (d.split(":", 1) for d in diffs)
+        )
+        if not changed_expected:
+            logger.warning(
+                "Config changed but no expected expansion key modified: %s",
+                "; ".join(diffs),
+            )
+            return False
+
+        logger.info("Config diff: %s", "; ".join(diffs))
+
+        # Verify layer count consistency with weight map
+        src_layers = self.src_idx.num_hidden_layers()
+        dst_layers = self.dst_idx.num_hidden_layers()
+        if src_layers != dst_layers:
+            layer_key = next(
+                (k for k in ("num_hidden_layers", "num_layers") if k in dst_cfg),
+                None,
+            )
+            if layer_key is None or dst_cfg.get(layer_key) != dst_layers:
+                logger.error(
+                    "Config layer count %s=%s inconsistent with weight map (%d layers)",
+                    layer_key,
+                    dst_cfg.get(layer_key),
+                    dst_layers,
+                )
+                return False
+
+        return True
 
     def check_tensor_counts(self) -> bool:
         """Verify output has the expected number of tensors."""
@@ -86,7 +131,11 @@ class StructuralVerifier:
         return ok
 
     def check_original_weights_preserved(self, sample: int = 4) -> bool:
-        """Spot-check that original layer tensors are preserved in output."""
+        """Spot-check that original layer tensors are preserved in output.
+
+        Streams destination tensors one at a time so memory stays constant
+        regardless of model depth or width.
+        """
         src_handles = self.src_idx.open_all_shards()
         dst_handles = self.dst_idx.open_all_shards()
         try:
@@ -97,14 +146,6 @@ class StructuralVerifier:
             dst_layers = self.dst_idx.num_hidden_layers()
             suf = "mlp.gate_proj.weight"
 
-            dst_tensors: dict[int, torch.Tensor] = {}
-            for dst_i in range(dst_layers):
-                key = f"model.layers.{dst_i}.{suf}"
-                if key in wmap_dst:
-                    dst_tensors[dst_i] = (
-                        dst_handles[wmap_dst[key]].get_tensor(key).float()
-                    )
-
             step = max(1, src_layers // sample)
             all_ok = True
             for orig_idx in range(0, src_layers, step):
@@ -114,7 +155,11 @@ class StructuralVerifier:
                 src_t = src_handles[wmap_src[src_key]].get_tensor(src_key).float()
 
                 best_idx, best_diff = -1, float("inf")
-                for dst_i, dst_t in dst_tensors.items():
+                for dst_i in range(dst_layers):
+                    dst_key = f"model.layers.{dst_i}.{suf}"
+                    if dst_key not in wmap_dst:
+                        continue
+                    dst_t = dst_handles[wmap_dst[dst_key]].get_tensor(dst_key).float()
                     if dst_t.shape != src_t.shape:
                         continue
                     diff = (src_t - dst_t).abs().max().item()
@@ -122,7 +167,9 @@ class StructuralVerifier:
                         best_diff, best_idx = diff, dst_i
 
                 if best_idx == -1:
-                    logger.info("  layer %d: shapes differ (width expansion)", orig_idx)
+                    logger.info(
+                        "  layer %d: shapes differ (width expansion)", orig_idx
+                    )
                 else:
                     ok = best_diff < 1e-6
                     logger.info(

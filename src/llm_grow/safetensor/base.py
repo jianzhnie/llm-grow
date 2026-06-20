@@ -332,7 +332,19 @@ class SafetensorExpanderBase(ABC):
                 src_index, dst_dir, plan, shard_groups, weight_map, verbose, workers
             )
         else:
-            src_handles = src_index.open_all_shards()
+            from safetensors import safe_open
+
+            src_handles: dict[str, Any] = {}
+
+            def _get_src_handle(shard_name: str) -> Any:
+                if shard_name not in src_handles:
+                    src_handles[shard_name] = safe_open(
+                        str(src_index.model_dir / shard_name),
+                        framework="pt",
+                        device="cpu",
+                    )
+                return src_handles[shard_name]
+
             for i, group_keys in enumerate(shard_groups):
                 shard_name = (
                     "model.safetensors"
@@ -345,21 +357,28 @@ class SafetensorExpanderBase(ABC):
                     if recipe.create_shape:
                         src_t = torch.zeros(1)
                     else:
-                        src_t = src_handles[recipe.src_shard].get_tensor(recipe.src_key)
+                        src_t = _get_src_handle(recipe.src_shard).get_tensor(
+                            recipe.src_key
+                        )
                     interp_t = None
                     if recipe.interp_src_key:
-                        interp_t = src_handles[recipe.interp_src_shard].get_tensor(
+                        interp_t = _get_src_handle(recipe.interp_src_shard).get_tensor(
                             recipe.interp_src_key
                         )
                     tensors[new_key] = _apply_recipe(src_t, recipe, interp_t)
                     weight_map[new_key] = shard_name
-                save_file(tensors, str(dst_dir / shard_name))
+                # Atomic write: save to temp file then rename.
+                tmp_path = dst_dir / f"{shard_name}.tmp"
+                save_file(tensors, str(tmp_path))
+                tmp_path.replace(dst_dir / shard_name)
                 if verbose:
                     size_mb = (dst_dir / shard_name).stat().st_size / 1e6
                     logger.info(
                         f"  wrote {shard_name}  "
                         f"({len(tensors)} tensors, {size_mb:.0f} MB)"
                     )
+
+            del src_handles
 
         dst_index = ShardIndex(dst_dir, weight_map)
         if n > 1:
@@ -654,6 +673,13 @@ def _worker_write_shard(
     for src_path, src_key, out_key, recipe_fields in items:
         by_src[src_path].append((src_key, out_key, recipe_fields))
 
+    interp_handles: dict[str, Any] = {}
+
+    def _get_interp_handle(path: str) -> Any:
+        if path not in interp_handles:
+            interp_handles[path] = safe_open(path, framework="pt", device="cpu")
+        return interp_handles[path]
+
     tensors: dict[str, torch.Tensor] = {}
     for src_path, triples in by_src.items():
         with safe_open(src_path, framework="pt", device="cpu") as sf:
@@ -674,10 +700,9 @@ def _worker_write_shard(
                 t = torch.zeros(1) if create_shape else sf.get_tensor(src_key)
                 interp_t = None
                 if interp_key and interp_shard_path:
-                    with safe_open(
-                        interp_shard_path, framework="pt", device="cpu"
-                    ) as sf2:
-                        interp_t = sf2.get_tensor(interp_key)
+                    interp_t = _get_interp_handle(interp_shard_path).get_tensor(
+                        interp_key
+                    )
                 recipe = TensorRecipe(
                     src_shard="",
                     src_key=src_key,
@@ -696,5 +721,8 @@ def _worker_write_shard(
                 )
                 tensors[out_key] = _apply_recipe(t, recipe, interp_t)
 
-    save_file(tensors, out_path_str)
+    # Atomic write in worker process.
+    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+    save_file(tensors, str(tmp_path))
+    tmp_path.replace(out_path)
     return (out_path.name, list(tensors.keys()))

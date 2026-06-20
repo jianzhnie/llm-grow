@@ -21,10 +21,10 @@ import torch
 import torch.nn as nn
 
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
-from llm_grow.expanders.depth.zero_block_insert import (
-    _get_decoder_layers,
-    _set_decoder_layers,
-    _update_num_hidden_layers,
+from llm_grow.utils import (
+    get_decoder_layers,
+    set_decoder_layers,
+    update_num_hidden_layers,
 )
 from llm_grow.utils.logger_utils import get_logger
 
@@ -57,7 +57,7 @@ class SVDInterpInsertExpander(AbstractExpander):
     """
 
     def expand(self, model: nn.Module, config: SVDInterpInsertConfig) -> nn.Module:
-        layers = _get_decoder_layers(model)
+        layers = get_decoder_layers(model)
         num_layers = len(layers)
 
         pairs = config.insert_between or [(i, i + 1) for i in range(num_layers - 1)]
@@ -92,8 +92,8 @@ class SVDInterpInsertExpander(AbstractExpander):
                 new_layers.append(interpolated)
 
         layer_list = nn.ModuleList(new_layers)
-        _set_decoder_layers(model, layer_list)
-        _update_num_hidden_layers(model, len(layer_list))
+        set_decoder_layers(model, layer_list)
+        update_num_hidden_layers(model, len(layer_list))
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:

@@ -26,11 +26,16 @@ MoE-longcat:
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from llm_grow.safetensor.utils import expert_idx, is_expert_key, parse_layer_idx
+from llm_grow.safetensor.utils import (
+    ShardIndex,
+    expert_idx,
+    is_expert_key,
+    parse_layer_idx,
+    peek_model_config,
+)
 
 # ── data class ────────────────────────────────────────────────────────────────
 
@@ -129,8 +134,8 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
         A fully-populated ``ModelProfile``.
     """
     src_dir = Path(src_dir)
-    cfg = _load_config(src_dir)
-    wmap = _load_weight_map(src_dir)
+    cfg = peek_model_config(src_dir)
+    wmap = ShardIndex.load(src_dir).weight_map
 
     arch_class = (cfg.get("architectures") or ["Unknown"])[0]
     model_type = cfg.get("model_type", "")
@@ -188,28 +193,6 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
 
 
 # ── internal helpers ──────────────────────────────────────────────────────────
-
-
-def _load_config(src_dir: Path) -> dict:
-    p = src_dir / "config.json"
-    if not p.exists():
-        return {}
-    with open(p) as f:
-        return json.load(f)
-
-
-def _load_weight_map(src_dir: Path) -> dict[str, str]:
-    index_path = src_dir / "model.safetensors.index.json"
-    single_path = src_dir / "model.safetensors"
-    if index_path.exists():
-        with open(index_path) as f:
-            return json.load(f)["weight_map"]
-    if single_path.exists():
-        from safetensors import safe_open
-
-        with safe_open(str(single_path), framework="pt", device="cpu") as f:
-            return dict.fromkeys(f.keys(), "model.safetensors")
-    raise FileNotFoundError(f"No safetensor files in {src_dir}")
 
 
 def _detect_router(wmap: dict) -> tuple[str, str | None]:

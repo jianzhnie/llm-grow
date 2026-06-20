@@ -1,19 +1,33 @@
 from llm_grow.expanders import (
+    DenseToMoEConfig,
     DenseToMoEExpander,
+    ExpertCloneConfig,
     ExpertCloneExpander,
+    MultiAxisPadConfig,
     MultiAxisPadExpander,
+    Net2NetConfig,
     Net2NetExpander,
+    OverlapCopyConfig,
     OverlapCopyExpander,
+    SVDInterpInsertConfig,
     SVDInterpInsertExpander,
+    ZeroBlockInsertConfig,
     ZeroBlockInsertExpander,
 )
 
 __all__ = [
+    "DenseToMoEConfig",
     "DenseToMoEExpander",
+    "ExpertCloneConfig",
     "ExpertCloneExpander",
+    "MultiAxisPadConfig",
     "MultiAxisPadExpander",
+    "Net2NetConfig",
     "Net2NetExpander",
+    "OverlapCopyConfig",
     "OverlapCopyExpander",
+    "SVDInterpInsertConfig",
     "SVDInterpInsertExpander",
+    "ZeroBlockInsertConfig",
     "ZeroBlockInsertExpander",
 ]

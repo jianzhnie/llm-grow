@@ -21,8 +21,13 @@ import torch.nn as nn
 
 from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
 from llm_grow.initializers.identity import zero_output_projections
-from llm_grow.utils import insert_positions
-from llm_grow.utils.insertion import DECODER_LAYER_ATTRS, NEW_GROWTH_ATTR
+from llm_grow.utils import (
+    get_decoder_layers,
+    insert_positions,
+    set_decoder_layers,
+    update_num_hidden_layers,
+)
+from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 
 @dataclass
@@ -73,7 +78,7 @@ class ZeroBlockInsertExpander(AbstractExpander):
     """
 
     def expand(self, model: nn.Module, config: ZeroBlockInsertConfig) -> nn.Module:
-        layers = _get_decoder_layers(model)
+        layers = get_decoder_layers(model)
         num_orig = len(layers)
         positions = insert_positions(
             num_orig, config.num_new_layers, config.insert_strategy
@@ -95,8 +100,8 @@ class ZeroBlockInsertExpander(AbstractExpander):
                         param.requires_grad_(False)
                 new_layers.append(identity_block)
 
-        _set_decoder_layers(model, new_layers)
-        _update_num_hidden_layers(model, len(new_layers))
+        set_decoder_layers(model, new_layers)
+        update_num_hidden_layers(model, len(new_layers))
         return model
 
 
@@ -116,39 +121,3 @@ def _make_identity_block(
     for param in block.parameters():
         setattr(param, NEW_GROWTH_ATTR, True)
     return block
-
-
-def _get_decoder_layers(model: nn.Module) -> nn.ModuleList:
-    for attr in DECODER_LAYER_ATTRS:
-        obj: nn.Module | None = model
-        for part in attr.split("."):
-            if obj is None:
-                break
-            obj = getattr(obj, part, None)
-        if isinstance(obj, nn.ModuleList):
-            return obj
-    raise AttributeError("Cannot locate decoder layer list in model.")
-
-
-def _set_decoder_layers(model: nn.Module, new_layers: nn.ModuleList) -> None:
-    for attr in DECODER_LAYER_ATTRS:
-        parts = attr.split(".")
-        obj: nn.Module | None = model
-        for part in parts[:-1]:
-            if obj is None:
-                break
-            obj = getattr(obj, part, None)
-        if obj is not None and hasattr(obj, parts[-1]):
-            setattr(obj, parts[-1], new_layers)
-            return
-    raise AttributeError("Cannot set decoder layer list in model.")
-
-
-def _update_num_hidden_layers(model: nn.Module, new_num: int) -> None:
-    cfg = getattr(model, "config", None)
-    if cfg is None:
-        return
-    for attr in ("num_hidden_layers", "n_layer", "num_layers"):
-        if hasattr(cfg, attr):
-            setattr(cfg, attr, new_num)
-            break

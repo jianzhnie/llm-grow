@@ -58,8 +58,11 @@ class ExpertCloneConfig(ExpansionConfig):
     router_noise_std: float = 0.001
     """Router 新增列的扰动强度。"""
 
-    moe_layer_cls_name: str = "MoELayer"
-    """目标 MoE 层的类名（用于识别哪些模块需要扩展）。"""
+    moe_layer_cls_name: str = ""
+    """目标 MoE 层的类名（用于显式按类名匹配）。
+    默认空字符串，此时通过 ``hasattr(module, 'experts') and hasattr(module, 'router')``
+    判断，更加稳健。
+    """
 
 
 class ExpertCloneExpander(AbstractExpander):
@@ -72,8 +75,13 @@ class ExpertCloneExpander(AbstractExpander):
     def expand(self, model: nn.Module, config: ExpertCloneConfig) -> nn.Module:
         expanded_count = 0
         for _name, module in model.named_modules():
-            is_target_cls = type(module).__name__ == config.moe_layer_cls_name
-            has_moe_interface = hasattr(module, "experts") and hasattr(module, "router")
+            is_target_cls = (
+                bool(config.moe_layer_cls_name)
+                and type(module).__name__ == config.moe_layer_cls_name
+            )
+            has_moe_interface = hasattr(module, "experts") and hasattr(
+                module, "router"
+            )
             if not is_target_cls and not has_moe_interface:
                 continue
 
