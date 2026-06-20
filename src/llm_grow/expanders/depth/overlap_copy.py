@@ -18,7 +18,8 @@ from dataclasses import dataclass
 
 import torch.nn as nn
 
-from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.configs.base import ModelExpansionConfig
+from llm_grow.expanders.base import AbstractExpander
 from llm_grow.utils import (
     get_decoder_layers,
     set_decoder_layers,
@@ -30,7 +31,7 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class OverlapCopyConfig(ExpansionConfig):
+class OverlapCopyConfig(ModelExpansionConfig):
     num_overlap: int = 8
     """重叠层数。上段保留前 (L - num_overlap) 层；下段从第 num_overlap 层开始。
     实际: len(upper) + len(lower) = 2*(L - num_overlap)

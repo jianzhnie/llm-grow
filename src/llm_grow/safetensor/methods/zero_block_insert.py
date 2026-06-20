@@ -42,10 +42,7 @@ class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):
 
     def __init__(self, config: ZeroBlockInsertSafetensorConfig | None = None) -> None:
         self.config = config or ZeroBlockInsertSafetensorConfig()
-        # Merge user-specified zero suffixes into base set
-        self.IDENTITY_ZERO_SUFFIXES = frozenset(
-            self.config.attn_zero_suffixes + self.config.mlp_zero_suffixes
-        )
+        self.IDENTITY_ZERO_SUFFIXES = frozenset(self.config.zero_suffixes)
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         num_orig = src_index.num_hidden_layers()

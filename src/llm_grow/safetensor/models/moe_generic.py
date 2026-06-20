@@ -213,15 +213,12 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
         self.config = config or GenericMoEDepthConfig()
 
     def _should_zero(self, suf: str) -> bool:
+        """Determine if a tensor suffix should be zeroed in an identity block."""
         cfg = self.config
-        if suf in cfg.extra_attn_zero_suffixes:
+        if suf in cfg.zero_suffixes:
             return True
-        if suf in cfg.dense_mlp_zero_suffixes:
-            return True
-        # All expert down_proj (but NOT weight_scale_inv — see FP8 note above)
         if suf.endswith(".down_proj.weight") and "mlp.experts." in suf:
-            return True
-        # Shared expert down_proj
+            return cfg.zero_expert_down
         return bool(
             cfg.zero_shared_expert_down and suf == "mlp.shared_experts.down_proj.weight"
         )
@@ -288,8 +285,8 @@ def make_qwen3moe_zero_block_insert(
         GenericMoEDepthConfig(
             num_new_layers=num_new_layers,
             insert_strategy=strategy,
-            extra_attn_zero_suffixes=["self_attn.o_proj.weight"],
-            dense_mlp_zero_suffixes=[],  # pure MoE, no dense MLP
+            zero_suffixes=["self_attn.o_proj.weight"],
+            zero_expert_down=True,
             zero_shared_expert_down=False,
         )
     )
@@ -319,9 +316,11 @@ def make_kimik2_zero_block_insert(
         GenericMoEDepthConfig(
             num_new_layers=num_new_layers,
             insert_strategy=strategy,
-            extra_attn_zero_suffixes=["self_attn.o_proj.weight"],
-            # Layer 0 is dense (no experts): zero its down_proj too
-            dense_mlp_zero_suffixes=["mlp.down_proj.weight"],
+            zero_suffixes=[
+                "self_attn.o_proj.weight",
+                "mlp.down_proj.weight",
+            ],
+            zero_expert_down=True,
             zero_shared_expert_down=True,
         )
     )

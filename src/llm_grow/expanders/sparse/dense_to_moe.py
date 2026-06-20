@@ -21,7 +21,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.configs.base import ModelExpansionConfig
+from llm_grow.expanders.base import AbstractExpander
 from llm_grow.initializers.symmetry_break import add_noise_to_experts
 from llm_grow.utils.logger_utils import get_logger
 
@@ -29,7 +30,7 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class DenseToMoEConfig(ExpansionConfig):
+class DenseToMoEConfig(ModelExpansionConfig):
     num_experts: int = 8
     """每层的专家数量（Dense FFN 被复制的份数）。"""
 

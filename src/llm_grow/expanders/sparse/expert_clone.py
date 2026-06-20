@@ -21,7 +21,8 @@ from enum import Enum
 import torch
 import torch.nn as nn
 
-from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.configs.base import ModelExpansionConfig
+from llm_grow.expanders.base import AbstractExpander
 from llm_grow.initializers.symmetry_break import (
     add_noise_to_experts,
     drop_upcycling,
@@ -38,7 +39,7 @@ class ExpertSelectionStrategy(str, Enum):
 
 
 @dataclass
-class ExpertCloneConfig(ExpansionConfig):
+class ExpertCloneConfig(ModelExpansionConfig):
     expand_factor: int = 2
     """专家数扩展倍数（原 E 个专家 → expand_factor × E 个专家）。"""
 

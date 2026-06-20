@@ -20,12 +20,13 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn as nn
 
-from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.configs.base import ModelExpansionConfig
+from llm_grow.expanders.base import AbstractExpander
 from llm_grow.initializers.net2net import net2wider_net
 
 
 @dataclass
-class Net2NetConfig(ExpansionConfig):
+class Net2NetConfig(ModelExpansionConfig):
     width_multiplier: float = 2.0
     """目标宽度倍数（hidden_size 和 intermediate_size 统一缩放）。"""
 

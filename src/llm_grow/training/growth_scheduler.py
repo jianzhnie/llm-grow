@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import torch.nn as nn
 
+from llm_grow.configs.base import GrowthStrategy
 from llm_grow.training.freeze import mark_new_params, snapshot_param_ids
 from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
@@ -19,7 +20,7 @@ class GrowthScheduleConfig:
     warmup_ratio: float = 0.3
     """前 warmup_ratio 比例的步数内保持原始参数空间（新维度 mask=0）。"""
 
-    strategy: str = "linear"
+    strategy: GrowthStrategy = "linear"
     """解锁策略：'linear' | 'cosine' | 'step'。"""
 
 

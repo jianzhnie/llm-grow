@@ -227,8 +227,9 @@ def _build_dense_depth(
         ZeroBlockInsertSafetensorConfig(
             num_new_layers=num_new_layers,
             insert_strategy=insert_strategy,
-            attn_zero_suffixes=profile.attn_zero_suffixes,
-            mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
+            zero_suffixes=(
+                profile.attn_zero_suffixes + profile.dense_mlp_zero_suffixes
+            ),
         )
     )
 
@@ -250,8 +251,9 @@ def _build_moe_depth(
         GenericMoEDepthConfig(
             num_new_layers=num_new_layers,
             insert_strategy=insert_strategy,
-            extra_attn_zero_suffixes=profile.attn_zero_suffixes,
-            dense_mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
+            zero_suffixes=(
+                profile.attn_zero_suffixes + profile.dense_mlp_zero_suffixes
+            ),
             zero_shared_expert_down=profile.has_shared_expert,
         )
     )
@@ -366,8 +368,9 @@ def _build_moe_width(
             hidden_size_expansion=0,
             num_new_layers=num_new_layers,
             insert_strategy=insert_strategy,
-            extra_attn_zero_suffixes=profile.attn_zero_suffixes,
-            dense_mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,
+            zero_suffixes=(
+                profile.attn_zero_suffixes + profile.dense_mlp_zero_suffixes
+            ),
             zero_shared_expert_down=profile.has_shared_expert,
         )
     )

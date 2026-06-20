@@ -15,8 +15,8 @@ class TestZeroBlockInsertSafetensorConfig:
 
     def test_default_zero_suffixes(self):
         cfg = ZeroBlockInsertSafetensorConfig()
-        assert "self_attn.o_proj.weight" in cfg.attn_zero_suffixes
-        assert "mlp.down_proj.weight" in cfg.mlp_zero_suffixes
+        assert "self_attn.o_proj.weight" in cfg.zero_suffixes
+        assert "mlp.down_proj.weight" in cfg.zero_suffixes
 
     def test_insert_strategy_default(self):
         cfg = ZeroBlockInsertSafetensorConfig()
