@@ -50,7 +50,7 @@ def apply_recipe(
             torch.randn_like(real) * recipe.dup_rows_noise_scale * real.float().std()
         )
         real_dup = real + noise.to(real.dtype)
-        return torch.cat([real, real_dup, zeros, zeros.clone()], dim=0)
+        return torch.cat([real, real_dup, zeros, zeros], dim=0)
 
     if recipe.dup_rows:
         noise = torch.randn_like(src) * recipe.dup_rows_noise_scale * src.float().std()
@@ -71,7 +71,7 @@ def apply_recipe(
         else:
             raise ValueError(f"Unsupported tensor dim {src.dim()} for padding")
     else:
-        tensor = src.clone()
+        tensor = src.contiguous()
 
     if recipe.add_noise_std > 0:
         noise = torch.randn_like(tensor) * recipe.add_noise_std

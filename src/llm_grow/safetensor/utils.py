@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from functools import cached_property
 from pathlib import Path
 
 from safetensors import safe_open
@@ -153,14 +154,19 @@ class ShardIndex:
                 seen.add(suf)
         return sorted(seen)
 
-    def num_hidden_layers(self) -> int:
-        """Infer num_hidden_layers from tensor keys."""
+    @cached_property
+    def _num_hidden_layers(self) -> int:
+        """Infer and cache num_hidden_layers from tensor keys."""
         max_idx = -1
         for k in self.weight_map:
             idx = parse_layer_idx(k)
             if idx is not None and idx > max_idx:
                 max_idx = idx
         return max_idx + 1 if max_idx >= 0 else 0
+
+    def num_hidden_layers(self) -> int:
+        """Return num_hidden_layers (cached after first call)."""
+        return self._num_hidden_layers
 
     # ── write helpers ────────────────────────────────────────────────────────
 

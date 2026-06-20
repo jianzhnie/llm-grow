@@ -26,6 +26,7 @@ from llm_grow.utils.logger_utils import get_logger
 logger = get_logger(__name__)
 
 
+@torch.no_grad()
 def svd_features(
     weight: torch.Tensor,
     rank: int = 64,

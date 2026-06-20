@@ -51,6 +51,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from llm_grow.configs.base import InsertStrategy
 from llm_grow.safetensor.base import SafetensorExpanderBase
 from llm_grow.safetensor.detect import ModelProfile, detect_model
 from llm_grow.utils.logger_utils import get_logger
@@ -96,7 +97,7 @@ def auto_expand(
     *,
     # depth params
     num_new_layers: int = 4,
-    insert_strategy: str = "uniform",
+    insert_strategy: InsertStrategy = "uniform",
     # expert params
     expand_factor: int = 2,
     noise_scale: float = 1e-6,
@@ -161,7 +162,7 @@ def _build_expander(
     method: str,
     profile: ModelProfile,
     num_new_layers: int,
-    insert_strategy: str,
+    insert_strategy: InsertStrategy,
     expand_factor: int,
     noise_scale: float,
     ffn_size_expansion: int,
@@ -215,7 +216,7 @@ def _build_expander(
 def _build_dense_depth(
     profile: ModelProfile,
     num_new_layers: int,
-    insert_strategy: str,
+    insert_strategy: InsertStrategy,
     **_: Any,
 ) -> SafetensorExpanderBase:
     from llm_grow.safetensor.methods.zero_block_insert import (
@@ -239,7 +240,7 @@ def _build_dense_depth(
 def _build_moe_depth(
     profile: ModelProfile,
     num_new_layers: int,
-    insert_strategy: str,
+    insert_strategy: InsertStrategy,
     **_: Any,
 ) -> SafetensorExpanderBase:
     from llm_grow.safetensor.models.moe_generic import (
@@ -263,7 +264,7 @@ def _build_moe_depth(
 def _build_longcat_depth(
     profile: ModelProfile,
     num_new_layers: int,
-    insert_strategy: str,
+    insert_strategy: InsertStrategy,
     **_: Any,
 ) -> SafetensorExpanderBase:
     from llm_grow.safetensor.models.longcat import (
@@ -330,7 +331,7 @@ def _build_moe_expert(
 def _build_dense_width(
     profile: ModelProfile,
     num_new_layers: int,
-    insert_strategy: str,
+    insert_strategy: InsertStrategy,
     ffn_size_expansion: int,
     **_: Any,
 ) -> SafetensorExpanderBase:
@@ -353,7 +354,7 @@ def _build_dense_width(
 def _build_moe_width(
     profile: ModelProfile,
     num_new_layers: int,
-    insert_strategy: str,
+    insert_strategy: InsertStrategy,
     ffn_size_expansion: int,
     **_: Any,
 ) -> SafetensorExpanderBase:

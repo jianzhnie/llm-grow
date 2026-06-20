@@ -608,6 +608,14 @@ class SafetensorExpanderBase(ABC):
             if parse_layer_idx(key) is None:
                 plan.passthrough(key, shard)
 
+    def _should_zero(self, suf: str) -> bool:
+        """Determine if a tensor suffix should be zeroed in an identity block.
+
+        Default implementation checks against ``IDENTITY_ZERO_SUFFIXES``.
+        Subclasses (MoE, LongCat) override for architecture-specific logic.
+        """
+        return suf in self.IDENTITY_ZERO_SUFFIXES
+
     def _build_layer_plan(
         self,
         src_index: ShardIndex,
@@ -619,20 +627,19 @@ class SafetensorExpanderBase(ABC):
         Args:
             src_index:      Source shard index.
             layer_sequence: Ordered list of (src_layer_idx, is_identity).
-                            is_identity=True → zero o_proj + down_proj.
+                            is_identity=True → zero suffixes per ``_should_zero()``.
         """
         plan = ExpansionPlan(new_num_hidden_layers=len(layer_sequence))
         wmap = src_index.weight_map
         suffixes = src_index.layer_suffixes()
 
-        # Per-layer tensors
         for new_idx, (src_idx, is_identity) in enumerate(layer_sequence):
             for suf in suffixes:
                 src_key = f"model.layers.{src_idx}.{suf}"
                 if src_key not in wmap:
-                    continue  # suffix absent for this layer (mixed-arch models)
+                    continue
                 new_key = f"model.layers.{new_idx}.{suf}"
-                zero = is_identity and suf in self.IDENTITY_ZERO_SUFFIXES
+                zero = is_identity and self._should_zero(suf)
                 plan.add(
                     new_key,
                     TensorRecipe(
@@ -642,7 +649,6 @@ class SafetensorExpanderBase(ABC):
                     ),
                 )
 
-        # Non-layer tensors pass through unchanged
         self._passthrough_non_layer_keys(plan, wmap)
 
         return plan

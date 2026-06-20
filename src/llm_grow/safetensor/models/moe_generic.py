@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from llm_grow.configs.base import BaseMoEDepthConfig, ExpansionConfig
+from llm_grow.configs.base import BaseMoEDepthConfig, ExpansionConfig, InsertStrategy
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -226,36 +226,13 @@ class GenericMoEDepthExpander(SafetensorExpanderBase):
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         cfg = self.config
         num_orig = src_index.num_hidden_layers()
-        wmap = src_index.weight_map
-        suffixes = src_index.layer_suffixes()
 
         positions = set(
             insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
         )
         sequence = build_layer_sequence(num_orig, positions)
 
-        plan = ExpansionPlan(new_num_hidden_layers=len(sequence))
-
-        for new_idx, (src_idx, is_identity) in enumerate(sequence):
-            for suf in suffixes:
-                src_key = f"model.layers.{src_idx}.{suf}"
-                if src_key not in wmap:
-                    # suffix absent for this layer
-                    # (e.g. expert suf in dense layer 0)
-                    continue
-                new_key = f"model.layers.{new_idx}.{suf}"
-                plan.add(
-                    new_key,
-                    TensorRecipe(
-                        src_shard=wmap[src_key],
-                        src_key=src_key,
-                        zero_out=is_identity and self._should_zero(suf),
-                    ),
-                )
-
-        self._passthrough_non_layer_keys(plan, wmap)
-
-        return plan
+        return self._build_layer_plan(src_index, layer_sequence=sequence)
 
 
 # ── pre-configured instances ──────────────────────────────────────────────────
@@ -278,7 +255,7 @@ def make_qwen3moe_expert_clone(
 
 
 def make_qwen3moe_zero_block_insert(
-    num_new_layers: int = 4, strategy: str = "uniform"
+    num_new_layers: int = 4, strategy: InsertStrategy = "uniform"
 ) -> GenericMoEDepthExpander:
     """ZeroBlockInsert depth expansion for Qwen3MoeForCausalLM."""
     return GenericMoEDepthExpander(
@@ -309,7 +286,7 @@ def make_kimik2_expert_clone(
 
 
 def make_kimik2_zero_block_insert(
-    num_new_layers: int = 4, strategy: str = "uniform"
+    num_new_layers: int = 4, strategy: InsertStrategy = "uniform"
 ) -> GenericMoEDepthExpander:
     """ZeroBlockInsert depth expansion for Kimi-K2-Base."""
     return GenericMoEDepthExpander(

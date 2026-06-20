@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from llm_grow.configs.base import InsertStrategy
+
 NEW_GROWTH_ATTR = "_is_new_growth"
 """Canonical attribute name used to tag newly-grown parameters."""
 
@@ -23,7 +25,9 @@ def build_layer_sequence(num_orig: int, insert_pos: set[int]) -> list[tuple[int,
     return sequence
 
 
-def insert_positions(num_orig: int, num_new: int, strategy: str) -> list[int]:
+def insert_positions(
+    num_orig: int, num_new: int, strategy: InsertStrategy
+) -> list[int]:
     """Compute layer insertion positions for depth expansion.
 
     Strategies:

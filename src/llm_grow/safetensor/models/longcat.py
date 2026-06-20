@@ -280,32 +280,10 @@ class LongcatDepthExpander(SafetensorExpanderBase):
 
         cfg = self.config
         num_orig = src_index.num_hidden_layers()
-        wmap = src_index.weight_map
-        suffixes = src_index.layer_suffixes()
 
         positions = set(
             insert_positions(num_orig, cfg.num_new_layers, cfg.insert_strategy)
         )
         sequence = build_layer_sequence(num_orig, positions)
 
-        plan = ExpansionPlan(new_num_hidden_layers=len(sequence))
-
-        for new_idx, (src_idx, is_identity) in enumerate(sequence):
-            for suf in suffixes:
-                src_key = f"model.layers.{src_idx}.{suf}"
-                if src_key not in wmap:
-                    continue
-                new_key = f"model.layers.{new_idx}.{suf}"
-                plan.add(
-                    new_key,
-                    TensorRecipe(
-                        src_shard=wmap[src_key],
-                        src_key=src_key,
-                        zero_out=is_identity and self._should_zero(suf),
-                    ),
-                )
-
-        # Non-layer tensors (embed, norm, mtp.*) pass through unchanged
-        self._passthrough_non_layer_keys(plan, wmap)
-
-        return plan
+        return self._build_layer_plan(src_index, layer_sequence=sequence)

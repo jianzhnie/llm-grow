@@ -141,8 +141,8 @@ class StructuralVerifier:
     def check_original_weights_preserved(self, sample: int = 4) -> bool:
         """Spot-check that original layer tensors are preserved in output.
 
-        Streams destination tensors one at a time so memory stays constant
-        regardless of model depth or width.
+        Uses layer offset mapping for O(1) candidate lookup instead of
+        brute-force scanning all destination layers.
         """
         src_handles = self.src_idx.open_all_shards()
         dst_handles = self.dst_idx.open_all_shards()
@@ -154,6 +154,8 @@ class StructuralVerifier:
             dst_layers = self.dst_idx.num_hidden_layers()
             suf = "mlp.gate_proj.weight"
 
+            added = dst_layers - src_layers
+
             step = max(1, src_layers // sample)
             all_ok = True
             for orig_idx in range(0, src_layers, step):
@@ -163,7 +165,14 @@ class StructuralVerifier:
                 src_t = src_handles[wmap_src[src_key]].get_tensor(src_key).float()
 
                 best_idx, best_diff = -1, float("inf")
-                for dst_i in range(dst_layers):
+                if added >= 0:
+                    search_indices = range(
+                        orig_idx, min(orig_idx + added + 1, dst_layers)
+                    )
+                else:
+                    search_indices = range(dst_layers)
+
+                for dst_i in search_indices:
                     dst_key = f"model.layers.{dst_i}.{suf}"
                     if dst_key not in wmap_dst:
                         continue
@@ -173,6 +182,8 @@ class StructuralVerifier:
                     diff = (src_t - dst_t).abs().max().item()
                     if diff < best_diff:
                         best_diff, best_idx = diff, dst_i
+                    if best_diff < WEIGHT_PRESERVE_ATOL:
+                        break
 
                 if best_idx == -1:
                     logger.info("  layer %d: shapes differ (width expansion)", orig_idx)
