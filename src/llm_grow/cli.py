@@ -63,6 +63,16 @@ def main() -> None:
     expand_p.add_argument(
         "--dry-run", action="store_true", help="Plan only, no file writes"
     )
+    expand_p.add_argument(
+        "--validate-output",
+        action="store_true",
+        help="Verify output config and tensor keys after writing",
+    )
+    expand_p.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip output shards that already exist (resume interrupted run)",
+    )
     expand_p.add_argument("--quiet", action="store_true")
 
     # ── verify ────────────────────────────────────────────────────────────────
@@ -108,6 +118,8 @@ def _cmd_expand(args) -> None:
         verbose=not args.quiet,
         dry_run=args.dry_run,
         workers=args.workers,
+        validate_output=args.validate_output,
+        resume=args.resume,
     )
 
 

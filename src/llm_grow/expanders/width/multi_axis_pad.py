@@ -23,14 +23,14 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn as nn
 
-from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.configs.base import BaseDepthConfig
+from llm_grow.expanders.base import AbstractExpander
 from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 
 @dataclass
-class MultiAxisPadConfig(ExpansionConfig):
-    num_new_layers: int = 0
-    """新增层数（均匀插入恒等块）。"""
+class MultiAxisPadConfig(BaseDepthConfig):
+    """MultiAxisPad 多维度扩增配置。"""
 
     depth_expansion: int | None = None
     """Deprecated alias for num_new_layers."""

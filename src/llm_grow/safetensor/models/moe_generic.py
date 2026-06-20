@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from llm_grow.configs.base import BaseMoEDepthConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -65,25 +66,8 @@ class GenericDenseToMoEConfig:
 
 
 @dataclass
-class GenericMoEDepthConfig:
-    num_new_layers: int = 4
-    """Number of identity blocks to insert."""
-
-    insert_strategy: str = "uniform"
-    """'uniform' | 'front' | 'rear'"""
-
-    extra_attn_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["self_attn.o_proj.weight"]
-    )
-    """Exact layer-suffixes for attention output projections to zero."""
-
-    dense_mlp_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["mlp.down_proj.weight"]
-    )
-    """Exact layer-suffixes for dense MLP outputs to zero (non-MoE layers)."""
-
-    zero_shared_expert_down: bool = True
-    """Zero mlp.shared_experts.down_proj.weight in identity blocks."""
+class GenericMoEDepthConfig(BaseMoEDepthConfig):
+    """Depth expansion configuration for generic MoE safetensor expanders."""
 
 
 # ── ExpertClone ──────────────────────────────────────────────────────────

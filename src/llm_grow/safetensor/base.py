@@ -50,7 +50,12 @@ from typing import Any
 import torch
 from safetensors.torch import save_file
 
-from llm_grow.safetensor.utils import ShardIndex, parse_layer_idx
+from llm_grow.safetensor.utils import (
+    ShardIndex,
+    parse_layer_idx,
+    peek_model_config,
+    read_safetensors_header,
+)
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -186,6 +191,8 @@ class SafetensorExpanderBase(ABC):
         target_shard_bytes: int | None = None,
         workers: int = 1,
         verbose: bool = True,
+        validate_output: bool = False,
+        resume: bool = False,
     ) -> None:
         """Expand model at ``src_dir``, write results to ``dst_dir``.
 
@@ -193,6 +200,10 @@ class SafetensorExpanderBase(ABC):
             target_shard_bytes: Maximum bytes per output shard.  Defaults to
                 ``auto_detect_shard_size`` (mean of input shards, or 4 GB).
             workers: Number of parallel writer processes (1 = serial).
+            validate_output: If True, run a lightweight post-write check that
+                ``config.json`` is valid and every tensor key exists in its shard.
+            resume: If True, skip output shards that already exist and contain
+                all expected tensor keys.  Useful for resuming interrupted runs.
         """
         src_dir, dst_dir = Path(src_dir), Path(dst_dir)
         dst_dir.mkdir(parents=True, exist_ok=True)
@@ -221,10 +232,19 @@ class SafetensorExpanderBase(ABC):
             )
 
         self._write_shards(
-            src_index, dst_dir, plan, target_shard_bytes, verbose, workers
+            src_index,
+            dst_dir,
+            plan,
+            target_shard_bytes,
+            verbose,
+            workers,
+            resume=resume,
         )
         self._write_config(src_dir, dst_dir, plan)
         src_index.copy_non_weight_files(dst_dir)
+
+        if validate_output:
+            self._validate_output(dst_dir, plan)
 
         if verbose:
             logger.info(f"  Done → {dst_dir}")
@@ -277,6 +297,7 @@ class SafetensorExpanderBase(ABC):
         target_bytes: int,
         verbose: bool,
         workers: int = 1,
+        resume: bool = False,
     ) -> None:
         """Two-pass shard writer.
 
@@ -287,6 +308,10 @@ class SafetensorExpanderBase(ABC):
         Pass 2  For each output shard, open only the needed source shards
                 (via mmap), apply recipes, and write directly to the final
                 shard name — no temporary files, no renaming.
+
+        Args:
+            resume: If True, skip shards whose final files already exist and
+                whose headers contain all expected tensor keys.
         """
         from concurrent.futures import ThreadPoolExecutor
 
@@ -329,7 +354,14 @@ class SafetensorExpanderBase(ABC):
         # ── Pass 2: write output shards ───────────────────────────────────────
         if workers > 1:
             self._write_shards_parallel(
-                src_index, dst_dir, plan, shard_groups, weight_map, verbose, workers
+                src_index,
+                dst_dir,
+                plan,
+                shard_groups,
+                weight_map,
+                verbose,
+                workers,
+                resume=resume,
             )
         else:
             from safetensors import safe_open
@@ -351,6 +383,19 @@ class SafetensorExpanderBase(ABC):
                     if n == 1
                     else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
                 )
+                shard_path = dst_dir / shard_name
+                if resume and shard_path.exists():
+                    header = read_safetensors_header(shard_path)
+                    if all(k in header for k in group_keys):
+                        for k in group_keys:
+                            weight_map[k] = shard_name
+                        if verbose:
+                            logger.info(
+                                f"  skipped {shard_name} (already exists, "
+                                f"{len(group_keys)} tensors)"
+                            )
+                        continue
+
                 tensors: dict[str, torch.Tensor] = {}
                 for new_key in group_keys:
                     recipe = plan.recipes[new_key]
@@ -370,9 +415,9 @@ class SafetensorExpanderBase(ABC):
                 # Atomic write: save to temp file then rename.
                 tmp_path = dst_dir / f"{shard_name}.tmp"
                 save_file(tensors, str(tmp_path))
-                tmp_path.replace(dst_dir / shard_name)
+                tmp_path.replace(shard_path)
                 if verbose:
-                    size_mb = (dst_dir / shard_name).stat().st_size / 1e6
+                    size_mb = shard_path.stat().st_size / 1e6
                     logger.info(
                         f"  wrote {shard_name}  "
                         f"({len(tensors)} tensors, {size_mb:.0f} MB)"
@@ -393,6 +438,7 @@ class SafetensorExpanderBase(ABC):
         weight_map: dict[str, str],
         verbose: bool,
         workers: int,
+        resume: bool = False,
     ) -> None:
         """Write output shards in parallel using ProcessPoolExecutor."""
         from concurrent.futures import ProcessPoolExecutor
@@ -434,7 +480,9 @@ class SafetensorExpanderBase(ABC):
                         ),
                     )
                 )
-            tasks.append((str(dst_dir / shard_name), items))
+            tasks.append(
+                (str(dst_dir / shard_name), items, set(group_keys), resume)
+            )
 
         chunksize = max(1, len(tasks) // workers)
         with ProcessPoolExecutor(max_workers=workers) as executor:
@@ -496,6 +544,59 @@ class SafetensorExpanderBase(ABC):
                 dst_dir,
                 missing,
             )
+
+    def _validate_output(self, dst_dir: Path, plan: ExpansionPlan) -> None:
+        """Lightweight post-write validation.
+
+        Verifies that ``config.json`` is valid JSON, every tensor key in the
+        output weight map exists in its shard, and ``auto_map`` referenced
+        Python files are present.  This does **not** load model weights.
+        """
+        cfg_path = dst_dir / "config.json"
+        if not cfg_path.exists():
+            raise FileNotFoundError(f"Output validation failed: missing {cfg_path}")
+        try:
+            with open(cfg_path) as f:
+                json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Output validation failed: invalid config.json: {e}"
+            ) from e
+
+        dst_index = ShardIndex.load(dst_dir)
+        missing_tensors: list[str] = []
+        for key, shard_name in dst_index.weight_map.items():
+            shard_path = dst_dir / shard_name
+            if not shard_path.exists():
+                missing_tensors.append(f"{key} -> {shard_name}")
+                continue
+            header = read_safetensors_header(shard_path)
+            if key not in header:
+                missing_tensors.append(f"{key} in {shard_name}")
+        if missing_tensors:
+            sample = missing_tensors[:5]
+            raise RuntimeError(
+                f"Output validation failed: {len(missing_tensors)} tensor(s) missing, "
+                f"e.g. {sample}"
+            )
+
+        cfg = peek_model_config(dst_dir)
+        auto_map: dict[str, str] = cfg.get("auto_map", {})
+        missing_py: list[str] = []
+        for _cls, ref in auto_map.items():
+            module_name = ref.split(".")[0] + ".py"
+            if not (dst_dir / module_name).exists():
+                missing_py.append(module_name)
+        if missing_py:
+            raise RuntimeError(
+                f"Output validation failed: missing auto_map files: {missing_py}"
+            )
+
+        logger.info(
+            "Output validation passed: %d tensors in %d shard(s)",
+            len(dst_index.all_keys),
+            len(dst_index.shard_files),
+        )
 
     # ── shared plan-building helpers ──────────────────────────────────────────
 
@@ -649,12 +750,12 @@ def _predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe)
 
 
 def _worker_write_shard(
-    args: tuple[str, list[tuple[str, str, str, tuple]]],
+    args: tuple[str, list[tuple[str, str, str, tuple]], set[str], bool],
 ) -> tuple[str, list[str]]:
     """Write one output shard in a worker process.
 
     Args:
-        args: (output_path_str, items) where each item is
+        args: (output_path_str, items, expected_keys, resume) where each item is
               (src_shard_path_str, src_key, out_key, recipe_fields_tuple).
 
     Returns:
@@ -665,8 +766,13 @@ def _worker_write_shard(
     from safetensors import safe_open
     from safetensors.torch import save_file
 
-    out_path_str, items = args
+    out_path_str, items, expected_keys, resume = args
     out_path = Path(out_path_str)
+
+    if resume and out_path.exists():
+        header = read_safetensors_header(out_path)
+        if expected_keys.issubset(header):
+            return (out_path.name, list(expected_keys))
 
     # Group by source shard path to open each file only once
     by_src: dict[str, list[tuple[str, str, tuple]]] = defaultdict(list)

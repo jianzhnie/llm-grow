@@ -19,7 +19,8 @@ from dataclasses import dataclass, field
 
 import torch.nn as nn
 
-from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.configs.base import BaseDepthConfig
+from llm_grow.expanders.base import AbstractExpander
 from llm_grow.initializers.identity import zero_output_projections
 from llm_grow.utils import (
     get_decoder_layers,
@@ -31,7 +32,9 @@ from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 
 @dataclass
-class ZeroBlockInsertConfig(ExpansionConfig):
+class ZeroBlockInsertConfig(BaseDepthConfig):
+    """ZeroBlockInsert 恒等块插入配置。"""
+
     num_new_layers: int = 8
     """插入的新层数量。建议 = 原层数 // 4。
     向后兼容：也可使用 num_new_blocks 传参（等效别名）。
@@ -39,13 +42,6 @@ class ZeroBlockInsertConfig(ExpansionConfig):
 
     num_new_blocks: int | None = None
     """Deprecated alias for num_new_layers. 优先使用 num_new_layers。"""
-
-    insert_strategy: str = "uniform"
-    """插入策略：
-    - 'uniform'  : 均匀分布（论文默认，效果最好）
-    - 'front'    : 集中在前端
-    - 'rear'     : 集中在后端
-    """
 
     freeze_original: bool = True
     """Phase-1 训练时是否冻结原始块（仅训练新增块）。"""

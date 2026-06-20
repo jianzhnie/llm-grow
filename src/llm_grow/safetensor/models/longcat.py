@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from llm_grow.configs.base import BaseDepthConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -225,12 +226,8 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
 
 
 @dataclass
-class LongcatDepthConfig:
-    num_new_layers: int = 4
-    """Number of identity layers to insert."""
-
-    insert_strategy: str = "uniform"
-    """'uniform' | 'front' | 'rear'"""
+class LongcatDepthConfig(BaseDepthConfig):
+    """LongCat depth expansion configuration."""
 
     noise_scale: float = 0.0
     """Optional noise for non-zero tensors in identity blocks

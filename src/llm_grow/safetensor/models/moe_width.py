@@ -23,8 +23,9 @@ padded with zeros (scale for the new zero-weight channels is irrelevant).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
+from llm_grow.configs.base import BaseMoEDepthConfig, BaseWidthConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -37,26 +38,8 @@ from llm_grow.utils.insertion import build_layer_sequence
 
 
 @dataclass
-class MoEWidthConfig:
-    ffn_size_expansion: int = 0
-    """M3: amount to increase each expert's intermediate_size."""
-
-    hidden_size_expansion: int = 0
-    """M4: amount to increase hidden_size (d_model) globally."""
-
-    num_new_layers: int = 0
-    """Optional depth expansion (M2-style identity block insertion)."""
-
-    insert_strategy: str = "uniform"
-    """Depth insertion strategy: 'uniform' | 'front' | 'rear'."""
-
-    extra_attn_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["self_attn.o_proj.weight"]
-    )
-    dense_mlp_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["mlp.down_proj.weight"]
-    )
-    zero_shared_expert_down: bool = True
+class MoEWidthConfig(BaseMoEDepthConfig, BaseWidthConfig):
+    """MoE width expansion configuration (M3 + M4)."""
 
 
 class MoEWidthExpander(SafetensorExpanderBase):

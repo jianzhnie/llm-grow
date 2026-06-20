@@ -107,6 +107,8 @@ def auto_expand(
     verbose: bool = True,
     dry_run: bool = False,
     workers: int = 1,
+    validate_output: bool = False,
+    resume: bool = False,
 ) -> None:
     """Detect model type and run the appropriate safetensor expander.
 
@@ -122,6 +124,8 @@ def auto_expand(
         target_shard_gb:    Output shard size limit.
         verbose:            Print progress.
         dry_run:            Build plan only, do not write files.
+        validate_output:    If True, verify output can be structurally loaded.
+        resume:             If True, skip already-written output shards.
     """
     src_dir = Path(src_dir)
     profile = detect_model(src_dir)
@@ -148,6 +152,8 @@ def auto_expand(
             target_shard_bytes=int(target_shard_gb * 1024**3),
             workers=workers,
             verbose=verbose,
+            validate_output=validate_output,
+            resume=resume,
         )
 
 

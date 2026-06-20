@@ -1,25 +1,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any
 
 import torch
 import torch.nn as nn
 
+from llm_grow.configs.base import ExpansionConfig
 from llm_grow.utils import get_vocab_size
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class ExpansionConfig:
-    """通用扩增配置基类，各方法可继承并扩展字段。"""
-
-    model_name_or_path: str = ""
-    output_dir: str = "expanded_model"
-    extra: dict[str, Any] = field(default_factory=dict)
 
 
 class AbstractExpander(ABC):

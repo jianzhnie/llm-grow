@@ -20,9 +20,11 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn as nn
 
-from llm_grow.expanders.base import AbstractExpander, ExpansionConfig
+from llm_grow.configs.base import BaseDepthConfig
+from llm_grow.expanders.base import AbstractExpander
 from llm_grow.utils import (
     get_decoder_layers,
+    insert_positions,
     set_decoder_layers,
     update_num_hidden_layers,
 )
@@ -32,10 +34,16 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class SVDInterpInsertConfig(ExpansionConfig):
+class SVDInterpInsertConfig(BaseDepthConfig):
+    num_new_layers: int = 0
+    """新增层数。当 ``insert_between`` 为空且该值大于 0 时，
+    使用均匀策略在相邻层之间插入 ``num_new_layers`` 个新层。
+    """
+
     insert_between: list[tuple[int, int]] = field(default_factory=list)
-    """指定在哪两层之间插入新层，格式 [(i, i+1), ...]。
-    空列表时默认在每对相邻层之间插入（层数翻倍）。"""
+    """显式指定在哪两层之间插入新层，格式 ``[(i, i+1), ...]``。
+    若提供该列表，则 ``num_new_layers`` 被忽略。
+    """
 
     svd_rank: int = 64
     """用于特征提取的 SVD 秩（越大信息越多，预测网络越慢）。"""
@@ -60,7 +68,23 @@ class SVDInterpInsertExpander(AbstractExpander):
         layers = get_decoder_layers(model)
         num_layers = len(layers)
 
-        pairs = config.insert_between or [(i, i + 1) for i in range(num_layers - 1)]
+        if config.insert_between:
+            pairs = config.insert_between
+        elif config.num_new_layers > 0:
+            positions = insert_positions(
+                num_layers, config.num_new_layers, config.insert_strategy
+            )
+            pairs = [(i, i + 1) for i in positions if i + 1 < num_layers]
+        else:
+            pairs = []
+
+        if not pairs:
+            logger.warning(
+                "SVDInterpInsert: no insertion points specified. "
+                "Set num_new_layers or insert_between to expand the model."
+            )
+            return model
+
         insert_after = sorted({p[0] for p in pairs})
 
         predictors = None

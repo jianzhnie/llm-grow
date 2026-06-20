@@ -10,8 +10,9 @@ All are function-preserving: all new parameters start at zero.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
+from llm_grow.configs.base import BaseDepthConfig, BaseWidthConfig, BaseZeroSuffixConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -46,33 +47,16 @@ _HIDDEN_IN_SUFFIXES = frozenset(
 
 
 @dataclass
-class MultiAxisPadSafetensorConfig:
-    # ── depth ────────────────────────────────────────────────────────────────
+class MultiAxisPadSafetensorConfig(
+    BaseDepthConfig, BaseWidthConfig, BaseZeroSuffixConfig
+):
+    """MSG-style safetensor configuration combining depth and width growth."""
+
     num_new_layers: int = 0
     """Number of identity blocks to insert (0 = depth disabled)."""
 
     depth_expansion: int | None = None
     """Deprecated alias for num_new_layers."""
-
-    insert_strategy: str = "uniform"
-    """Insertion strategy: 'uniform' | 'front' | 'rear'."""
-
-    # ── FFN width ────────────────────────────────────────────────────────────
-    ffn_size_expansion: int = 0
-    """Amount to increase intermediate_size (FFN hidden dim) per layer."""
-
-    # ── hidden width ──────────────────────────────────────────────────────────
-    hidden_size_expansion: int = 0
-    """Amount to increase hidden_size. Pads all attention projections,
-    FFN projections, embeddings, and lm_head."""
-
-    # ── zero suffixes (identity blocks) ─────────────────────────────────────
-    attn_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["self_attn.o_proj.weight"]
-    )
-    mlp_zero_suffixes: list[str] = field(
-        default_factory=lambda: ["mlp.down_proj.weight"]
-    )
 
     def __post_init__(self):
         if self.depth_expansion is not None:

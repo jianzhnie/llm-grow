@@ -24,3 +24,23 @@ class TestSVDInterpInsertExpander:
         config = SVDInterpInsertConfig(insert_between=[(3, 4)])
         SVDInterpInsertExpander().expand(model, config)
         assert len(model.layers) == 9
+
+    def test_num_new_layers_uniform(self):
+        model = self._make_model(8)
+        config = SVDInterpInsertConfig(num_new_layers=3)
+        SVDInterpInsertExpander().expand(model, config)
+        assert len(model.layers) == 11
+
+    def test_num_new_layers_zero_does_nothing(self):
+        model = self._make_model(8)
+        config = SVDInterpInsertConfig()
+        SVDInterpInsertExpander().expand(model, config)
+        assert len(model.layers) == 8
+
+    def test_insert_between_overrides_num_new_layers(self):
+        model = self._make_model(8)
+        config = SVDInterpInsertConfig(
+            num_new_layers=10, insert_between=[(1, 2), (4, 5)]
+        )
+        SVDInterpInsertExpander().expand(model, config)
+        assert len(model.layers) == 10
