@@ -9,7 +9,8 @@ from pathlib import Path
 
 from safetensors import safe_open
 
-from llm_grow.utils.insertion import insert_positions
+from llm_grow.configs.constants import DEFAULT_TARGET_SHARD_BYTES
+from llm_grow.utils.insertion import insert_positions  # Re-exported for compat
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -269,7 +270,7 @@ def auto_detect_shard_size(model_dir: Path, shard_files: list[str]) -> int:
         )
         return avg
     logger.info("No shard files found on disk — using 4 GB default")
-    return 4 * 1024**3
+    return DEFAULT_TARGET_SHARD_BYTES
 
 
 # ── MoE expert key helpers ───────────────────────────────────────────────────

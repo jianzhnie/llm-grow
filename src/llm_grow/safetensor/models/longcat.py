@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from llm_grow.configs.base import BaseDepthConfig
+from llm_grow.configs.base import BaseDepthConfig, ExpansionConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -42,7 +42,7 @@ from llm_grow.utils.insertion import build_layer_sequence
 
 
 @dataclass
-class LongcatExpertCloneConfig:
+class LongcatExpertCloneConfig(ExpansionConfig):
     expand_factor: int = 2
     """Expert count multiplier (e.g. 2 → 512 experts × 2 = 1024)."""
 

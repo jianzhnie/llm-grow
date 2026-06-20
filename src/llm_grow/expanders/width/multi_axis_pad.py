@@ -32,9 +32,6 @@ from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 class MultiAxisPadConfig(BaseDepthConfig):
     """MultiAxisPad 多维度扩增配置。"""
 
-    depth_expansion: int | None = None
-    """Deprecated alias for num_new_layers."""
-
     hidden_size_expansion: int = 0
     """hidden_size 增量（需为 head_dim 的整数倍）。"""
 
@@ -56,11 +53,6 @@ class MultiAxisPadConfig(BaseDepthConfig):
     mlp_output_proj_names: list[str] = field(
         default_factory=lambda: ["down_proj", "fc2"]
     )
-
-    def __post_init__(self):
-        if self.depth_expansion is not None:
-            self.num_new_layers = self.depth_expansion
-        self.depth_expansion = self.num_new_layers
 
 
 class MultiAxisPadExpander(AbstractExpander):

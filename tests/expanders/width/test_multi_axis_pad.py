@@ -22,7 +22,7 @@ class TestMultiAxisPadExpander:
 
     def test_depth_only_increases_layers(self):
         model = self._make_model(8)
-        config = MultiAxisPadConfig(depth_expansion=4)
+        config = MultiAxisPadConfig(num_new_layers=4)
         MultiAxisPadExpander().expand(model, config)
         assert len(model.layers) == 12
 
@@ -61,7 +61,7 @@ class TestMultiAxisPadExpander:
     def test_function_preserving_depth(self):
         model = self._make_model(8)
         original = copy.deepcopy(model)
-        config = MultiAxisPadConfig(depth_expansion=2, freeze_original=False)
+        config = MultiAxisPadConfig(num_new_layers=2, freeze_original=False)
         expanded = MultiAxisPadExpander().expand(model, config)
 
         input_ids = torch.randint(0, 256, (2, 8))
@@ -78,7 +78,7 @@ class TestMultiAxisPadExpander:
         model = self._make_model(8)
         original = copy.deepcopy(model)
         config = MultiAxisPadConfig(
-            depth_expansion=2,
+            num_new_layers=2,
             intermediate_size_expansion=16,
             freeze_original=False,
         )
@@ -96,7 +96,7 @@ class TestMultiAxisPadExpander:
 
     def test_freeze_original(self):
         model = self._make_model(4)
-        config = MultiAxisPadConfig(depth_expansion=2, freeze_original=True)
+        config = MultiAxisPadConfig(num_new_layers=2, freeze_original=True)
         MultiAxisPadExpander().expand(model, config)
         frozen = [p for p in model.parameters() if not p.requires_grad]
         assert len(frozen) > 0

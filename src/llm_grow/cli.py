@@ -102,7 +102,8 @@ def main() -> None:
         _cmd_info(args)
 
 
-def _cmd_expand(args) -> None:
+def _cmd_expand(args: argparse.Namespace) -> None:
+    """Execute model expansion via auto_expand."""
     from llm_grow.safetensor.auto import auto_expand
 
     auto_expand(
@@ -123,7 +124,8 @@ def _cmd_expand(args) -> None:
     )
 
 
-def _cmd_verify(args) -> None:
+def _cmd_verify(args: argparse.Namespace) -> None:
+    """Run structural and optional FP verification on an expanded model."""
     from pathlib import Path
 
     from llm_grow.eval.structural import StructuralVerifier
@@ -137,8 +139,6 @@ def _cmd_verify(args) -> None:
         results["fp_logit_check"] = check_fp(
             Path(args.src),
             Path(args.dst),
-            seq_len=32,
-            samples=4,
             atol=args.fp_atol,
         )
 
@@ -153,7 +153,8 @@ def _cmd_verify(args) -> None:
     sys.exit(0 if all_ok else 1)
 
 
-def _cmd_info(args) -> None:
+def _cmd_info(args: argparse.Namespace) -> None:
+    """Display detected model architecture information."""
     from llm_grow.safetensor.detect import detect_model
 
     profile = detect_model(args.src)

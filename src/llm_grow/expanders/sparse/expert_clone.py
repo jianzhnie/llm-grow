@@ -79,9 +79,7 @@ class ExpertCloneExpander(AbstractExpander):
                 bool(config.moe_layer_cls_name)
                 and type(module).__name__ == config.moe_layer_cls_name
             )
-            has_moe_interface = hasattr(module, "experts") and hasattr(
-                module, "router"
-            )
+            has_moe_interface = hasattr(module, "experts") and hasattr(module, "router")
             if not is_target_cls and not has_moe_interface:
                 continue
 

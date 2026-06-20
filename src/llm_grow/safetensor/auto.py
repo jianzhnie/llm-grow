@@ -225,7 +225,7 @@ def _build_dense_depth(
 
     return ZeroBlockInsertSafetensorExpander(
         ZeroBlockInsertSafetensorConfig(
-            num_new_blocks=num_new_layers,
+            num_new_layers=num_new_layers,
             insert_strategy=insert_strategy,
             attn_zero_suffixes=profile.attn_zero_suffixes,
             mlp_zero_suffixes=profile.dense_mlp_zero_suffixes,

@@ -51,8 +51,6 @@ def net2wider_net(
     w_out_expanded = (
         torch.cat([w_out, w_out[:, indices]], dim=1) if w_out.dim() == 2 else w_out
     )
-    w_out_new = (
-        w_out_expanded / scale_out.unsqueeze(0) if w_out.dim() == 2 else w_out
-    )
+    w_out_new = w_out_expanded / scale_out.unsqueeze(0) if w_out.dim() == 2 else w_out
 
     return w_in_new, w_out_new

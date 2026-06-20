@@ -69,6 +69,7 @@ class MoELayer(nn.Module):
         self.num_experts = num_experts
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        """Scatter-gather MoE forward with per-expert batched computation."""
         bsz, seq_len, hidden = hidden_states.shape
         num_tokens = bsz * seq_len
         flat = hidden_states.view(num_tokens, hidden)
@@ -80,21 +81,33 @@ class MoELayer(nn.Module):
 
         flat_ids = topk_ids.view(-1)
         flat_weights = topk_weights.view(-1, 1)
-        token_indices = torch.arange(num_tokens, device=flat.device).unsqueeze(1)
-        token_indices = token_indices.expand(-1, self.top_k).reshape(-1)
+        token_indices = (
+            torch.arange(num_tokens, device=flat.device)
+            .unsqueeze(1)
+            .expand(-1, self.top_k)
+            .reshape(-1)
+        )
 
         expert_outputs = torch.zeros(
             num_tokens, hidden, dtype=flat.dtype, device=flat.device
         )
 
+        sorted_expert_ids, sort_idx = flat_ids.sort()
+        sorted_token_indices = token_indices[sort_idx]
+        sorted_weights = flat_weights[sort_idx]
+
+        expert_counts = torch.bincount(sorted_expert_ids, minlength=self.num_experts)
+        splits = expert_counts.tolist()
+        token_splits = sorted_token_indices.split(splits)
+        weight_splits = sorted_weights.split(splits)
+
         for expert_idx in range(self.num_experts):
-            mask = flat_ids == expert_idx
-            if not mask.any():
+            if splits[expert_idx] == 0:
                 continue
-            selected_tokens = token_indices[mask]
+            selected_tokens = token_splits[expert_idx]
             expert_input = flat[selected_tokens]
             expert_out = self.experts[expert_idx](expert_input)
-            weighted_out = flat_weights[mask] * expert_out
+            weighted_out = weight_splits[expert_idx] * expert_out
             expert_outputs.index_add_(0, selected_tokens, weighted_out)
 
         return expert_outputs.view(bsz, seq_len, hidden)

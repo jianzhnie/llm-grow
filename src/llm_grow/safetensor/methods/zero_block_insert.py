@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from llm_grow.configs.base import BaseDepthConfig, BaseZeroSuffixConfig
+from llm_grow.configs.base import (
+    BaseDepthConfig,
+    BaseZeroSuffixConfig,
+)
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase
 from llm_grow.safetensor.utils import ShardIndex, insert_positions
 from llm_grow.utils.insertion import build_layer_sequence
@@ -20,14 +23,6 @@ class ZeroBlockInsertSafetensorConfig(BaseDepthConfig, BaseZeroSuffixConfig):
 
     num_new_layers: int = 8
     """Number of identity blocks to insert."""
-
-    num_new_blocks: int | None = None
-    """Deprecated alias for num_new_layers."""
-
-    def __post_init__(self):
-        if self.num_new_blocks is not None:
-            self.num_new_layers = self.num_new_blocks
-        self.num_new_blocks = self.num_new_layers
 
 
 class ZeroBlockInsertSafetensorExpander(SafetensorExpanderBase):

@@ -6,6 +6,12 @@ import torch
 import torch.nn as nn
 
 from llm_grow.configs.base import ExpansionConfig
+from llm_grow.configs.constants import (
+    DEFAULT_VERIFY_ATOL,
+    DEFAULT_VERIFY_NUM_SAMPLES,
+    DEFAULT_VERIFY_SEED,
+    DEFAULT_VERIFY_SEQ_LEN,
+)
 from llm_grow.utils import get_vocab_size
 from llm_grow.utils.logger_utils import get_logger
 
@@ -51,11 +57,11 @@ class AbstractExpander(ABC):
         original: nn.Module,
         expanded: nn.Module,
         *,
-        num_samples: int = 4,
-        seq_len: int = 32,
-        atol: float = 1e-4,
+        num_samples: int = DEFAULT_VERIFY_NUM_SAMPLES,
+        seq_len: int = DEFAULT_VERIFY_SEQ_LEN,
+        atol: float = DEFAULT_VERIFY_ATOL,
         device: str | None = None,
-        seed: int = 42,
+        seed: int = DEFAULT_VERIFY_SEED,
     ) -> bool:
         """验证 function-preserving：随机输入下两个模型输出是否一致。
 
@@ -72,7 +78,7 @@ class AbstractExpander(ABC):
         torch.manual_seed(seed)
         input_ids = torch.randint(0, orig_vocab, (num_samples, seq_len), device=device)
 
-        with torch.no_grad():
+        with torch.inference_mode():
             out_orig = original(input_ids=input_ids).logits
             out_exp = expanded(input_ids=input_ids).logits
 

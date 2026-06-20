@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from llm_grow.configs.base import BaseMoEDepthConfig
+from llm_grow.configs.base import BaseMoEDepthConfig, ExpansionConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -40,7 +40,7 @@ from llm_grow.utils.insertion import build_layer_sequence
 
 
 @dataclass
-class GenericDenseToMoEConfig:
+class GenericDenseToMoEConfig(ExpansionConfig):
     expand_factor: int = 2
     """Expert count multiplier."""
 

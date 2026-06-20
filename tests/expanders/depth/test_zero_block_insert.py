@@ -19,7 +19,7 @@ class TestZeroBlockInsertExpander:
 
     def test_layer_count_increases(self):
         model = self._make_model(8)
-        config = ZeroBlockInsertConfig(num_new_blocks=4, insert_strategy="uniform")
+        config = ZeroBlockInsertConfig(num_new_layers=4, insert_strategy="uniform")
         ZeroBlockInsertExpander().expand(model, config)
         assert len(model.layers) == 12
 
@@ -27,7 +27,7 @@ class TestZeroBlockInsertExpander:
         model = self._make_model(8)
         original = copy.deepcopy(model)
         config = ZeroBlockInsertConfig(
-            num_new_blocks=4, insert_strategy="uniform", freeze_original=False
+            num_new_layers=4, insert_strategy="uniform", freeze_original=False
         )
         expanded = ZeroBlockInsertExpander().expand(model, config)
 
@@ -43,13 +43,13 @@ class TestZeroBlockInsertExpander:
 
     def test_num_hidden_layers_updated(self):
         model = self._make_model(8)
-        ZeroBlockInsertExpander().expand(model, ZeroBlockInsertConfig(num_new_blocks=2))
+        ZeroBlockInsertExpander().expand(model, ZeroBlockInsertConfig(num_new_layers=2))
         assert model.config.num_hidden_layers == 10
 
     def test_freeze_original_works(self):
         model = self._make_model(8)
         ZeroBlockInsertExpander().expand(
-            model, ZeroBlockInsertConfig(num_new_blocks=2, freeze_original=True)
+            model, ZeroBlockInsertConfig(num_new_layers=2, freeze_original=True)
         )
         trainable = [p for p in model.parameters() if p.requires_grad]
         frozen = [p for p in model.parameters() if not p.requires_grad]

@@ -1,7 +1,7 @@
 """MSG safetensor expander: depth + width masked structural growth.
 
 Supports three orthogonal expansion axes:
-  - depth_expansion      : identity block insertion (same as ZeroBlockInsert)
+  - num_new_layers      : identity block insertion (same as ZeroBlockInsert)
   - ffn_size_expansion   : zero-pad gate_proj/up_proj rows and down_proj cols
   - hidden_size_expansion: zero-pad all projections, embeddings, and lm_head
 
@@ -12,7 +12,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from llm_grow.configs.base import BaseDepthConfig, BaseWidthConfig, BaseZeroSuffixConfig
+from llm_grow.configs.base import (
+    BaseDepthConfig,
+    BaseWidthConfig,
+    BaseZeroSuffixConfig,
+)
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -54,14 +58,6 @@ class MultiAxisPadSafetensorConfig(
 
     num_new_layers: int = 0
     """Number of identity blocks to insert (0 = depth disabled)."""
-
-    depth_expansion: int | None = None
-    """Deprecated alias for num_new_layers."""
-
-    def __post_init__(self):
-        if self.depth_expansion is not None:
-            self.num_new_layers = self.depth_expansion
-        self.depth_expansion = self.num_new_layers
 
 
 class MultiAxisPadSafetensorExpander(SafetensorExpanderBase):

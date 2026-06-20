@@ -11,6 +11,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from llm_grow.configs.constants import (
+    DEFAULT_VERIFY_ATOL,
+    DEFAULT_VERIFY_NUM_SAMPLES,
+    DEFAULT_VERIFY_SEED,
+    DEFAULT_VERIFY_SEQ_LEN,
+    WEIGHT_PRESERVE_ATOL,
+    ZERO_CHECK_ATOL,
+)
 from llm_grow.safetensor.utils import ShardIndex, peek_model_config
 from llm_grow.utils.logger_utils import get_logger
 
@@ -167,11 +175,9 @@ class StructuralVerifier:
                         best_diff, best_idx = diff, dst_i
 
                 if best_idx == -1:
-                    logger.info(
-                        "  layer %d: shapes differ (width expansion)", orig_idx
-                    )
+                    logger.info("  layer %d: shapes differ (width expansion)", orig_idx)
                 else:
-                    ok = best_diff < 1e-6
+                    ok = best_diff < WEIGHT_PRESERVE_ATOL
                     logger.info(
                         "  orig layer %d -> dst layer %d  max|diff|=%.2e %s",
                         orig_idx,
@@ -202,7 +208,7 @@ class StructuralVerifier:
                     if not key.endswith(suf):
                         continue
                     t = dst_handles[shard].get_tensor(key)
-                    if t.abs().max().item() < 1e-9:
+                    if t.abs().max().item() < ZERO_CHECK_ATOL:
                         total_zero += 1
                     else:
                         total_nonzero += 1
@@ -225,10 +231,10 @@ class StructuralVerifier:
 def check_fp(
     src_dir: Path,
     dst_dir: Path,
-    seq_len: int = 32,
-    samples: int = 4,
-    atol: float = 1e-4,
-    seed: int = 42,
+    seq_len: int = DEFAULT_VERIFY_SEQ_LEN,
+    samples: int = DEFAULT_VERIFY_NUM_SAMPLES,
+    atol: float = DEFAULT_VERIFY_ATOL,
+    seed: int = DEFAULT_VERIFY_SEED,
 ) -> bool:
     """Full function-preserving check: load both models and compare logits.
 

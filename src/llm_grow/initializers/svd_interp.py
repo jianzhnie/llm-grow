@@ -194,20 +194,21 @@ def train_predictor(
         ]
 
         for _step in range(steps):
-            total_loss = torch.tensor(0.0, device=device)
+            total_loss = 0.0
             count = 0
             for i in range(num_layers - 2):
                 pred = predictor(feats[i], feats[i + 2])
                 target = targets[i + 1]
-                total_loss = total_loss + nn.functional.mse_loss(pred, target)
+                loss = nn.functional.mse_loss(pred, target)
+                total_loss += loss.item()
                 count += 1
-            loss = total_loss / max(count, 1)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+            avg_loss = total_loss / max(count, 1)
 
         predictors[pname] = predictor.eval()
-        logger.info("Trained predictor for %s: final loss=%.4e", pname, loss.item())
+        logger.info("Trained predictor for %s: final loss=%.4e", pname, avg_loss)
 
     return predictors
 

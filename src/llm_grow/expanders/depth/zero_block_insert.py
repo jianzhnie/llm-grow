@@ -36,12 +36,7 @@ class ZeroBlockInsertConfig(BaseDepthConfig):
     """ZeroBlockInsert 恒等块插入配置。"""
 
     num_new_layers: int = 8
-    """插入的新层数量。建议 = 原层数 // 4。
-    向后兼容：也可使用 num_new_blocks 传参（等效别名）。
-    """
-
-    num_new_blocks: int | None = None
-    """Deprecated alias for num_new_layers. 优先使用 num_new_layers。"""
+    """插入的新层数量。建议 = 原层数 // 4。"""
 
     freeze_original: bool = True
     """Phase-1 训练时是否冻结原始块（仅训练新增块）。"""
@@ -52,11 +47,6 @@ class ZeroBlockInsertConfig(BaseDepthConfig):
     mlp_output_proj_names: list[str] = field(
         default_factory=lambda: ["down_proj", "fc2"]
     )
-
-    def __post_init__(self):
-        if self.num_new_blocks is not None:
-            self.num_new_layers = self.num_new_blocks
-        self.num_new_blocks = self.num_new_layers
 
 
 class ZeroBlockInsertExpander(AbstractExpander):
