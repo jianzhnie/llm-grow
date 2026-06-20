@@ -42,14 +42,15 @@ Memory profile
 from __future__ import annotations
 
 import json
+import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import torch
 from safetensors.torch import save_file
 
+from llm_grow.safetensor.recipe import ExpansionPlan, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
     parse_layer_idx,
@@ -69,100 +70,7 @@ from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
 
-# ── data classes ─────────────────────────────────────────────────────────────
-
-
-@dataclass
-class TensorRecipe:
-    """Describes how to produce one output tensor from a source tensor."""
-
-    src_shard: str  # source shard filename (basename)
-    src_key: str  # source tensor name
-    zero_out: bool = False  # replace with all-zeros (identity block trick)
-    pad_rows: int = 0  # zero-pad output dimension (rows / out_features)
-    pad_cols: int = 0  # zero-pad input  dimension (cols / in_features)
-    dup_rows: bool = False  # duplicate existing rows → [original; copy + noise]
-    dup_rows_noise_scale: float = 1e-6  # noise std relative to tensor std
-
-    # ── router-aware expansion ────────────────────────────────────────────────
-    # When router_split > 0 and dup_rows=True:
-    #   rows [0 : router_split]       → real experts  → duplicate WITH noise
-    #   rows [router_split : end]     → zero experts  → duplicate WITHOUT noise
-    # This preserves the identity-block semantics of zero experts.
-    router_split: int = 0  # row index separating real from zero experts (0 = disabled)
-
-    # ── interpolation (SVDInterpInsert) ───────────────────────────────────────
-    # When set, output = interp_alpha * src + (1 - interp_alpha) * interp_src
-    interp_src_shard: str = ""
-    interp_src_key: str = ""
-    interp_alpha: float = 0.5
-
-    # ── noise injection (DenseToMoE expert copies) ────────────────────────────
-    add_noise_std: float = 0.0  # Gaussian noise std to add (0 = disabled)
-
-    # ── create new zero tensor (e.g. MoE router weights) ─────────────────────
-    create_shape: tuple = ()  # non-empty → ignore src, create zero tensor
-    create_dtype: str = "F32"  # safetensors dtype string for created tensor
-
-
-@dataclass
-class ExpansionPlan:
-    """Complete description of the expansion: one recipe per output tensor."""
-
-    recipes: dict[str, TensorRecipe] = field(default_factory=dict)
-    new_num_hidden_layers: int = 0
-    config_patches: dict[str, Any] = field(default_factory=dict)
-
-    def add(self, new_key: str, recipe: TensorRecipe) -> None:
-        self.recipes[new_key] = recipe
-
-    def passthrough(self, key: str, shard: str) -> None:
-        """Add a tensor that is copied unchanged."""
-        self.add(key, TensorRecipe(src_shard=shard, src_key=key))
-
-    # ── serialization ─────────────────────────────────────────────────────────
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize plan to a JSON-compatible dict."""
-        from dataclasses import asdict
-
-        return {
-            "new_num_hidden_layers": self.new_num_hidden_layers,
-            "config_patches": self.config_patches,
-            "recipes": {k: asdict(r) for k, r in self.recipes.items()},
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ExpansionPlan:
-        """Deserialize plan from a dict (as produced by ``to_dict``)."""
-        plan = cls(
-            new_num_hidden_layers=data["new_num_hidden_layers"],
-            config_patches=data.get("config_patches", {}),
-        )
-        for key, recipe_data in data.get("recipes", {}).items():
-            plan.add(key, TensorRecipe(**recipe_data))
-        return plan
-
-    def save_json(self, path: str | Path) -> None:
-        """Save plan to a JSON file for offline review or resume."""
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w") as f:
-            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
-        logger.info("Expansion plan saved to %s (%d recipes)", path, len(self.recipes))
-
-    @classmethod
-    def load_json(cls, path: str | Path) -> ExpansionPlan:
-        """Load plan from a JSON file."""
-        with open(path) as f:
-            data = json.load(f)
-        plan = cls.from_dict(data)
-        logger.info(
-            "Expansion plan loaded from %s (%d recipes)", path, len(plan.recipes)
-        )
-        return plan
-
-
+# Re-exported from recipe.py for backward compatibility.
 # ── base expander ─────────────────────────────────────────────────────────────
 
 
@@ -389,7 +297,10 @@ class SafetensorExpanderBase(ABC):
                 shard_path = dst_dir / shard_name
                 if resume and shard_path.exists():
                     header = read_safetensors_header(shard_path)
-                    if all(k in header for k in group_keys):
+                    if all(k in header for k in group_keys) and all(
+                        self._recipe_matches_header(plan.recipes[k], header[k])
+                        for k in group_keys
+                    ):
                         for k in group_keys:
                             weight_map[k] = shard_name
                         if verbose:
@@ -418,7 +329,7 @@ class SafetensorExpanderBase(ABC):
                 # Atomic write: save to temp file then rename.
                 tmp_path = dst_dir / f"{shard_name}.tmp"
                 save_file(tensors, str(tmp_path))
-                tmp_path.replace(shard_path)
+                os.replace(str(tmp_path), str(shard_path))
                 if verbose:
                     size_mb = shard_path.stat().st_size / 1e6
                     logger.info(
@@ -499,6 +410,16 @@ class SafetensorExpanderBase(ABC):
         for shard_name, tensor_names in results:
             for name in tensor_names:
                 weight_map[name] = shard_name
+
+    @staticmethod
+    def _recipe_matches_header(
+        recipe: TensorRecipe, header_entry: tuple[str, list[int]]
+    ) -> bool:
+        """Return True if a header entry matches the recipe's expected output."""
+        dtype, shape = header_entry
+        expected_dtype = recipe.output_dtype(dtype)
+        expected_shape = recipe.output_shape(shape)
+        return dtype == expected_dtype and shape == expected_shape
 
     def _write_config(self, src_dir: Path, dst_dir: Path, plan: ExpansionPlan) -> None:
         """Write updated config.json to dst_dir.

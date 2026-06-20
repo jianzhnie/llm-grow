@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import torch
 import torch.nn.functional as F
 
@@ -49,7 +51,7 @@ def z_loss(router_logits: torch.Tensor, coeff: float = 1e-3) -> torch.Tensor:
     L_z = coeff * mean(log(sum_j(exp(logit_j)))^2)
     """
     log_z = torch.logsumexp(router_logits, dim=-1)
-    return coeff * (log_z**2).mean()
+    return cast(torch.Tensor, coeff * (log_z**2).mean())
 
 
 def combined_moe_loss(

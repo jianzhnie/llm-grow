@@ -17,6 +17,7 @@ Based on: Yang et al., "LESA: Learnable LLM Layer Expansion with
 from __future__ import annotations
 
 import copy
+from typing import cast
 
 import torch
 import torch.nn as nn
@@ -49,7 +50,7 @@ def svd_features(
 
     k = min(rank, S.shape[0])
     weighted = S[:k].unsqueeze(-1) * Vh[:k]
-    return weighted.reshape(-1)
+    return cast(torch.Tensor, weighted.reshape(-1))
 
 
 def interpolate_weights(
@@ -121,7 +122,7 @@ class LayerPredictor(nn.Module):
         self.param_numel = param_numel
 
     def forward(self, feat_a: torch.Tensor, feat_b: torch.Tensor) -> torch.Tensor:
-        return self.net(torch.cat([feat_a, feat_b], dim=-1))
+        return cast(torch.Tensor, self.net(torch.cat([feat_a, feat_b], dim=-1)))
 
 
 def _layer_svd_features(

@@ -43,6 +43,9 @@ class ExpansionConfig:
     extra: dict[str, Any] = field(default_factory=dict)
     """Arbitrary key-value store for extension / serialization."""
 
+    def __post_init__(self) -> None:
+        """No-op base hook; subclasses must call super().__post_init__()."""
+
 
 @dataclass
 class ModelExpansionConfig(ExpansionConfig):
@@ -85,6 +88,7 @@ class BaseDepthConfig(ExpansionConfig):
                 f"insert_strategy must be one of {_VALID_INSERT_STRATEGIES}, "
                 f"got {self.insert_strategy!r}"
             )
+        super().__post_init__()
 
 
 # ── Zero-suffix (identity block) ─────────────────────────────────────────────
@@ -161,3 +165,4 @@ class BaseWidthConfig(ExpansionConfig):
             raise ValueError(
                 f"hidden_size_expansion must be >= 0, got {self.hidden_size_expansion}"
             )
+        super().__post_init__()

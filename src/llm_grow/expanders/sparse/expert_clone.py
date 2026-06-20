@@ -66,7 +66,7 @@ class ExpertCloneConfig(ModelExpansionConfig):
     """
 
 
-class ExpertCloneExpander(AbstractExpander):
+class ExpertCloneExpander(AbstractExpander[ExpertCloneConfig]):
     """ExpertClone MoE 专家克隆扩展器（M1 方案）。
 
     适用于基座已经是 MoE 架构的模型（Qwen3-MoE、DeepSeek-V3、Mixtral 等）。

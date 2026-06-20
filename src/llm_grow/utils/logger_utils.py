@@ -74,14 +74,15 @@ class ColorfulFormatter(Formatter):
             The formatted log message with color codes.
         """
         # Add rank information to the record (logging.LogRecord accepts dynamic attrs)
-        record.rank = self._get_rank()  # type: ignore[attr-defined]
+        record.rank = self._get_rank()
         record.is_main = record.rank == 0  # type: ignore[attr-defined]
 
         # Format the log message
         log_message = super().format(record)
 
         # Add color based on log level
-        return self.COLORS.get(record.levelname, "") + log_message + Fore.RESET
+        prefix = str(self.COLORS.get(record.levelname, ""))
+        return prefix + log_message + str(Fore.RESET)
 
     def _get_rank(self) -> int:
         """Get the current process rank in a safe way.

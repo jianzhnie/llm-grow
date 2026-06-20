@@ -56,7 +56,7 @@ class SVDInterpInsertConfig(BaseDepthConfig):
     True 时使用 MLP 预测网络（需额外训练步骤）。"""
 
 
-class SVDInterpInsertExpander(AbstractExpander):
+class SVDInterpInsertExpander(AbstractExpander[SVDInterpInsertConfig]):
     """SVDInterpInsert SVD 插值扩增器。
 
     当 use_predictor=False 时，使用相邻层参数的简单算术平均作为插入层初始化，

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from llm_grow.configs.base import ExpansionConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -35,7 +36,7 @@ _FFN_SUFFIXES = frozenset(
 
 
 @dataclass
-class DenseToMoESafetensorConfig:
+class DenseToMoESafetensorConfig(ExpansionConfig):
     num_experts: int = 8
     """Number of experts (FFN copies per layer)."""
 

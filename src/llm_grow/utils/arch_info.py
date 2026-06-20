@@ -91,7 +91,7 @@ def get_vocab_size(model: nn.Module) -> int:
     """从模型配置或嵌入参数推断词汇表大小。"""
     cfg = getattr(model, "config", None)
     if cfg is not None and hasattr(cfg, "vocab_size"):
-        return cfg.vocab_size
+        return int(cfg.vocab_size)
     for name, param in model.named_parameters():
         if "embed" in name and param.dim() == 2:
             return param.shape[0]

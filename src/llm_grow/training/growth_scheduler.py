@@ -67,7 +67,7 @@ class GrowthScheduler:
             if getattr(param, NEW_GROWTH_ATTR, False):
                 param.requires_grad_(unlock_ratio > 0)
                 if hasattr(param, "_growth_scale"):
-                    param._growth_scale = unlock_ratio  # type: ignore[attr-defined]
+                    param._growth_scale = unlock_ratio
 
     def apply_masks(self, model: nn.Module, unlock_ratio: float) -> None:
         """Deprecated alias for :meth:`apply_grad_scale`."""

@@ -228,13 +228,16 @@ class StructuralVerifier:
                 logger.info(
                     "Identity blocks: none found (non-FP method or no identity blocks)"
                 )
-            else:
-                logger.info(
-                    "Identity blocks: %d zeroed, %d non-zero (original layers)",
-                    total_zero,
-                    total_nonzero,
-                )
-            return True
+                return True
+
+            ok = total_nonzero == 0
+            logger.info(
+                "Identity blocks: %d zeroed, %d non-zero (original layers) %s",
+                total_zero,
+                total_nonzero,
+                "OK" if ok else "FAIL",
+            )
+            return ok
         finally:
             del dst_handles  # release mmap handles
 

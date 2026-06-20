@@ -55,7 +55,7 @@ class MultiAxisPadConfig(BaseDepthConfig):
     )
 
 
-class MultiAxisPadExpander(AbstractExpander):
+class MultiAxisPadExpander(AbstractExpander[MultiAxisPadConfig]):
     """MultiAxisPad 多维度扩增器。
 
     建议搭配 GrowthScheduler 使用（training/growth_scheduler.py），

@@ -38,7 +38,7 @@ class OverlapCopyConfig(ModelExpansionConfig):
     """
 
 
-class OverlapCopyExpander(AbstractExpander):
+class OverlapCopyExpander(AbstractExpander[OverlapCopyConfig]):
     """OverlapCopy 层重叠拼接扩增器。
 
     WARNING: 非 function-preserving，verify() 始终返回 False。

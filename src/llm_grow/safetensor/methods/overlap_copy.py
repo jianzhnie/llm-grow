@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from llm_grow.configs.base import ExpansionConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase
 from llm_grow.safetensor.utils import ShardIndex
 
 
 @dataclass
-class OverlapCopySafetensorConfig:
+class OverlapCopySafetensorConfig(ExpansionConfig):
     num_overlap: int = 8
     """Number of overlapping layers.
 

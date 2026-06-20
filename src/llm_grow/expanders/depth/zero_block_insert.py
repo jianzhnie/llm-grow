@@ -49,7 +49,7 @@ class ZeroBlockInsertConfig(BaseDepthConfig):
     )
 
 
-class ZeroBlockInsertExpander(AbstractExpander):
+class ZeroBlockInsertExpander(AbstractExpander[ZeroBlockInsertConfig]):
     """ZeroBlockInsert 恒等块插入扩增器。
 
     用法::

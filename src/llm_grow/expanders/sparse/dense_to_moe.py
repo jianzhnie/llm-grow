@@ -114,7 +114,7 @@ class MoELayer(nn.Module):
         return expert_outputs.view(bsz, seq_len, hidden)
 
 
-class DenseToMoEExpander(AbstractExpander):
+class DenseToMoEExpander(AbstractExpander[DenseToMoEConfig]):
     """DenseToMoE 扩增器（Dense → Sparse MoE）。
 
     WARNING: 非 function-preserving（Router 随机初始化）。
@@ -180,7 +180,7 @@ def _get_hidden_size(model: nn.Module, explicit_hidden_size: int | None = None) 
     if cfg is not None:
         for attr in ("hidden_size", "d_model", "n_embd"):
             if hasattr(cfg, attr):
-                return getattr(cfg, attr)
+                return int(getattr(cfg, attr))
 
     for name, param in model.named_parameters():
         if param.dim() == 2 and "embed" not in name:

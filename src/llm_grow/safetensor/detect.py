@@ -208,7 +208,7 @@ def _detect_router(wmap: dict) -> tuple[str, str | None]:
     ]
     found_w = found_b = None
     layer_indices = sorted(
-        {parse_layer_idx(k) for k in wmap if parse_layer_idx(k) is not None}
+        idx for k in wmap if (idx := parse_layer_idx(k)) is not None
     )
     for layer in layer_indices:
         prefix = f"model.layers.{layer}."

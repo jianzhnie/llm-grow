@@ -7,12 +7,14 @@ prediction, and the parallel worker entry point.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import torch
 from safetensors.torch import save_file
 
+from llm_grow.safetensor.recipe import TensorRecipe
 from llm_grow.safetensor.utils import read_safetensors_header
 
 _TORCH_DTYPES: dict[str, torch.dtype] = {
@@ -24,7 +26,7 @@ _TORCH_DTYPES: dict[str, torch.dtype] = {
 
 def apply_recipe(
     src: torch.Tensor,
-    recipe: Any,
+    recipe: TensorRecipe,
     interp_tensor: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Apply a TensorRecipe to produce the output tensor.
@@ -41,7 +43,10 @@ def apply_recipe(
 
     if interp_tensor is not None and recipe.interp_src_key:
         alpha = recipe.interp_alpha
-        return (alpha * src.float() + (1 - alpha) * interp_tensor.float()).to(src.dtype)
+        return cast(
+            torch.Tensor,
+            (alpha * src.float() + (1 - alpha) * interp_tensor.float()).to(src.dtype),
+        )
 
     if recipe.dup_rows and recipe.router_split > 0:
         real = src[: recipe.router_split]
@@ -75,41 +80,27 @@ def apply_recipe(
 
     if recipe.add_noise_std > 0:
         noise = torch.randn_like(tensor) * recipe.add_noise_std
-        return tensor + noise
+        return cast(torch.Tensor, tensor + noise)
 
     return tensor
 
 
-def predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: Any) -> int:
+def predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe) -> int:
     """Predict output tensor byte size from header metadata (no tensor load).
 
     Used in Pass 1 of shard writing to plan assignments purely from
     the binary JSON header.
     """
-    from llm_grow.safetensor.utils import DTYPE_SIZES, nbytes_from_header
-
-    if recipe.create_shape:
-        elem = DTYPE_SIZES.get(recipe.create_dtype, 4)
-        numel = 1
-        for dim in recipe.create_shape:
-            numel *= dim
-        return elem * numel
+    from llm_grow.safetensor.utils import DTYPE_SIZES
 
     dtype, shape = src_meta
-    elem = DTYPE_SIZES.get(dtype, 4)
-    src_bytes = nbytes_from_header(dtype, shape)
-
-    if recipe.zero_out:
-        return src_bytes
-    if recipe.dup_rows:
-        return src_bytes * 2
-    if recipe.pad_rows > 0 or recipe.pad_cols > 0:
-        ndim = len(shape)
-        if ndim == 2:
-            return elem * (shape[0] + recipe.pad_rows) * (shape[1] + recipe.pad_cols)
-        if ndim == 1:
-            return elem * (shape[0] + recipe.pad_rows)
-    return src_bytes
+    out_dtype = recipe.output_dtype(dtype)
+    out_shape = recipe.output_shape(shape)
+    elem = DTYPE_SIZES.get(out_dtype, 4)
+    numel = 1
+    for dim in out_shape:
+        numel *= dim
+    return elem * numel
 
 
 def worker_write_shard(
@@ -128,15 +119,19 @@ def worker_write_shard(
 
     from safetensors import safe_open
 
-    from llm_grow.safetensor.base import TensorRecipe
-
     out_path_str, items, expected_keys, resume = args
     out_path = Path(out_path_str)
 
-    if resume and out_path.exists():
-        header = read_safetensors_header(out_path)
-        if expected_keys.issubset(header):
-            return (out_path.name, list(expected_keys))
+    if resume:
+        # Atomic-ish resume check: try to read the header in one go.  If the
+        # file is missing, truncated, or doesn't contain all expected keys, we
+        # rewrite it.  This avoids the non-atomic exists()+header-read pair.
+        try:
+            header = read_safetensors_header(out_path)
+            if expected_keys.issubset(header):
+                return (out_path.name, list(expected_keys))
+        except (FileNotFoundError, OSError, ValueError):
+            pass
 
     by_src: dict[str, list[tuple[str, str, tuple]]] = defaultdict(list)
     for src_path, src_key, out_key, recipe_fields in items:
@@ -192,5 +187,5 @@ def worker_write_shard(
 
     tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
     save_file(tensors, str(tmp_path))
-    tmp_path.replace(out_path)
+    os.replace(str(tmp_path), str(out_path))
     return (out_path.name, list(tensors.keys()))

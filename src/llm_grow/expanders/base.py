@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Generic, TypeVar
 
 import torch
 import torch.nn as nn
@@ -17,8 +18,10 @@ from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
 
+ConfigT = TypeVar("ConfigT", bound=ExpansionConfig)
 
-class AbstractExpander(ABC):
+
+class AbstractExpander(ABC, Generic[ConfigT]):
     """所有 **in-memory** 模型扩增算法的统一接口。
 
     llm-grow 提供两层扩增体系，适用于不同场景：
@@ -44,12 +47,12 @@ class AbstractExpander(ABC):
       - 可选覆盖 ``verify(original, expanded) -> bool``
     """
 
-    def __call__(self, model: nn.Module, config: ExpansionConfig) -> nn.Module:
+    def __call__(self, model: nn.Module, config: ConfigT) -> nn.Module:
         expanded = self.expand(model, config)
         return expanded
 
     @abstractmethod
-    def expand(self, model: nn.Module, config: ExpansionConfig) -> nn.Module:
+    def expand(self, model: nn.Module, config: ConfigT) -> nn.Module:
         """对 model 执行参数扩增（原地修改），返回修改后的模型。"""
 
     def verify(
@@ -83,7 +86,7 @@ class AbstractExpander(ABC):
             out_exp = expanded(input_ids=input_ids).logits
 
         max_err = (out_orig - out_exp).abs().max().item()
-        passed = max_err < atol
+        passed = bool(max_err < atol)
         status = "PASSED" if passed else "FAILED"
         logger.info(
             "[FP verify] max |Δlogit| = %.2e  %s (atol=%s)", max_err, status, atol

@@ -41,7 +41,7 @@ class Net2NetConfig(ModelExpansionConfig):
     noise_std: float = 1e-3
 
 
-class Net2NetExpander(AbstractExpander):
+class Net2NetExpander(AbstractExpander[Net2NetConfig]):
     """Deprecated Net2WiderNet expander.
 
     .. deprecated::

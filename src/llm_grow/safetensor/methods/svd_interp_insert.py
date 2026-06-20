@@ -11,12 +11,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from llm_grow.configs.base import ExpansionConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import ShardIndex
 
 
 @dataclass
-class SVDInterpInsertSafetensorConfig:
+class SVDInterpInsertSafetensorConfig(ExpansionConfig):
     insert_between: list[tuple[int, int]] = field(default_factory=list)
     """Layer pairs between which to insert. Empty = every adjacent pair."""
 

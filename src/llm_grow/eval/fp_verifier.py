@@ -66,7 +66,7 @@ def verify_fp(
     mean_errs = [r[1] for r in results]
     overall_max = max(max_errs)
     overall_mean = sum(mean_errs) / len(mean_errs)
-    passed = overall_max < atol
+    passed = bool(overall_max < atol)
 
     if verbose:
         status = "PASSED" if passed else "FAILED"
