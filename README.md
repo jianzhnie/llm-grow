@@ -13,7 +13,8 @@
   <a href="#quickstart">Quickstart</a> &bull;
   <a href="#expansion-methods">Methods</a> &bull;
   <a href="#api-reference">API Reference</a> &bull;
-  <a href="#tutorials">Tutorials</a>
+  <a href="#tutorials">Tutorials</a> &bull;
+  <a href="README_zh.md">中文文档</a>
 </p>
 
 ---

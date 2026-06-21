@@ -13,7 +13,8 @@
   <a href="#快速开始">快速开始</a> &bull;
   <a href="#扩增方法总览">方法总览</a> &bull;
   <a href="#api-参考">API 参考</a> &bull;
-  <a href="#扩增教程">教程</a>
+  <a href="#扩增教程">教程</a> &bull;
+  <a href="README.md">English</a>
 </p>
 
 ---
