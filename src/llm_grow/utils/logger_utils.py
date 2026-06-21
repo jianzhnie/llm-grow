@@ -213,32 +213,3 @@ def _get_distributed_rank() -> int:
         return int(local_rank)
 
     return 0  # Default to main process
-
-
-def get_outdir(path: str, *paths: str, inc: bool = False) -> str:
-    """Get the output directory. If the directory does not exist, it will be
-    created. If `inc` is True, the directory will be incremented if the
-    directory already exists.
-
-    Args:
-        path (str): The root root path.
-        *paths: The subdirectories.
-        inc (bool, optional): Whether to increment the directory. Defaults to False.
-
-    Returns:
-        str: The output directory.
-    """
-    outdir = Path(path, *paths)
-    if not outdir.exists():
-        outdir.mkdir(parents=True)
-        return str(outdir)
-    if inc:
-        for count in range(1, 100):
-            outdir_inc = Path(f"{outdir}-{count}")
-            if not outdir_inc.exists():
-                outdir_inc.mkdir(parents=True)
-                return str(outdir_inc)
-        raise RuntimeError(
-            "Failed to create unique output directory after 100 attempts"
-        )
-    return str(outdir)

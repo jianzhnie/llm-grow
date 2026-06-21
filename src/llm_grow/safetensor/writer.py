@@ -144,46 +144,51 @@ def worker_write_shard(
             interp_handles[path] = safe_open(path, framework="pt", device="cpu")
         return interp_handles[path]
 
-    tensors: dict[str, torch.Tensor] = {}
-    for src_path, triples in by_src.items():
-        with safe_open(src_path, framework="pt", device="cpu") as sf:
-            for src_key, out_key, (
-                zero_out,
-                pad_rows,
-                pad_cols,
-                dup_rows,
-                noise_scale,
-                router_split,
-                interp_shard_path,
-                interp_key,
-                interp_alpha,
-                add_noise_std,
-                create_shape,
-                create_dtype,
-            ) in triples:
-                tensor = torch.zeros(1) if create_shape else sf.get_tensor(src_key)
-                interp_t = None
-                if interp_key and interp_shard_path:
-                    interp_t = _get_interp_handle(interp_shard_path).get_tensor(
-                        interp_key
+    try:
+        tensors: dict[str, torch.Tensor] = {}
+        for src_path, triples in by_src.items():
+            with safe_open(src_path, framework="pt", device="cpu") as sf:
+                for src_key, out_key, (
+                    zero_out,
+                    pad_rows,
+                    pad_cols,
+                    dup_rows,
+                    noise_scale,
+                    router_split,
+                    interp_shard_path,
+                    interp_key,
+                    interp_alpha,
+                    add_noise_std,
+                    create_shape,
+                    create_dtype,
+                ) in triples:
+                    tensor = torch.zeros(1) if create_shape else sf.get_tensor(src_key)
+                    interp_t = None
+                    if interp_key and interp_shard_path:
+                        interp_t = _get_interp_handle(interp_shard_path).get_tensor(
+                            interp_key
+                        )
+                    recipe = TensorRecipe(
+                        src_shard="",
+                        src_key=src_key,
+                        zero_out=zero_out,
+                        pad_rows=pad_rows,
+                        pad_cols=pad_cols,
+                        dup_rows=dup_rows,
+                        dup_rows_noise_scale=noise_scale,
+                        router_split=router_split,
+                        interp_src_shard="",
+                        interp_src_key=interp_key,
+                        interp_alpha=interp_alpha,
+                        add_noise_std=add_noise_std,
+                        create_shape=create_shape,
+                        create_dtype=create_dtype,
                     )
-                recipe = TensorRecipe(
-                    src_shard="",
-                    src_key=src_key,
-                    zero_out=zero_out,
-                    pad_rows=pad_rows,
-                    pad_cols=pad_cols,
-                    dup_rows=dup_rows,
-                    dup_rows_noise_scale=noise_scale,
-                    router_split=router_split,
-                    interp_src_shard="",
-                    interp_src_key=interp_key,
-                    interp_alpha=interp_alpha,
-                    add_noise_std=add_noise_std,
-                    create_shape=create_shape,
-                    create_dtype=create_dtype,
-                )
-                tensors[out_key] = apply_recipe(tensor, recipe, interp_t)
+                    tensors[out_key] = apply_recipe(tensor, recipe, interp_t)
+    finally:
+        for handle in interp_handles.values():
+            handle.__exit__(None, None, None)
+        interp_handles.clear()
 
     tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
     save_file(tensors, str(tmp_path))

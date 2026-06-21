@@ -62,6 +62,7 @@ class TensorRecipe:
             }
         ),
         repr=False,
+        init=False,
     )
 
     def __post_init__(self) -> None:
@@ -144,7 +145,14 @@ class ExpansionPlan:
         return {
             "new_num_hidden_layers": self.new_num_hidden_layers,
             "config_patches": self.config_patches,
-            "recipes": {k: asdict(r) for k, r in self.recipes.items()},
+            "recipes": {
+                k: {
+                    fk: fv
+                    for fk, fv in asdict(r).items()
+                    if not fk.startswith("_")
+                }
+                for k, r in self.recipes.items()
+            },
         }
 
     @classmethod
@@ -159,12 +167,19 @@ class ExpansionPlan:
             new_num_hidden_layers=data.get("new_num_hidden_layers", 0),
             config_patches=data.get("config_patches", {}),
         )
-        recipe_keys = {f.name for f in TensorRecipe.__dataclass_fields__.values()}
+        recipe_keys = {
+            f.name
+            for f in TensorRecipe.__dataclass_fields__.values()
+            if not f.name.startswith("_")
+        }
         for key, recipe_data in data.get("recipes", {}).items():
             if not isinstance(recipe_data, dict):
                 raise ValueError(
                     f"Recipe for '{key}' must be a dict, got {type(recipe_data)}"
                 )
+            recipe_data = {
+                k: v for k, v in recipe_data.items() if not k.startswith("_")
+            }
             bad_keys = set(recipe_data) - recipe_keys
             if bad_keys:
                 raise ValueError(

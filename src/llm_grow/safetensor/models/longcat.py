@@ -117,6 +117,12 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         cfg = self.config
+        if cfg.expand_factor > 2:
+            raise NotImplementedError(
+                f"expand_factor={cfg.expand_factor} > 2 is not supported for "
+                "LongcatExpertCloneExpander. Only expand_factor=2 is implemented. "
+                "Use the standalone expand_moe_experts.py for arbitrary factors."
+            )
         wmap = src_index.weight_map
 
         orig_n_experts = self._count_experts_per_layer(wmap)
@@ -163,20 +169,6 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
                     plan.add(new_key, TensorRecipe(src_shard=shard, src_key=key))
 
             elif key.endswith("mlp.router.classifier.weight"):
-                # Router duplication is only implemented for expand_factor=2.
-                # Higher factors require multi-pass duplication and are not
-                # supported by the current recipe model.  Use the standalone
-                # expand_moe_experts.py for arbitrary factors.
-                if cfg.expand_factor > 2:
-                    raise NotImplementedError(
-                        f"expand_factor={cfg.expand_factor} > 2 "
-                        "for router classifier requires "
-                        "multi-pass duplication; only "
-                        "expand_factor=2 is supported. "
-                        "Use the standalone "
-                        "expand_moe_experts.py for "
-                        "arbitrary factors."
-                    )
                 plan.add(
                     key,
                     TensorRecipe(

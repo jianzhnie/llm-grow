@@ -126,7 +126,7 @@ class DenseToMoEExpander(AbstractExpander[DenseToMoEConfig]):
 
         replaced = 0
         for name, module in list(model.named_modules()):
-            if config.ffn_module_pattern not in name.split(".")[-1]:
+            if name.split(".")[-1] != config.ffn_module_pattern:
                 continue
             if not _is_ffn_module(module):
                 continue

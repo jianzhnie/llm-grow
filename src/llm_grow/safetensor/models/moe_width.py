@@ -41,6 +41,17 @@ from llm_grow.utils.insertion import build_layer_sequence
 class MoEWidthConfig(BaseMoEDepthConfig, BaseWidthConfig):
     """MoE width expansion configuration (M3 + M4)."""
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.ffn_size_expansion < 0:
+            raise ValueError(
+                f"ffn_size_expansion must be >= 0, got {self.ffn_size_expansion}"
+            )
+        if self.hidden_size_expansion < 0:
+            raise ValueError(
+                f"hidden_size_expansion must be >= 0, got {self.hidden_size_expansion}"
+            )
+
 
 class MoEWidthExpander(SafetensorExpanderBase):
     """Width expansion for MoE models (M3 + M4).

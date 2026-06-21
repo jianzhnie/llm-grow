@@ -163,10 +163,17 @@ def _update_router(moe_module: nn.Module, new_weight: torch.Tensor) -> None:
     """new_weight: (num_new_experts, hidden_size)"""
     old_router = moe_module.router
     num_new_experts, hidden_size = new_weight.shape
-    new_router = nn.Linear(
-        hidden_size, num_new_experts, bias=old_router.bias is not None
-    )
-    new_router.weight = nn.Parameter(new_weight)  # shape 已对齐，无需转置
+    has_bias = old_router.bias is not None
+    new_router = nn.Linear(hidden_size, num_new_experts, bias=has_bias)
+    new_router.weight = nn.Parameter(new_weight)
+    if has_bias:
+        old_bias = old_router.bias.data
+        num_old = old_bias.shape[0]
+        num_new = num_new_experts - num_old
+        new_bias = torch.cat(
+            [old_bias, old_bias.repeat(num_new // num_old + 1)[:num_new]]
+        )
+        new_router.bias = nn.Parameter(new_bias)
     moe_module.router = new_router
 
 
