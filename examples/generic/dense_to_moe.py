@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 
 import torch
 
@@ -30,10 +31,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-experts", type=int, default=8)
     p.add_argument("--top-k", type=int, default=2)
     p.add_argument("--noise-std", type=float, default=0.01)
-    p.add_argument("--ffn-pattern", default="mlp", help="用于定位 FFN 模块的名称模式")
+    p.add_argument(
+        "--ffn-pattern", default="mlp", help="用于定位 FFN 模块的名称模式"
+    )
     p.add_argument("--output-dir", default="./expanded_moe")
     p.add_argument(
-        "--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"]
+        "--dtype",
+        default="bfloat16",
+        choices=["float32", "float16", "bfloat16"],
     )
     return p.parse_args()
 
@@ -52,8 +57,6 @@ def main() -> None:
         noise_std=args.noise_std,
         ffn_module_pattern=args.ffn_pattern,
     )
-
-    import copy
 
     original_ref = copy.deepcopy(model)
 

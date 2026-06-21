@@ -9,12 +9,14 @@ Tests (no weight files needed, index JSON only):
 
 from __future__ import annotations
 
-import re
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common.helpers import count_new_keys
+from common.helpers import (
+    count_experts_in_layer,
+    count_new_keys,
+    run_tests,
+    verify_dryrun_plan,
+)
 from common.model_paths import KIMI_K2, require_path
 
 SRC = require_path("KIMI_K2", KIMI_K2)
@@ -43,13 +45,7 @@ def check_expert_clone():
     )
     print("  [OK] Layer 0 is dense — no expert tensors")
 
-    l1_experts = len(
-        {
-            int(re.search(r"experts\.(\d+)", k).group(1))
-            for k in plan.recipes
-            if k.startswith("model.layers.1.") and "mlp.experts." in k
-        }
-    )
+    l1_experts = count_experts_in_layer(plan, 1)
     assert l1_experts == 768, f"Expected 768 experts in layer 1, got {l1_experts}"
     print("  [OK] experts/MoE-layer: 384 -> 768")
 
@@ -125,7 +121,6 @@ def check_dryrun_plan():
     print("\n" + "=" * 62)
     print("  [3] Kimi-K2-Base  Dry-run plan verification")
     print("=" * 62)
-    from common.helpers import verify_dryrun_plan
 
     return verify_dryrun_plan(
         SRC,
@@ -137,8 +132,6 @@ def check_dryrun_plan():
 
 
 if __name__ == "__main__":
-    from common.helpers import run_tests
-
     sys.exit(
         run_tests(
             [

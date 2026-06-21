@@ -30,7 +30,11 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="MSG multi-dimensional growth")
     p.add_argument("--model", required=True)
     p.add_argument(
-        "--num-new-layers", "--depth-expansion", type=int, default=0, help="新增层数"
+        "--num-new-layers",
+        "--depth-expansion",
+        type=int,
+        default=0,
+        help="新增层数",
     )
     p.add_argument("--hidden-size-expansion", type=int, default=0)
     p.add_argument("--ffn-size-expansion", type=int, default=0)
@@ -38,7 +42,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output-dir", default="./expanded_msg")
     p.add_argument("--verify", action="store_true")
     p.add_argument(
-        "--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"]
+        "--dtype",
+        default="bfloat16",
+        choices=["float32", "float16", "bfloat16"],
     )
     return p.parse_args()
 

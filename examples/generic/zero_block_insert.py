@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 
 import torch
 
@@ -25,7 +26,9 @@ from llm_grow.utils.model_io import load_model, load_tokenizer, save_model
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="LLaMA-Pro block expansion")
-    p.add_argument("--model", required=True, help="原始模型路径或 HuggingFace model id")
+    p.add_argument(
+        "--model", required=True, help="原始模型路径或 HuggingFace model id"
+    )
     p.add_argument(
         "--num-new-layers",
         "--num-new-blocks",
@@ -34,7 +37,9 @@ def parse_args() -> argparse.Namespace:
         help="插入的恒等块数量",
     )
     p.add_argument(
-        "--insert-strategy", default="uniform", choices=["uniform", "front", "rear"]
+        "--insert-strategy",
+        default="uniform",
+        choices=["uniform", "front", "rear"],
     )
     p.add_argument("--no-freeze", action="store_true", help="不冻结原始层")
     p.add_argument("--output-dir", default="./expanded_zero_block_insert")
@@ -42,7 +47,9 @@ def parse_args() -> argparse.Namespace:
         "--verify", action="store_true", help="扩增后验证 function-preserving"
     )
     p.add_argument(
-        "--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"]
+        "--dtype",
+        default="bfloat16",
+        choices=["float32", "float16", "bfloat16"],
     )
     return p.parse_args()
 
@@ -55,10 +62,7 @@ def main() -> None:
     model = load_model(args.model, dtype=dtype)
     tokenizer = load_tokenizer(args.model)
 
-    if args.verify:
-        import copy
-
-        original_for_verify = copy.deepcopy(model)
+    original_for_verify = copy.deepcopy(model) if args.verify else None
 
     config = ZeroBlockInsertConfig(
         num_new_layers=args.num_new_layers,
@@ -69,9 +73,12 @@ def main() -> None:
     expander = ZeroBlockInsertExpander()
     expanded = expander.expand(model, config)
 
-    param_diff_report(original_for_verify if args.verify else model, expanded)
+    if original_for_verify is not None:
+        param_diff_report(original_for_verify, expanded)
+    else:
+        param_diff_report(model, expanded)
 
-    if args.verify:
+    if args.verify and original_for_verify is not None:
         expander.verify(original_for_verify, expanded)
 
     save_model(expanded, args.output_dir, tokenizer=tokenizer)

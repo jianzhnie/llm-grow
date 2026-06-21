@@ -9,11 +9,13 @@ Tests both:
 
 from __future__ import annotations
 
-import re
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.helpers import (
+    count_experts_in_layer,
+    run_tests,
+    verify_dryrun_plan,
+)
 from common.model_paths import LONGCAT, require_path
 
 MODEL_DIR = require_path("LONGCAT", LONGCAT)
@@ -40,14 +42,7 @@ def check_expert_clone():
     wmap = src_index.weight_map
 
     orig_experts = expander._count_experts_per_layer(wmap)
-    new_expert_keys = [k for k in plan.recipes if "mlp.experts." in k]
-    experts_in_plan = len(
-        {
-            int(re.search(r"experts\.(\d+)", k).group(1))
-            for k in new_expert_keys
-            if k.startswith("model.layers.0.")
-        }
-    )
+    experts_in_plan = count_experts_in_layer(plan, 0)
     print(f"\n  [Check] Original experts/layer : {orig_experts}")
     print(f"  [Check] Plan experts/layer     : {experts_in_plan}")
     assert experts_in_plan == orig_experts * 2, "Expert count mismatch!"
@@ -147,7 +142,6 @@ def check_dryrun_plan():
     print("\n" + "=" * 60)
     print("  Dry-run plan verification via auto-detect")
     print("=" * 60)
-    from common.helpers import verify_dryrun_plan
 
     return verify_dryrun_plan(
         MODEL_DIR,
@@ -160,8 +154,6 @@ def check_dryrun_plan():
 
 
 def main():
-    from common.helpers import run_tests
-
     print("\nNote: weight files not present -- dry_run validated plan logic only.")
     sys.exit(
         run_tests(

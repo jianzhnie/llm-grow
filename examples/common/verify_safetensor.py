@@ -28,7 +28,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import torch
 from safetensors import safe_open
@@ -298,11 +298,11 @@ def main() -> None:
     sys.exit(0 if all_ok else 1)
 
 
-def _load_config(model_dir: Path) -> dict:
+def _load_config(model_dir: Path) -> dict[str, Any]:
     cfg_path = model_dir / "config.json"
     if cfg_path.exists():
         with open(cfg_path) as f:
-            return json.load(f)
+            return cast(dict[str, Any], json.load(f))
     return {}
 
 

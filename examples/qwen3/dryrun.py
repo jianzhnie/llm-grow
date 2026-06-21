@@ -9,12 +9,15 @@ Tests (no weight files needed, index JSON only):
 
 from __future__ import annotations
 
-import re
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common.helpers import count_new_keys, count_zero_recipes
+from common.helpers import (
+    count_experts_in_layer,
+    count_new_keys,
+    count_zero_recipes,
+    run_tests,
+    verify_dryrun_plan,
+)
 from common.model_paths import QWEN3_30B, require_path
 
 SRC = require_path("QWEN3_30B", QWEN3_30B)
@@ -33,16 +36,7 @@ def check_expert_clone():
     src = ShardIndex.load(SRC)
     wmap = src.weight_map
 
-    def experts_in_plan_layer0():
-        return len(
-            {
-                int(re.search(r"experts\.(\d+)", k).group(1))
-                for k in plan.recipes
-                if k.startswith("model.layers.0.") and "mlp.experts." in k
-            }
-        )
-
-    new_experts = experts_in_plan_layer0()
+    new_experts = count_experts_in_layer(plan, 0)
     assert new_experts == 256, f"Expected 256 experts in layer 0, got {new_experts}"
     print(f"  [OK] experts/layer: 128 -> {new_experts}")
 
@@ -93,7 +87,6 @@ def check_dryrun_plan():
     print("\n" + "=" * 62)
     print("  [3] Qwen3-30B-A3B  Dry-run plan verification")
     print("=" * 62)
-    from common.helpers import verify_dryrun_plan
 
     return verify_dryrun_plan(
         SRC,
@@ -106,8 +99,6 @@ def check_dryrun_plan():
 
 
 if __name__ == "__main__":
-    from common.helpers import run_tests
-
     sys.exit(
         run_tests(
             [

@@ -89,7 +89,7 @@ def apply_recipe(
         else:
             raise ValueError(f"Unsupported tensor dim {src.dim()} for padding")
     else:
-        tensor = src.contiguous()
+        tensor = src.clone()
 
     if recipe.add_noise_std > 0:
         noise = torch.randn_like(tensor) * recipe.add_noise_std

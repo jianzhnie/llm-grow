@@ -52,7 +52,7 @@ def quick_fp_check(original, expanded, seq_len=32, atol=1e-4) -> bool:
         lo = original(input_ids=ids).logits
         le = expanded(input_ids=ids).logits
     max_err = (lo - le).abs().max().item()
-    passed = max_err < atol
+    passed = bool(max_err < atol)
     icon = "✓" if passed else "✗"
     print(f"  [{icon}] FP check  max|Δlogit| = {max_err:.3e}  (atol={atol})")
     return passed

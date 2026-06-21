@@ -45,6 +45,21 @@ from __future__ import annotations
 import argparse
 import sys
 
+from llm_grow.safetensor.auto import auto_expand
+from llm_grow.safetensor.base import SafetensorExpanderBase
+from llm_grow.safetensor.methods.multi_axis_pad import (
+    MultiAxisPadSafetensorConfig,
+    MultiAxisPadSafetensorExpander,
+)
+from llm_grow.safetensor.methods.overlap_copy import (
+    OverlapCopySafetensorConfig,
+    OverlapCopySafetensorExpander,
+)
+from llm_grow.safetensor.methods.zero_block_insert import (
+    ZeroBlockInsertSafetensorConfig,
+    ZeroBlockInsertSafetensorExpander,
+)
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -147,8 +162,6 @@ def main() -> None:
 
     # ── auto mode: detect + dispatch ─────────────────────────────────────────
     if args.expander == "auto":
-        from llm_grow.safetensor.auto import auto_expand
-
         auto_expand(
             src_dir=args.src,
             dst_dir=args.dst,
@@ -166,12 +179,8 @@ def main() -> None:
         return
 
     # ── explicit expanders ────────────────────────────────────────────────────
+    expander: SafetensorExpanderBase
     if args.expander == "zero_block_insert":
-        from llm_grow.safetensor.methods.zero_block_insert import (
-            ZeroBlockInsertSafetensorConfig,
-            ZeroBlockInsertSafetensorExpander,
-        )
-
         expander = ZeroBlockInsertSafetensorExpander(
             ZeroBlockInsertSafetensorConfig(
                 num_new_layers=args.num_new_layers,
@@ -180,21 +189,11 @@ def main() -> None:
         )
 
     elif args.expander == "overlap_copy":
-        from llm_grow.safetensor.methods.overlap_copy import (
-            OverlapCopySafetensorConfig,
-            OverlapCopySafetensorExpander,
-        )
-
         expander = OverlapCopySafetensorExpander(
             OverlapCopySafetensorConfig(num_overlap=args.num_overlap)
         )
 
     elif args.expander == "multi_axis_pad":
-        from llm_grow.safetensor.methods.multi_axis_pad import (
-            MultiAxisPadSafetensorConfig,
-            MultiAxisPadSafetensorExpander,
-        )
-
         expander = MultiAxisPadSafetensorExpander(
             MultiAxisPadSafetensorConfig(
                 num_new_layers=args.num_new_layers,
@@ -204,8 +203,6 @@ def main() -> None:
         )
 
     elif args.expander == "expert_clone":
-        from llm_grow.safetensor.auto import auto_expand
-
         auto_expand(
             src_dir=args.src,
             dst_dir=args.dst,

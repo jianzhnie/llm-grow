@@ -40,7 +40,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--drop-ratio", type=float, default=0.1)
     p.add_argument("--output-dir", default="./expanded_experts")
     p.add_argument(
-        "--dtype", default="bfloat16", choices=["float32", "float16", "bfloat16"]
+        "--dtype",
+        default="bfloat16",
+        choices=["float32", "float16", "bfloat16"],
     )
     return p.parse_args()
 
