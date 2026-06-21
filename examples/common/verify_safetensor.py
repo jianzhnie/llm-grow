@@ -28,8 +28,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import torch
+from safetensors import safe_open
 
 from llm_grow.safetensor.utils import ShardIndex
 
@@ -94,12 +96,10 @@ def check_original_weights_preserved(
 ) -> bool:
     """Spot-check that original layer tensors survived unchanged.
 
-    Scans dst layers to find the exact new index for each sampled src layer
-    (handles non-uniform insertion positions correctly).
+    Streams destination tensors one at a time to keep memory constant.
+    Shards are opened lazily and closed after the check.
     """
     print(f"\n[Original weight preservation  (sample {sample} layers)]")
-    src_handles = src_idx.open_all_shards()
-    dst_handles = dst_idx.open_all_shards()
     wmap_src = src_idx.weight_map
     wmap_dst = dst_idx.weight_map
 
@@ -107,73 +107,115 @@ def check_original_weights_preserved(
     dst_layers = dst_idx.num_hidden_layers()
     suf = "mlp.gate_proj.weight"
 
-    # Pre-load dst tensors for this suffix for all dst layers (for scanning)
-    dst_tensors: dict[int, torch.Tensor] = {}
-    for dst_i in range(dst_layers):
-        key = f"model.layers.{dst_i}.{suf}"
-        if key in wmap_dst:
-            dst_tensors[dst_i] = dst_handles[wmap_dst[key]].get_tensor(key).float()
+    src_handles: dict[str, Any] = {}
+    dst_handles: dict[str, Any] = {}
 
-    step = max(1, src_layers // sample)
-    all_ok = True
-    for orig_idx in range(0, src_layers, step):
-        src_key = f"model.layers.{orig_idx}.{suf}"
-        src_t = src_handles[wmap_src[src_key]].get_tensor(src_key).float()
+    def _get_src_handle(shard: str) -> Any:
+        if shard not in src_handles:
+            src_handles[shard] = safe_open(
+                str(src_idx.model_dir / shard), framework="pt", device="cpu"
+            )
+        return src_handles[shard]
 
-        # Find the dst layer with identical (or smallest diff) shape-matching tensor
-        best_idx, best_diff = -1, float("inf")
-        for dst_i, dst_t in dst_tensors.items():
-            if dst_t.shape != src_t.shape:
+    def _get_dst_handle(shard: str) -> Any:
+        if shard not in dst_handles:
+            dst_handles[shard] = safe_open(
+                str(dst_idx.model_dir / shard), framework="pt", device="cpu"
+            )
+        return dst_handles[shard]
+
+    try:
+        step = max(1, src_layers // sample)
+        all_ok = True
+        for orig_idx in range(0, src_layers, step):
+            src_key = f"model.layers.{orig_idx}.{suf}"
+            if src_key not in wmap_src:
                 continue
-            diff = (src_t - dst_t).abs().max().item()
-            if diff < best_diff:
-                best_diff, best_idx = diff, dst_i
+            src_t = (
+                _get_src_handle(wmap_src[src_key]).get_tensor(src_key).float()
+            )
 
-        if best_idx == -1:
-            # Width expansion changed shapes — just report the nearest candidate
-            print(
-                f"  [~] layer {orig_idx}: all dst shapes "
-                f"differ (width expansion applied)"
-            )
-        else:
-            ok = best_diff < 1e-6
-            icon = "✓" if ok else "✗"
-            print(
-                f"  [{icon}] orig layer {orig_idx} → "
-                f"dst layer {best_idx}  "
-                f"max|Δ|={best_diff:.2e}"
-            )
-            all_ok = all_ok and ok
-    return all_ok
+            best_idx, best_diff = -1, float("inf")
+            for dst_i in range(dst_layers):
+                dst_key = f"model.layers.{dst_i}.{suf}"
+                if dst_key not in wmap_dst:
+                    continue
+                dst_t = (
+                    _get_dst_handle(wmap_dst[dst_key])
+                    .get_tensor(dst_key)
+                    .float()
+                )
+                if dst_t.shape != src_t.shape:
+                    continue
+                diff = (src_t - dst_t).abs().max().item()
+                if diff < best_diff:
+                    best_diff, best_idx = diff, dst_i
+                if best_diff < 1e-6:
+                    break
+
+            if best_idx == -1:
+                print(
+                    f"  [~] layer {orig_idx}: all dst shapes "
+                    f"differ (width expansion applied)"
+                )
+            else:
+                ok = best_diff < 1e-6
+                icon = "✓" if ok else "✗"
+                print(
+                    f"  [{icon}] orig layer {orig_idx} → "
+                    f"dst layer {best_idx}  "
+                    f"max|Δ|={best_diff:.2e}"
+                )
+                all_ok = all_ok and ok
+        return all_ok
+    finally:
+        for handle in list(src_handles.values()) + list(dst_handles.values()):
+            handle.__exit__(None, None, None)
+        src_handles.clear()
+        dst_handles.clear()
 
 
 def check_identity_blocks_zeroed(dst_idx: ShardIndex) -> bool:
     """Verify that identity blocks (if any) have zeroed projections."""
     print("\n[Identity block zero-check]")
     zero_suffixes = {"self_attn.o_proj.weight", "mlp.down_proj.weight"}
-    dst_handles = dst_idx.open_all_shards()
 
-    # Heuristic: an identity block is one whose ALL tensors are copied from
-    # the previous layer → just check the zero suffixes of every dst layer
-    total_zero = total_nonzero = 0
-    for suf in zero_suffixes:
-        for key, shard in dst_idx.weight_map.items():
-            if not key.endswith(suf):
-                continue
-            t = dst_handles[shard].get_tensor(key)
-            if t.abs().max().item() < 1e-9:
-                total_zero += 1
-            else:
-                total_nonzero += 1
+    dst_handles: dict[str, Any] = {}
 
-    if total_zero == 0:
-        print("  [~] No zeroed projections found (non-FP method or no identity blocks)")
-    else:
-        print(
-            f"  [✓] Found {total_zero} zeroed projection(s), "
-            f"{total_nonzero} non-zero (original layers)"
-        )
-    return True
+    def _get_handle(shard: str) -> Any:
+        if shard not in dst_handles:
+            dst_handles[shard] = safe_open(
+                str(dst_idx.model_dir / shard), framework="pt", device="cpu"
+            )
+        return dst_handles[shard]
+
+    try:
+        total_zero = total_nonzero = 0
+        for suf in zero_suffixes:
+            for key, shard in dst_idx.weight_map.items():
+                if not key.endswith(suf):
+                    continue
+                t = _get_handle(shard).get_tensor(key)
+                if t.abs().max().item() < 1e-9:
+                    total_zero += 1
+                else:
+                    total_nonzero += 1
+
+        if total_zero == 0:
+            print(
+                "  [~] No zeroed projections found "
+                "(non-FP method or no identity blocks)"
+            )
+        else:
+            print(
+                f"  [✓] Found {total_zero} zeroed projection(s), "
+                f"{total_nonzero} non-zero (original layers)"
+            )
+        return True
+    finally:
+        for handle in list(dst_handles.values()):
+            handle.__exit__(None, None, None)
+        dst_handles.clear()
 
 
 # ── FP check ───────────────────────────────────────────────────────────────────

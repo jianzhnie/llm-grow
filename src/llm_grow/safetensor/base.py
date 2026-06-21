@@ -226,12 +226,48 @@ class SafetensorExpanderBase(ABC):
             resume: If True, skip shards whose final files already exist and
                 whose headers contain all expected tensor keys.
         """
+        shard_groups, _src_headers = self._assign_shard_groups(
+            src_index, plan, target_bytes, verbose
+        )
+        n = len(shard_groups)
+        weight_map: dict[str, str] = {}
+
+        if workers > 1:
+            self._write_shards_parallel(
+                src_index,
+                dst_dir,
+                plan,
+                shard_groups,
+                weight_map,
+                verbose,
+                workers,
+                resume=resume,
+            )
+        else:
+            self._write_shards_serial(
+                src_index, dst_dir, plan, shard_groups, weight_map, verbose, resume
+            )
+
+        dst_index = ShardIndex(dst_dir, weight_map)
+        if n > 1:
+            dst_index.write_index_json(dst_dir)
+
+    def _assign_shard_groups(
+        self,
+        src_index: ShardIndex,
+        plan: ExpansionPlan,
+        target_bytes: int,
+        verbose: bool,
+    ) -> tuple[list[list[str]], dict[str, dict[str, tuple[str, list[int]]]]]:
+        """Pass 1: scan source headers and assign output tensors to shards."""
         from concurrent.futures import ThreadPoolExecutor
 
         from llm_grow.safetensor.utils import read_safetensors_header
 
-        # ── Pass 1: header scan → shard assignment ────────────────────────────
-        with ThreadPoolExecutor(max_workers=min(8, len(src_index.shard_files))) as pool:
+        # Limit concurrency to avoid loading many large headers into memory at
+        # once for 100B+ models. 4 workers provides parallelism while keeping
+        # peak memory bounded.
+        with ThreadPoolExecutor(max_workers=min(4, len(src_index.shard_files))) as pool:
             src_headers: dict[str, dict[str, tuple[str, list[int]]]] = dict(
                 pool.map(
                     lambda sf: (sf, read_safetensors_header(src_index.model_dir / sf)),
@@ -258,92 +294,89 @@ class SafetensorExpanderBase(ABC):
             shard_groups[-1].append(new_key)
             current_bytes += out_bytes
 
-        n = len(shard_groups)
-        weight_map: dict[str, str] = {}
-
         if verbose:
-            logger.info(f"  Pass 1 done: {n} output shard(s) planned")
+            logger.info(f"  Pass 1 done: {len(shard_groups)} output shard(s) planned")
 
-        # ── Pass 2: write output shards ───────────────────────────────────────
-        if workers > 1:
-            self._write_shards_parallel(
-                src_index,
-                dst_dir,
-                plan,
-                shard_groups,
-                weight_map,
-                verbose,
-                workers,
-                resume=resume,
-            )
-        else:
-            from safetensors import safe_open
+        return shard_groups, src_headers
 
-            src_handles: dict[str, Any] = {}
+    def _write_shards_serial(
+        self,
+        src_index: ShardIndex,
+        dst_dir: Path,
+        plan: ExpansionPlan,
+        shard_groups: list[list[str]],
+        weight_map: dict[str, str],
+        verbose: bool,
+        resume: bool,
+    ) -> None:
+        """Pass 2 (serial): write output shards one at a time."""
+        from safetensors import safe_open
 
-            def _get_src_handle(shard_name: str) -> Any:
-                if shard_name not in src_handles:
-                    src_handles[shard_name] = safe_open(
-                        str(src_index.model_dir / shard_name),
-                        framework="pt",
-                        device="cpu",
-                    )
-                return src_handles[shard_name]
+        from llm_grow.safetensor.utils import read_safetensors_header
 
-            for i, group_keys in enumerate(shard_groups):
-                shard_name = (
-                    "model.safetensors"
-                    if n == 1
-                    else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
+        n = len(shard_groups)
+        src_handles: dict[str, Any] = {}
+
+        def _get_src_handle(shard_name: str) -> Any:
+            nonlocal src_handles
+            if shard_name not in src_handles:
+                src_handles[shard_name] = safe_open(
+                    str(src_index.model_dir / shard_name),
+                    framework="pt",
+                    device="cpu",
                 )
-                shard_path = dst_dir / shard_name
-                if resume and shard_path.exists():
-                    header = read_safetensors_header(shard_path)
-                    if all(k in header for k in group_keys) and all(
-                        self._recipe_matches_header(plan.recipes[k], header[k])
-                        for k in group_keys
-                    ):
-                        for k in group_keys:
-                            weight_map[k] = shard_name
-                        if verbose:
-                            logger.info(
-                                f"  skipped {shard_name} (already exists, "
-                                f"{len(group_keys)} tensors)"
-                            )
-                        continue
+            return src_handles[shard_name]
 
-                tensors: dict[str, torch.Tensor] = {}
-                for new_key in group_keys:
-                    recipe = plan.recipes[new_key]
-                    if recipe.create_shape:
-                        src_t = torch.zeros(1)
-                    else:
-                        src_t = _get_src_handle(recipe.src_shard).get_tensor(
-                            recipe.src_key
+        for i, group_keys in enumerate(shard_groups):
+            shard_name = (
+                "model.safetensors"
+                if n == 1
+                else f"model-{i + 1:05d}-of-{n:05d}.safetensors"
+            )
+            shard_path = dst_dir / shard_name
+            if resume and shard_path.exists():
+                header = read_safetensors_header(shard_path)
+                if all(k in header for k in group_keys) and all(
+                    self._recipe_matches_header(plan.recipes[k], header[k])
+                    for k in group_keys
+                ):
+                    for k in group_keys:
+                        weight_map[k] = shard_name
+                    if verbose:
+                        logger.info(
+                            f"  skipped {shard_name} (already exists, "
+                            f"{len(group_keys)} tensors)"
                         )
-                    interp_t = None
-                    if recipe.interp_src_key:
-                        interp_t = _get_src_handle(recipe.interp_src_shard).get_tensor(
-                            recipe.interp_src_key
-                        )
-                    tensors[new_key] = _apply_recipe(src_t, recipe, interp_t)
-                    weight_map[new_key] = shard_name
-                # Atomic write: save to temp file then rename.
-                tmp_path = dst_dir / f"{shard_name}.tmp"
-                save_file(tensors, str(tmp_path))
-                os.replace(str(tmp_path), str(shard_path))
-                if verbose:
-                    size_mb = shard_path.stat().st_size / 1e6
-                    logger.info(
-                        f"  wrote {shard_name}  "
-                        f"({len(tensors)} tensors, {size_mb:.0f} MB)"
+                    continue
+
+            tensors: dict[str, torch.Tensor] = {}
+            for new_key in group_keys:
+                recipe = plan.recipes[new_key]
+                if recipe.create_shape:
+                    src_t = torch.zeros(1)
+                else:
+                    src_t = _get_src_handle(recipe.src_shard).get_tensor(
+                        recipe.src_key
                     )
+                interp_t = None
+                if recipe.interp_src_key:
+                    interp_t = _get_src_handle(recipe.interp_src_shard).get_tensor(
+                        recipe.interp_src_key
+                    )
+                tensors[new_key] = _apply_recipe(src_t, recipe, interp_t)
+                weight_map[new_key] = shard_name
+            # Atomic write: save to temp file then rename.
+            tmp_path = dst_dir / f"{shard_name}.tmp"
+            save_file(tensors, str(tmp_path))
+            os.replace(str(tmp_path), str(shard_path))
+            if verbose:
+                size_mb = shard_path.stat().st_size / 1e6
+                logger.info(
+                    f"  wrote {shard_name}  "
+                    f"({len(tensors)} tensors, {size_mb:.0f} MB)"
+                )
 
-            del src_handles
-
-        dst_index = ShardIndex(dst_dir, weight_map)
-        if n > 1:
-            dst_index.write_index_json(dst_dir)
+        del src_handles
 
     def _write_shards_parallel(
         self,
