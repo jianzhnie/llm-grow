@@ -240,14 +240,24 @@ class StructuralVerifier:
         )
         if not zero_suffixes:
             zero_suffixes = {"self_attn.o_proj.weight", "mlp.down_proj.weight"}
-        dst_handles = self.dst_idx.open_all_shards()
+
+        # Lazy shard handle cache: open only the shards we actually touch.
+        dst_handles: dict[str, Any] = {}
+
+        def _get_handle(shard: str) -> Any:
+            if shard not in dst_handles:
+                dst_handles[shard] = safe_open(
+                    str(self.dst_idx.model_dir / shard), framework="pt", device="cpu"
+                )
+            return dst_handles[shard]
+
         try:
             total_zero = total_nonzero = 0
             for suf in zero_suffixes:
                 for key, shard in self.dst_idx.weight_map.items():
                     if not key.endswith(suf):
                         continue
-                    t = dst_handles[shard].get_tensor(key)
+                    t = _get_handle(shard).get_tensor(key)
                     if t.abs().max().item() < ZERO_CHECK_ATOL:
                         total_zero += 1
                     else:
@@ -268,7 +278,9 @@ class StructuralVerifier:
             )
             return ok
         finally:
-            del dst_handles  # release mmap handles
+            for handle in list(dst_handles.values()):
+                handle.__exit__(None, None, None)
+            dst_handles.clear()
 
 
 def check_fp(

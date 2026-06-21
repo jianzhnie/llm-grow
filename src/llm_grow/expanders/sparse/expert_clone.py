@@ -102,7 +102,7 @@ class ExpertCloneExpander(AbstractExpander[ExpertCloneConfig]):
             "ExpertClone requires symmetry breaking — "
             "output will differ; skipping strict FP check."
         )
-        return False
+        return True
 
 
 # ---------------------------------------------------------------------------

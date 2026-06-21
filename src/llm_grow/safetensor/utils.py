@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from functools import cached_property
@@ -55,22 +56,28 @@ DTYPE_SIZES: dict[str, int] = {
 
 # ── tensor key helpers ──────────────────────────────────────────────────────
 
-_LAYER_RE = re.compile(r"^(model\.layers\.)(\d+)(\..*)")
+_LAYER_RE = re.compile(
+    r"^((?:model\.layers|transformer\.h|decoder\.layers)\.)(\d+)(\..*)"
+)
 
 
 def parse_layer_idx(key: str) -> int | None:
-    """Return layer index from 'model.layers.{i}.xxx', else None."""
+    """Return layer index from common decoder layer keys, else None.
+
+    Supports ``model.layers.{i}.xxx``, ``transformer.h.{i}.xxx``,
+    and ``decoder.layers.{i}.xxx``.
+    """
     m = _LAYER_RE.match(key)
     return int(m.group(2)) if m else None
 
 
 def rename_layer_idx(key: str, new_idx: int) -> str:
-    """Replace the layer index in a tensor key."""
+    """Replace the layer index in a tensor key while preserving the prefix."""
     return _LAYER_RE.sub(lambda m: f"{m.group(1)}{new_idx}{m.group(3)}", key)
 
 
 def layer_suffix(key: str) -> str | None:
-    """Return the part after 'model.layers.{i}.' or None for non-layer keys."""
+    """Return the part after the layer index prefix, or None for non-layer keys."""
     m = _LAYER_RE.match(key)
     return m.group(3)[1:] if m else None  # strip leading dot
 
@@ -180,8 +187,11 @@ class ShardIndex:
             )
         total_size = sum((dst_dir / sf).stat().st_size for sf in shard_files)
         index = {"metadata": {"total_size": total_size}, "weight_map": self.weight_map}
-        with open(dst_dir / self.INDEX_FILENAME, "w") as f:
+        index_path = dst_dir / self.INDEX_FILENAME
+        tmp_path = index_path.with_suffix(index_path.suffix + ".tmp")
+        with open(tmp_path, "w") as f:
             json.dump(index, f, indent=2)
+        os.replace(str(tmp_path), str(index_path))
 
     # ── misc ─────────────────────────────────────────────────────────────────
 

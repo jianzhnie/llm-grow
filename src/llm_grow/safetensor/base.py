@@ -44,6 +44,7 @@ from __future__ import annotations
 import json
 import os
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 
@@ -449,8 +450,11 @@ class SafetensorExpanderBase(ABC):
         # ── apply expansion-specific patches (expert count, topk, etc.) ───────
         cfg.update(plan.config_patches)
 
-        with open(dst_dir / "config.json", "w") as f:
+        cfg_path = dst_dir / "config.json"
+        tmp_path = cfg_path.with_suffix(cfg_path.suffix + ".tmp")
+        with open(tmp_path, "w") as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
+        os.replace(str(tmp_path), str(cfg_path))
 
         # ── verify auto_map referenced files are present ──────────────────────
         auto_map: dict[str, str] = cfg.get("auto_map", {})
@@ -488,13 +492,15 @@ class SafetensorExpanderBase(ABC):
 
         dst_index = ShardIndex.load(dst_dir)
         missing_tensors: list[str] = []
+        header_cache: dict[str, dict[str, tuple[str, list[int]]]] = {}
         for key, shard_name in dst_index.weight_map.items():
             shard_path = dst_dir / shard_name
             if not shard_path.exists():
                 missing_tensors.append(f"{key} -> {shard_name}")
                 continue
-            header = read_safetensors_header(shard_path)
-            if key not in header:
+            if shard_name not in header_cache:
+                header_cache[shard_name] = read_safetensors_header(shard_path)
+            if key not in header_cache[shard_name]:
                 missing_tensors.append(f"{key} in {shard_name}")
         if missing_tensors:
             sample = missing_tensors[:5]
@@ -542,7 +548,7 @@ class SafetensorExpanderBase(ABC):
     def _should_zero_moe(
         suf: str,
         *,
-        zero_suffixes: frozenset[str] | set[str],
+        zero_suffixes: Collection[str],
         zero_expert_down: bool = True,
         zero_shared_expert_down: bool = True,
     ) -> bool:

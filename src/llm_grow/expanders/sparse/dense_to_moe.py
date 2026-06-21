@@ -151,6 +151,16 @@ class DenseToMoEExpander(AbstractExpander[DenseToMoEConfig]):
             config.num_experts,
             config.top_k,
         )
+
+        cfg = getattr(model, "config", None)
+        if cfg is not None:
+            for attr in ("num_experts", "n_routed_experts"):
+                if hasattr(cfg, attr):
+                    setattr(cfg, attr, config.num_experts)
+            for attr in ("top_k", "num_experts_per_tok", "moe_topk"):
+                if hasattr(cfg, attr):
+                    setattr(cfg, attr, config.top_k)
+
         return model
 
     def verify(self, original: nn.Module, expanded: nn.Module, **kwargs) -> bool:

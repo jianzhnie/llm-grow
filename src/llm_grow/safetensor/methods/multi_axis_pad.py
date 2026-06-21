@@ -31,23 +31,20 @@ _FFN_OUT_SUFFIXES = frozenset({"mlp.gate_proj.weight", "mlp.up_proj.weight"})
 # Suffix whose input dimension (cols) expands with intermediate_size
 _FFN_IN_SUFFIXES = frozenset({"mlp.down_proj.weight"})
 
-# Suffixes whose rows expand with hidden_size (output dimension = new hidden)
-_HIDDEN_OUT_SUFFIXES = frozenset(
+# Attention projections: both input (cols) and output (rows) dimensions are tied
+# to hidden_size / head_dim, so both expand when hidden_size grows.
+_HIDDEN_BOTH_SUFFIXES = frozenset(
     {
         "self_attn.q_proj.weight",
         "self_attn.k_proj.weight",
         "self_attn.v_proj.weight",
-        "mlp.gate_proj.weight",
-        "mlp.up_proj.weight",
-    }
-)
-# Suffixes whose cols expand with hidden_size (input dimension = new hidden)
-_HIDDEN_IN_SUFFIXES = frozenset(
-    {
         "self_attn.o_proj.weight",
-        "mlp.down_proj.weight",
     }
 )
+# MLP projections whose input dimension (cols) expands with hidden_size
+_HIDDEN_IN_SUFFIXES = frozenset({"mlp.gate_proj.weight", "mlp.up_proj.weight"})
+# MLP projections whose output dimension (rows) expands with hidden_size
+_HIDDEN_OUT_SUFFIXES = frozenset({"mlp.down_proj.weight"})
 
 
 @dataclass
@@ -117,9 +114,12 @@ class MultiAxisPadSafetensorExpander(SafetensorExpanderBase):
                         pad_c += cfg.ffn_size_expansion
 
                 if cfg.hidden_size_expansion > 0:
-                    if suf in _HIDDEN_OUT_SUFFIXES:
+                    if suf in _HIDDEN_BOTH_SUFFIXES:
+                        pad_r += cfg.hidden_size_expansion
                         pad_c += cfg.hidden_size_expansion
-                    if suf in _HIDDEN_IN_SUFFIXES:
+                    elif suf in _HIDDEN_IN_SUFFIXES:
+                        pad_c += cfg.hidden_size_expansion
+                    elif suf in _HIDDEN_OUT_SUFFIXES:
                         pad_r += cfg.hidden_size_expansion
 
                 plan.add(

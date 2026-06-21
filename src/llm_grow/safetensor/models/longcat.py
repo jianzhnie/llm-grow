@@ -25,9 +25,9 @@ LongCat-Flash architecture specifics
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from llm_grow.configs.base import BaseDepthConfig, ExpansionConfig
+from llm_grow.configs.base import BaseMoEDepthConfig, ExpansionConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase, TensorRecipe
 from llm_grow.safetensor.utils import (
     ShardIndex,
@@ -163,13 +163,10 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
                     plan.add(new_key, TensorRecipe(src_shard=shard, src_key=key))
 
             elif key.endswith("mlp.router.classifier.weight"):
-                # Expand factor ≥ 2 supported via repeated plan entries.
-                # Each step doubles: [N]→[2N]→[4N]→…
-                # For expand_factor > 2, apply the recipe to successive results.
-                # For simplicity in the plan model, we only do ×2 at recipe level
-                # and generate additional copy keys for higher factors.
-                # Current recipe model supports ×2 natively (dup_rows).
-                # For expand_factor > 2, log a warning but proceed with ×2 semantics.
+                # Router duplication is only implemented for expand_factor=2.
+                # Higher factors require multi-pass duplication and are not
+                # supported by the current recipe model.  Use the standalone
+                # expand_moe_experts.py for arbitrary factors.
                 if cfg.expand_factor > 2:
                     raise NotImplementedError(
                         f"expand_factor={cfg.expand_factor} > 2 "
@@ -226,8 +223,18 @@ class LongcatExpertCloneExpander(SafetensorExpanderBase):
 
 
 @dataclass
-class LongcatDepthConfig(BaseDepthConfig):
+class LongcatDepthConfig(BaseMoEDepthConfig):
     """LongCat depth expansion configuration."""
+
+    zero_suffixes: list[str] = field(
+        default_factory=lambda: [
+            "self_attn.0.o_proj.weight",
+            "self_attn.1.o_proj.weight",
+            "mlps.0.down_proj.weight",
+            "mlps.1.down_proj.weight",
+        ]
+    )
+    """Exact layer-suffixes to zero in identity blocks."""
 
     noise_scale: float = 0.0
     """Optional noise for non-zero tensors in identity blocks
@@ -237,12 +244,9 @@ class LongcatDepthConfig(BaseDepthConfig):
 class LongcatDepthExpander(SafetensorExpanderBase):
     """Insert ZeroBlockInsert-style identity layers into LongCat-Flash.
 
-    An identity layer zeros:
-    * ``self_attn.{0,1}.o_proj.weight``         — attention output projections
-    * ``mlps.{0,1}.down_proj.weight``            — dense MLP output projections
-    * ``mlp.experts.{ALL}.down_proj.weight``     — all 512 MoE expert outputs
-
-    Residual connections ensure ``Layer(x) = x``.
+    An identity layer zeros attention output projections, dense MLP output
+    projections, and all MoE expert down_proj weights.  Residual connections
+    ensure ``Layer(x) = x``.
 
     Example::
 
@@ -251,29 +255,19 @@ class LongcatDepthExpander(SafetensorExpanderBase):
         )
     """
 
-    # Exact-suffix matches for non-expert identity zeroing
-    _ATTN_ZERO = frozenset(
-        {
-            "self_attn.0.o_proj.weight",
-            "self_attn.1.o_proj.weight",
-        }
-    )
-    _DENSE_MLP_ZERO = frozenset(
-        {
-            "mlps.0.down_proj.weight",
-            "mlps.1.down_proj.weight",
-        }
-    )
-
     def __init__(self, config: LongcatDepthConfig | None = None) -> None:
         self.config = config or LongcatDepthConfig()
 
     def _should_zero(self, suf: str) -> bool:
         """Return True if this tensor suffix should be zeroed in identity blocks."""
-        if suf in self._ATTN_ZERO or suf in self._DENSE_MLP_ZERO:
+        cfg = self.config
+        if suf in cfg.zero_suffixes:
             return True
-        # Zero ALL expert down_proj weights
-        return bool(suf.endswith(".down_proj.weight") and "mlp.experts." in suf)
+        if suf.endswith(".down_proj.weight") and "mlp.experts." in suf:
+            return cfg.zero_expert_down
+        return bool(
+            cfg.zero_shared_expert_down and suf == "mlp.shared_experts.down_proj.weight"
+        )
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         from llm_grow.safetensor.utils import insert_positions

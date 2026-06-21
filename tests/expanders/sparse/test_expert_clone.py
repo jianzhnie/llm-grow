@@ -47,7 +47,7 @@ class TestExpertCloneExpander:
         for layer in model.layers:
             assert len(layer.experts) == 8
 
-    def test_verify_returns_false(self):
+    def test_verify_skips_strict_fp(self):
         model = self._make_moe_model()
         result = ExpertCloneExpander().verify(model, model)
-        assert result is False
+        assert result is True

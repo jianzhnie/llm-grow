@@ -17,6 +17,11 @@ def build_layer_sequence(num_orig: int, insert_pos: set[int]) -> list[tuple[int,
     Returns:
         List of ``(src_layer_idx, is_identity)`` tuples.
     """
+    invalid = {p for p in insert_pos if p < 0 or p >= num_orig}
+    if invalid:
+        raise ValueError(
+            f"Insert positions out of range [0, {num_orig}): {sorted(invalid)}"
+        )
     sequence: list[tuple[int, bool]] = []
     for i in range(num_orig):
         sequence.append((i, False))
