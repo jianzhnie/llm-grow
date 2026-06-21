@@ -67,6 +67,19 @@ class LongcatExpertCloneConfig(ExpansionConfig):
     Mirrors the ``--use_group_routing`` flag in the original script.
     """
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.expand_factor, int) or self.expand_factor < 1:
+            raise ValueError(
+                f"expand_factor must be a positive integer, got {self.expand_factor!r}"
+            )
+        if self.noise_scale < 0:
+            raise ValueError(f"noise_scale must be >= 0, got {self.noise_scale}")
+        if self.scale_moe_topk and self.use_group_routing:
+            raise ValueError(
+                "scale_moe_topk and use_group_routing are mutually exclusive"
+            )
+
 
 class LongcatExpertCloneExpander(SafetensorExpanderBase):
     """Expand LongCat-Flash expert count using mmap streaming.
@@ -231,6 +244,17 @@ class LongcatDepthConfig(BaseMoEDepthConfig):
     noise_scale: float = 0.0
     """Optional noise for non-zero tensors in identity blocks
     (default 0 = exact copy)."""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.noise_scale < 0:
+            raise ValueError(f"noise_scale must be >= 0, got {self.noise_scale}")
+        if not self.zero_suffixes or not all(
+            isinstance(s, str) and s for s in self.zero_suffixes
+        ):
+            raise ValueError(
+                "zero_suffixes must be a non-empty list of non-empty strings"
+            )
 
 
 class LongcatDepthExpander(SafetensorExpanderBase):

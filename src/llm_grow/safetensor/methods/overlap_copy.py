@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from llm_grow.configs.base import ExpansionConfig
 from llm_grow.safetensor.base import ExpansionPlan, SafetensorExpanderBase
 from llm_grow.safetensor.utils import ShardIndex
+from llm_grow.utils.expansion_rules import build_overlap_sequence
 
 
 @dataclass
@@ -41,16 +42,5 @@ class OverlapCopySafetensorExpander(SafetensorExpanderBase):
         num_orig = src_index.num_hidden_layers()
         overlap = self.config.num_overlap
 
-        if overlap >= num_orig:
-            raise ValueError(
-                f"num_overlap ({overlap}) must be < num_hidden_layers ({num_orig})."
-            )
-
-        upper_end = num_orig - overlap  # upper copy: layers 0 .. upper_end-1
-        lower_start = overlap  # lower copy: layers lower_start .. num_orig-1
-
-        sequence: list[tuple[int, bool]] = [(i, False) for i in range(upper_end)] + [
-            (i, False) for i in range(lower_start, num_orig)
-        ]
-
+        sequence = build_overlap_sequence(num_orig, overlap)
         return self._build_layer_plan(src_index, layer_sequence=sequence)

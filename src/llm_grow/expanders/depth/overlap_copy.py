@@ -25,6 +25,7 @@ from llm_grow.utils import (
     set_decoder_layers,
     update_num_hidden_layers,
 )
+from llm_grow.utils.expansion_rules import build_overlap_sequence
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -50,19 +51,11 @@ class OverlapCopyExpander(AbstractExpander[OverlapCopyConfig]):
         num_layers = len(layers)
         overlap = config.num_overlap
 
-        if overlap >= num_layers:
-            raise ValueError(
-                f"num_overlap ({overlap}) must be < num_layers ({num_layers})."
-            )
-
-        upper_end = num_layers - overlap
-        lower_start = overlap
+        sequence = build_overlap_sequence(num_layers, overlap)
 
         new_layers = nn.ModuleList()
-        for i in range(upper_end):
-            new_layers.append(copy.deepcopy(layers[i]))
-        for i in range(lower_start, num_layers):
-            new_layers.append(copy.deepcopy(layers[i]))
+        for src_idx, _ in sequence:
+            new_layers.append(copy.deepcopy(layers[src_idx]))
 
         set_decoder_layers(model, new_layers)
         update_num_hidden_layers(model, len(new_layers))

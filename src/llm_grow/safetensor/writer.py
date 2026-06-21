@@ -7,6 +7,7 @@ prediction, and the parallel worker entry point.
 
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 from typing import Any, cast
@@ -25,7 +26,7 @@ _TORCH_DTYPES: dict[str, torch.dtype] = {
 
 
 def apply_recipe(
-    src: torch.Tensor,
+    src: torch.Tensor | None,
     recipe: TensorRecipe,
     interp_tensor: torch.Tensor | None = None,
 ) -> torch.Tensor:
@@ -38,14 +39,21 @@ def apply_recipe(
         dtype = _TORCH_DTYPES.get(recipe.create_dtype, torch.float32)
         return torch.zeros(recipe.create_shape, dtype=dtype)
 
+    if src is None:
+        raise ValueError(
+            "apply_recipe received src=None but recipe does not set create_shape"
+        )
+
     if recipe.zero_out:
-        return torch.zeros_like(src)
+        return torch.zeros(
+            recipe.output_shape(list(src.shape)), dtype=src.dtype, device=src.device
+        )
 
     if interp_tensor is not None and recipe.interp_src_key:
         alpha = recipe.interp_alpha
         return cast(
             torch.Tensor,
-            (alpha * src.float() + (1 - alpha) * interp_tensor.float()).to(src.dtype),
+            torch.lerp(interp_tensor.to(src.dtype), src, alpha),
         )
 
     if recipe.dup_rows and recipe.router_split > 0:
@@ -68,10 +76,15 @@ def apply_recipe(
                 src.shape[0] + recipe.pad_rows,
                 src.shape[1] + recipe.pad_cols,
                 dtype=src.dtype,
+                device=src.device,
             )
             tensor[: src.shape[0], : src.shape[1]] = src
         elif src.dim() == 1:
-            tensor = torch.zeros(src.shape[0] + recipe.pad_rows, dtype=src.dtype)
+            tensor = torch.zeros(
+                src.shape[0] + recipe.pad_rows,
+                dtype=src.dtype,
+                device=src.device,
+            )
             tensor[: src.shape[0]] = src
         else:
             raise ValueError(f"Unsupported tensor dim {src.dim()} for padding")
@@ -97,10 +110,7 @@ def predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe) 
     out_dtype = recipe.output_dtype(dtype)
     out_shape = recipe.output_shape(shape)
     elem = DTYPE_SIZES.get(out_dtype, 4)
-    numel = 1
-    for dim in out_shape:
-        numel *= dim
-    return elem * numel
+    return elem * math.prod(out_shape)
 
 
 def worker_write_shard(
@@ -162,7 +172,7 @@ def worker_write_shard(
                     create_shape,
                     create_dtype,
                 ) in triples:
-                    tensor = torch.zeros(1) if create_shape else sf.get_tensor(src_key)
+                    tensor = None if create_shape else sf.get_tensor(src_key)
                     interp_t = None
                     if interp_key and interp_shard_path:
                         interp_t = _get_interp_handle(interp_shard_path).get_tensor(

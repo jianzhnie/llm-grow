@@ -64,6 +64,39 @@ class GenericDenseToMoEConfig(ExpansionConfig):
     scale_topk: bool = True
     """Whether to multiply moe_topk / num_experts_per_tok by expand_factor."""
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.expand_factor, int) or self.expand_factor < 1:
+            raise ValueError(
+                f"expand_factor must be a positive integer, got {self.expand_factor!r}"
+            )
+        if self.noise_scale < 0:
+            raise ValueError(f"noise_scale must be >= 0, got {self.noise_scale}")
+        if not self.router_weight_suffixes or not all(
+            isinstance(s, str) and s for s in self.router_weight_suffixes
+        ):
+            raise ValueError(
+                "router_weight_suffixes must be a non-empty list of non-empty strings"
+            )
+        if self.router_bias_suffixes is not None and not all(
+            isinstance(s, str) and s for s in self.router_bias_suffixes
+        ):
+            raise ValueError(
+                "router_bias_suffixes must contain only non-empty strings"
+            )
+        count_key = self.config_expert_count_key
+        if not isinstance(count_key, str) or not count_key:
+            raise ValueError(
+                "config_expert_count_key must be a non-empty string, "
+                f"got {count_key!r}"
+            )
+        topk_key = self.config_topk_key
+        if not isinstance(topk_key, str) or not topk_key:
+            raise ValueError(
+                "config_topk_key must be a non-empty string, "
+                f"got {topk_key!r}"
+            )
+
 
 @dataclass
 class GenericMoEDepthConfig(BaseMoEDepthConfig):

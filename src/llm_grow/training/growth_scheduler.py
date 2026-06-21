@@ -23,6 +23,18 @@ class GrowthScheduleConfig:
     strategy: GrowthStrategy = "linear"
     """解锁策略：'linear' | 'cosine' | 'step'。"""
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.total_steps, int) or self.total_steps <= 0:
+            raise ValueError(
+                f"total_steps must be a positive integer, got {self.total_steps!r}"
+            )
+        if not isinstance(self.warmup_ratio, (int, float)) or not (
+            0.0 <= self.warmup_ratio <= 1.0
+        ):
+            raise ValueError(
+                f"warmup_ratio must be in [0.0, 1.0], got {self.warmup_ratio}"
+            )
+
 
 class GrowthScheduler:
     """MSG 渐进式掩码生长调度器。

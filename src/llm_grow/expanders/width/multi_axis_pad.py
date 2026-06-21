@@ -18,14 +18,19 @@ Related:
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
+from typing import Literal
 
 import torch
 import torch.nn as nn
 
 from llm_grow.configs.base import BaseDepthConfig, BaseWidthConfig
 from llm_grow.expanders.base import AbstractExpander
+from llm_grow.utils.expansion_rules import compute_pad_deltas
 from llm_grow.utils.insertion import NEW_GROWTH_ATTR
+
+_GrowthSchedule = Literal["instant", "linear", "cosine", "step"]
 
 
 @dataclass
@@ -38,10 +43,12 @@ class MultiAxisPadConfig(BaseDepthConfig, BaseWidthConfig):
     freeze_original: bool = True
     """是否冻结原始参数。"""
 
-    growth_schedule: str = "instant"
+    growth_schedule: _GrowthSchedule = "instant"
     """掩码生长调度策略：
     - 'instant'  : 立即解锁全部新参数（默认，用于扩增后直接 CPT）
     - 'linear'   : 按训练步数线性解锁（需配合 GrowthScheduler）
+    - 'cosine'   : 余弦解锁
+    - 'step'     : 分阶段解锁
     """
 
     attn_output_proj_names: list[str] = field(
@@ -53,9 +60,33 @@ class MultiAxisPadConfig(BaseDepthConfig, BaseWidthConfig):
 
     def __post_init__(self) -> None:
         if self.intermediate_size_expansion is not None:
+            warnings.warn(
+                "intermediate_size_expansion is deprecated; use ffn_size_expansion",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             self.ffn_size_expansion = self.intermediate_size_expansion
         self.intermediate_size_expansion = self.ffn_size_expansion
         super().__post_init__()
+
+        if not self.attn_output_proj_names or not all(
+            isinstance(n, str) and n for n in self.attn_output_proj_names
+        ):
+            raise ValueError(
+                "attn_output_proj_names must be a non-empty list of non-empty strings"
+            )
+        if not self.mlp_output_proj_names or not all(
+            isinstance(n, str) and n for n in self.mlp_output_proj_names
+        ):
+            raise ValueError(
+                "mlp_output_proj_names must be a non-empty list of non-empty strings"
+            )
+
+        if self.growth_schedule not in ("instant", "linear", "cosine", "step"):
+            raise ValueError(
+                f"growth_schedule must be one of instant/linear/cosine/step, "
+                f"got {self.growth_schedule!r}"
+            )
 
 
 class MultiAxisPadExpander(AbstractExpander[MultiAxisPadConfig]):
@@ -91,15 +122,19 @@ def _expand_width(model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
     for name, module in model.named_modules():
         if not isinstance(module, nn.Linear):
             continue
-        module_type = _classify_linear(name)
-        if module_type == "skip":
+        # Derive the layer-relative suffix (e.g. "self_attn.q_proj.weight")
+        # so it can be classified by the same rules used by safetensor expanders.
+        suffix = _layer_relative_suffix(name)
+        if suffix is None:
             continue
-        if module_type == "hidden_to_hidden" and dh > 0:
-            _pad_linear(module, in_delta=dh, out_delta=dh)
-        elif module_type == "hidden_to_inter" and di > 0:
-            _pad_linear(module, in_delta=0, out_delta=di)
-        elif module_type == "inter_to_hidden" and di > 0:
-            _pad_linear(module, in_delta=di, out_delta=0)
+        pad_r, pad_c = compute_pad_deltas(
+            suffix,
+            ffn_size_expansion=di,
+            hidden_size_expansion=dh,
+        )
+        if pad_r == 0 and pad_c == 0:
+            continue
+        _pad_linear(module, in_delta=pad_c, out_delta=pad_r)
 
     cfg = getattr(model, "config", None)
     if cfg is not None:
@@ -108,6 +143,19 @@ def _expand_width(model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
         if di > 0 and hasattr(cfg, "intermediate_size"):
             cfg.intermediate_size += di
     return model
+
+
+def _layer_relative_suffix(full_name: str) -> str | None:
+    """Return the layer-relative suffix for a module name, or None."""
+    # Module names look like "layers.0.self_attn.q_proj" or "lm_head".
+    # We want "self_attn.q_proj" (without the leading layer path).
+    parts = full_name.split(".")
+    if len(parts) < 2:
+        return None
+    # Heuristic: drop the "layers.N" or "transformer.h.N" prefix.
+    if parts[0] in ("layers", "transformer", "decoder") and parts[1].isdigit():
+        return ".".join(parts[2:])
+    return None
 
 
 def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
@@ -136,17 +184,6 @@ def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
         new_bias_param = nn.Parameter(new_b)
         setattr(new_bias_param, NEW_GROWTH_ATTR, True)
         module.bias = new_bias_param
-
-
-def _classify_linear(name: str) -> str:
-    """Classify a linear layer's semantic role based on its full dotted path."""
-    if any(k in name for k in ("lm_head", "embed", "layernorm", "norm")):
-        return "skip"
-    if any(k in name for k in ("gate_proj", "up_proj")):
-        return "hidden_to_inter"
-    if "down_proj" in name:
-        return "inter_to_hidden"
-    return "hidden_to_hidden"
 
 
 # ---------------------------------------------------------------------------

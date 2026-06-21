@@ -24,27 +24,8 @@ from llm_grow.safetensor.utils import (
     insert_positions,
     parse_layer_idx,
 )
+from llm_grow.utils.expansion_rules import compute_pad_deltas
 from llm_grow.utils.insertion import build_layer_sequence
-
-# Suffixes whose output dimension (rows) expands with intermediate_size
-_FFN_OUT_SUFFIXES = frozenset({"mlp.gate_proj.weight", "mlp.up_proj.weight"})
-# Suffix whose input dimension (cols) expands with intermediate_size
-_FFN_IN_SUFFIXES = frozenset({"mlp.down_proj.weight"})
-
-# Attention projections: both input (cols) and output (rows) dimensions are tied
-# to hidden_size / head_dim, so both expand when hidden_size grows.
-_HIDDEN_BOTH_SUFFIXES = frozenset(
-    {
-        "self_attn.q_proj.weight",
-        "self_attn.k_proj.weight",
-        "self_attn.v_proj.weight",
-        "self_attn.o_proj.weight",
-    }
-)
-# MLP projections whose input dimension (cols) expands with hidden_size
-_HIDDEN_IN_SUFFIXES = frozenset({"mlp.gate_proj.weight", "mlp.up_proj.weight"})
-# MLP projections whose output dimension (rows) expands with hidden_size
-_HIDDEN_OUT_SUFFIXES = frozenset({"mlp.down_proj.weight"})
 
 
 @dataclass
@@ -105,22 +86,11 @@ class MultiAxisPadSafetensorExpander(SafetensorExpanderBase):
                 new_key = f"model.layers.{new_idx}.{suf}"
 
                 zero = is_identity and suf in self.IDENTITY_ZERO_SUFFIXES
-
-                pad_r = pad_c = 0
-                if cfg.ffn_size_expansion > 0:
-                    if suf in _FFN_OUT_SUFFIXES:
-                        pad_r += cfg.ffn_size_expansion
-                    elif suf in _FFN_IN_SUFFIXES:
-                        pad_c += cfg.ffn_size_expansion
-
-                if cfg.hidden_size_expansion > 0:
-                    if suf in _HIDDEN_BOTH_SUFFIXES:
-                        pad_r += cfg.hidden_size_expansion
-                        pad_c += cfg.hidden_size_expansion
-                    elif suf in _HIDDEN_IN_SUFFIXES:
-                        pad_c += cfg.hidden_size_expansion
-                    elif suf in _HIDDEN_OUT_SUFFIXES:
-                        pad_r += cfg.hidden_size_expansion
+                pad_r, pad_c = compute_pad_deltas(
+                    suf,
+                    ffn_size_expansion=cfg.ffn_size_expansion,
+                    hidden_size_expansion=cfg.hidden_size_expansion,
+                )
 
                 plan.add(
                     new_key,

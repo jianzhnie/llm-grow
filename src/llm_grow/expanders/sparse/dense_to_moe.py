@@ -48,6 +48,33 @@ class DenseToMoEConfig(ModelExpansionConfig):
     推断失败时抛出 ValueError，不再使用魔法默认值。
     """
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not isinstance(self.num_experts, int) or self.num_experts <= 0:
+            raise ValueError(
+                f"num_experts must be a positive integer, got {self.num_experts!r}"
+            )
+        if not isinstance(self.top_k, int) or self.top_k < 1:
+            raise ValueError(f"top_k must be >= 1, got {self.top_k!r}")
+        if self.top_k > self.num_experts:
+            raise ValueError(
+                f"top_k ({self.top_k}) cannot exceed num_experts ({self.num_experts})"
+            )
+        if self.noise_std < 0:
+            raise ValueError(f"noise_std must be >= 0, got {self.noise_std}")
+        if not isinstance(self.ffn_module_pattern, str) or not self.ffn_module_pattern:
+            raise ValueError(
+                "ffn_module_pattern must be a non-empty string, "
+                f"got {self.ffn_module_pattern!r}"
+            )
+        if self.hidden_size is not None and (
+            not isinstance(self.hidden_size, int) or self.hidden_size <= 0
+        ):
+            raise ValueError(
+                "hidden_size must be a positive integer or None, "
+                f"got {self.hidden_size!r}"
+            )
+
 
 class MoELayer(nn.Module):
     """替换 Dense FFN 的 MoE 层。

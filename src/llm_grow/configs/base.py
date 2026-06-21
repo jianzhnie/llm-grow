@@ -94,6 +94,13 @@ class BaseDepthConfig(ExpansionConfig):
 # ── Zero-suffix (identity block) ─────────────────────────────────────────────
 
 
+def _default_zero_suffixes() -> list[str]:
+    """Lazy import to avoid a circular import with ``utils.expansion_rules``."""
+    from llm_grow.utils.expansion_rules import build_identity_zero_suffixes
+
+    return build_identity_zero_suffixes()
+
+
 @dataclass
 class BaseZeroSuffixConfig(ExpansionConfig):
     """Unified identity-block zero-suffix configuration.
@@ -103,12 +110,7 @@ class BaseZeroSuffixConfig(ExpansionConfig):
     ``_should_zero(suffix)`` on ``SafetensorExpanderBase`` reads these lists.
     """
 
-    zero_suffixes: list[str] = field(
-        default_factory=lambda: [
-            "self_attn.o_proj.weight",
-            "mlp.down_proj.weight",
-        ]
-    )
+    zero_suffixes: list[str] = field(default_factory=_default_zero_suffixes)
     """Layer suffixes that must be zeroed in identity blocks.
 
     Combines attention and MLP output projections into a single list.

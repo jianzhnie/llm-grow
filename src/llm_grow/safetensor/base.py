@@ -260,20 +260,13 @@ class SafetensorExpanderBase(ABC):
         verbose: bool,
     ) -> tuple[list[list[str]], dict[str, dict[str, tuple[str, list[int]]]]]:
         """Pass 1: scan source headers and assign output tensors to shards."""
-        from concurrent.futures import ThreadPoolExecutor
-
         from llm_grow.safetensor.utils import read_safetensors_header
 
-        # Limit concurrency to avoid loading many large headers into memory at
-        # once for 100B+ models. 4 workers provides parallelism while keeping
-        # peak memory bounded.
-        with ThreadPoolExecutor(max_workers=min(4, len(src_index.shard_files))) as pool:
-            src_headers: dict[str, dict[str, tuple[str, list[int]]]] = dict(
-                pool.map(
-                    lambda sf: (sf, read_safetensors_header(src_index.model_dir / sf)),
-                    src_index.shard_files,
-                )
-            )
+        # Headers are small JSON blobs; sequential reading avoids accumulating
+        # many large headers in memory for 100B+ models with dozens of shards.
+        src_headers: dict[str, dict[str, tuple[str, list[int]]]] = {}
+        for sf in src_index.shard_files:
+            src_headers[sf] = read_safetensors_header(src_index.model_dir / sf)
 
         sorted_keys = sorted(plan.recipes.keys())
         shard_groups: list[list[str]] = [[]]
@@ -317,6 +310,17 @@ class SafetensorExpanderBase(ABC):
         n = len(shard_groups)
         src_handles: dict[str, Any] = {}
 
+        # Precompute the last output-shard index that needs each source shard so
+        # we can eagerly close source handles and release mmap references.
+        last_use: dict[str, int] = {}
+        for group_idx, group_keys in enumerate(shard_groups):
+            for new_key in group_keys:
+                recipe = plan.recipes[new_key]
+                if recipe.src_shard:
+                    last_use[recipe.src_shard] = group_idx
+                if recipe.interp_src_shard:
+                    last_use[recipe.interp_src_shard] = group_idx
+
         def _get_src_handle(shard_name: str) -> Any:
             nonlocal src_handles
             if shard_name not in src_handles:
@@ -353,7 +357,7 @@ class SafetensorExpanderBase(ABC):
             for new_key in group_keys:
                 recipe = plan.recipes[new_key]
                 if recipe.create_shape:
-                    src_t = torch.zeros(1)
+                    src_t = None
                 else:
                     src_t = _get_src_handle(recipe.src_shard).get_tensor(
                         recipe.src_key
@@ -376,7 +380,15 @@ class SafetensorExpanderBase(ABC):
                     f"({len(tensors)} tensors, {size_mb:.0f} MB)"
                 )
 
-        del src_handles
+            # Eagerly close source shards that are no longer needed by future groups.
+            for shard_name_h in list(src_handles.keys()):
+                if last_use.get(shard_name_h, -1) == i:
+                    src_handles[shard_name_h].__exit__(None, None, None)
+                    del src_handles[shard_name_h]
+
+        for handle in src_handles.values():
+            handle.__exit__(None, None, None)
+        src_handles.clear()
 
     def _write_shards_parallel(
         self,
@@ -525,15 +537,13 @@ class SafetensorExpanderBase(ABC):
 
         dst_index = ShardIndex.load(dst_dir)
         missing_tensors: list[str] = []
-        header_cache: dict[str, dict[str, tuple[str, list[int]]]] = {}
         for key, shard_name in dst_index.weight_map.items():
             shard_path = dst_dir / shard_name
             if not shard_path.exists():
                 missing_tensors.append(f"{key} -> {shard_name}")
                 continue
-            if shard_name not in header_cache:
-                header_cache[shard_name] = read_safetensors_header(shard_path)
-            if key not in header_cache[shard_name]:
+            header = read_safetensors_header(shard_path)
+            if key not in header:
                 missing_tensors.append(f"{key} in {shard_name}")
         if missing_tensors:
             sample = missing_tensors[:5]

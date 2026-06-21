@@ -51,6 +51,15 @@ class MoEWidthConfig(BaseMoEDepthConfig, BaseWidthConfig):
             raise ValueError(
                 f"hidden_size_expansion must be >= 0, got {self.hidden_size_expansion}"
             )
+        if (
+            self.ffn_size_expansion == 0
+            and self.hidden_size_expansion == 0
+            and self.num_new_layers == 0
+        ):
+            raise ValueError(
+                "At least one of ffn_size_expansion, hidden_size_expansion, "
+                "or num_new_layers must be > 0"
+            )
 
 
 class MoEWidthExpander(SafetensorExpanderBase):
