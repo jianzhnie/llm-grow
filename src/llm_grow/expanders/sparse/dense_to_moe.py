@@ -23,7 +23,6 @@ import torch.nn.functional as F
 
 from llm_grow.configs.base import ModelExpansionConfig
 from llm_grow.expanders.base import AbstractExpander
-from llm_grow.initializers.symmetry_break import add_noise_to_experts
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -158,10 +157,14 @@ class DenseToMoEExpander(AbstractExpander[DenseToMoEConfig]):
             if not _is_ffn_module(module):
                 continue
 
-            experts = nn.ModuleList(
-                [copy.deepcopy(module) for _ in range(config.num_experts)]
-            )
-            add_noise_to_experts(experts, std=config.noise_std)
+            experts = nn.ModuleList()
+            for i in range(config.num_experts):
+                expert = copy.deepcopy(module)
+                if i > 0:
+                    with torch.no_grad():
+                        for param in expert.parameters():
+                            param.add_(torch.randn_like(param) * config.noise_std)
+                experts.append(expert)
 
             moe_layer = MoELayer(
                 experts=experts,

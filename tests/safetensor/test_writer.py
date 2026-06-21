@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from llm_grow.safetensor.base import TensorRecipe
@@ -88,6 +89,56 @@ class TestApplyRecipe:
         out = apply_recipe(src, recipe)
         assert out.shape == (4, 4)
         assert out.abs().max().item() > 0
+
+
+class TestTensorRecipeValidation:
+    def test_zero_out_with_padding_allowed(self):
+        """Width-expanded identity blocks legitimately set both flags."""
+        recipe = TensorRecipe(
+            src_shard="s", src_key="k", zero_out=True, pad_rows=2, pad_cols=3
+        )
+        assert recipe.zero_out
+        assert recipe.pad_rows == 2
+
+    def test_zero_out_with_noise_rejected(self):
+        with pytest.raises(ValueError):
+            TensorRecipe(
+                src_shard="s",
+                src_key="k",
+                zero_out=True,
+                add_noise_std=0.1,
+            )
+
+    def test_dup_rows_with_padding_rejected(self):
+        with pytest.raises(ValueError):
+            TensorRecipe(
+                src_shard="s", src_key="k", dup_rows=True, pad_rows=2
+            )
+
+    def test_router_split_requires_dup_rows(self):
+        with pytest.raises(ValueError):
+            TensorRecipe(
+                src_shard="s", src_key="k", router_split=4, dup_rows=False
+            )
+
+    def test_create_shape_exclusive(self):
+        with pytest.raises(ValueError):
+            TensorRecipe(
+                src_shard="s",
+                src_key="k",
+                create_shape=(2, 3),
+                zero_out=True,
+            )
+
+    def test_multiple_primary_ops_rejected(self):
+        with pytest.raises(ValueError):
+            TensorRecipe(
+                src_shard="s",
+                src_key="k",
+                dup_rows=True,
+                interp_src_shard="i",
+                interp_src_key="ik",
+            )
 
 
 class TestPredictRecipeBytes:

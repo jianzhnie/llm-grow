@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import torch
 from safetensors.torch import save_file as safetensors_save
 
@@ -92,6 +93,16 @@ class TestGenericMoEExpertClone:
         expander = make_qwen3moe_expert_clone(expand_factor=2, noise_scale=1e-5)
         assert expander.config.expand_factor == 2
         assert expander.config.noise_scale == 1e-5
+
+    def test_expand_factor_greater_than_two_rejected(self, tmp_path):
+        src_dir = _make_moe_dir(tmp_path / "src", num_layers=2, num_experts=2)
+        cfg = GenericDenseToMoEConfig(
+            expand_factor=3,
+            router_weight_suffixes=["mlp.gate.weight"],
+        )
+        expander = GenericMoEExpertCloneExpander(cfg)
+        with pytest.raises(NotImplementedError):
+            expander.dry_run(str(src_dir))
 
 
 class TestGenericMoEDepthExpander:

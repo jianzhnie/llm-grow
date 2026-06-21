@@ -1,18 +1,16 @@
-"""Structural verification of expanded safetensor models.
+"""Structural verification of expanded models.
 
 Library-level functions for verifying expansion correctness without
 loading full models. Use programmatically or via ``llm-grow verify``.
 
-All checks operate on safetensor headers and mmap — no GPU required,
+All checks operate on a ``ModelInspector`` abstraction — no GPU required,
 memory usage is minimal even for 100B+ models.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
-
-from safetensors import safe_open
+from typing import TYPE_CHECKING
 
 from llm_grow.configs.constants import (
     DEFAULT_VERIFY_ATOL,
@@ -22,8 +20,12 @@ from llm_grow.configs.constants import (
     WEIGHT_PRESERVE_ATOL,
     ZERO_CHECK_ATOL,
 )
-from llm_grow.safetensor.utils import ShardIndex, peek_model_config
+from llm_grow.safetensor.detect import detect_model
+from llm_grow.safetensor.inspector import SafetensorModelInspector
 from llm_grow.utils.logger_utils import get_logger
+
+if TYPE_CHECKING:
+    from llm_grow.core.inspector import ModelInspector
 
 logger = get_logger(__name__)
 
@@ -40,20 +42,28 @@ class StructuralVerifier:
         assert all(results.values())
     """
 
-    def __init__(self, src_dir: str | Path, dst_dir: str | Path) -> None:
+    def __init__(
+        self,
+        src_dir: str | Path,
+        dst_dir: str | Path,
+        *,
+        src_inspector: ModelInspector | None = None,
+        dst_inspector: ModelInspector | None = None,
+    ) -> None:
         self.src_dir = Path(src_dir)
         self.dst_dir = Path(dst_dir)
-        self.src_idx = ShardIndex.load(self.src_dir)
-        self.dst_idx = ShardIndex.load(self.dst_dir)
+        self.src_inspector = src_inspector or SafetensorModelInspector(src_dir)
+        self.dst_inspector = dst_inspector or SafetensorModelInspector(dst_dir)
 
     def run_all(self) -> dict[str, bool]:
         """Run all structural checks and return results dict."""
-        results: dict[str, bool] = {}
-        results["config"] = self.check_config()
-        results["tensor_counts"] = self.check_tensor_counts()
-        results["weights_preserved"] = self.check_original_weights_preserved()
-        results["identity_zeroed"] = self.check_identity_blocks_zeroed()
-        return results
+        with self.src_inspector, self.dst_inspector:
+            results: dict[str, bool] = {}
+            results["config"] = self.check_config()
+            results["tensor_counts"] = self.check_tensor_counts()
+            results["weights_preserved"] = self.check_original_weights_preserved()
+            results["identity_zeroed"] = self.check_identity_blocks_zeroed()
+            return results
 
     def check_config(self) -> bool:
         """Compare config.json between source and destination.
@@ -63,8 +73,8 @@ class StructuralVerifier:
         at least one known expansion key must have changed, and layer counts must
         remain consistent with the weight map.
         """
-        src_cfg = peek_model_config(self.src_dir)
-        dst_cfg = peek_model_config(self.dst_dir)
+        src_cfg = self.src_inspector.peek_config()
+        dst_cfg = self.dst_inspector.peek_config()
 
         keys = sorted(set(src_cfg) | set(dst_cfg))
         diffs: list[str] = []
@@ -103,14 +113,21 @@ class StructuralVerifier:
         logger.info("Config diff: %s", "; ".join(diffs))
 
         # Verify layer count consistency with weight map
-        src_layers = self.src_idx.num_hidden_layers()
-        dst_layers = self.dst_idx.num_hidden_layers()
+        src_layers = self.src_inspector.num_hidden_layers()
+        dst_layers = self.dst_inspector.num_hidden_layers()
         if src_layers != dst_layers:
             layer_key = next(
                 (k for k in ("num_hidden_layers", "num_layers") if k in dst_cfg),
                 None,
             )
-            if layer_key is None or dst_cfg.get(layer_key) != dst_layers:
+            if layer_key is None:
+                logger.error(
+                    "Config layer count key not found; "
+                    "inconsistent with weight map (%d layers)",
+                    dst_layers,
+                )
+                return False
+            if dst_cfg.get(layer_key) != dst_layers:
                 logger.error(
                     "Config layer count %s=%s inconsistent with weight map (%d layers)",
                     layer_key,
@@ -123,17 +140,19 @@ class StructuralVerifier:
 
     def check_tensor_counts(self) -> bool:
         """Verify output has the expected number of tensors."""
-        src_layers = self.src_idx.num_hidden_layers()
-        dst_layers = self.dst_idx.num_hidden_layers()
-        per_layer = len(self.src_idx.layer_suffixes())
+        src_layers = self.src_inspector.num_hidden_layers()
+        dst_layers = self.dst_inspector.num_hidden_layers()
+        per_layer = len(self.src_inspector.layer_suffixes())
+        src_all_keys = self.src_inspector.all_keys()
+        dst_all_keys = self.dst_inspector.all_keys()
         expected = (
-            len(self.src_idx.all_keys) - src_layers * per_layer + dst_layers * per_layer
+            len(src_all_keys) - src_layers * per_layer + dst_layers * per_layer
         )
-        actual = len(self.dst_idx.all_keys)
+        actual = len(dst_all_keys)
         ok = actual == expected
         logger.info(
             "Tensor counts: src=%d, dst=%d (expected %d) %s",
-            len(self.src_idx.all_keys),
+            len(src_all_keys),
             actual,
             expected,
             "OK" if ok else "MISMATCH",
@@ -144,96 +163,65 @@ class StructuralVerifier:
         """Spot-check that original layer tensors are preserved in output.
 
         Uses layer offset mapping for O(added) candidate lookup instead of
-        brute-force scanning all destination layers.  Shards are opened
-        lazily and closed after the check to avoid holding many file handles.
+        brute-force scanning all destination layers.  The inspector opens
+        shards lazily and releases them when the verifier context exits.
         """
-        wmap_src = self.src_idx.weight_map
-        wmap_dst = self.dst_idx.weight_map
+        wmap_src = self.src_inspector.weight_map()
+        wmap_dst = self.dst_inspector.weight_map()
 
-        src_layers = self.src_idx.num_hidden_layers()
-        dst_layers = self.dst_idx.num_hidden_layers()
+        src_layers = self.src_inspector.num_hidden_layers()
+        dst_layers = self.dst_inspector.num_hidden_layers()
         suf = "mlp.gate_proj.weight"
 
         added = dst_layers - src_layers
 
-        src_handles: dict[str, Any] = {}
-        dst_handles: dict[str, Any] = {}
+        step = max(1, src_layers // sample)
+        all_ok = True
+        for orig_idx in range(0, src_layers, step):
+            src_key = f"model.layers.{orig_idx}.{suf}"
+            if src_key not in wmap_src:
+                continue
+            src_t = self.src_inspector.get_tensor(src_key).float()
 
-        def _get_src_handle(shard: str) -> Any:
-            if shard not in src_handles:
-                src_handles[shard] = safe_open(
-                    str(self.src_idx.model_dir / shard), framework="pt", device="cpu"
+            best_idx, best_diff = -1, float("inf")
+            if added >= 0:
+                search_indices = range(
+                    orig_idx, min(orig_idx + added + 1, dst_layers)
                 )
-            return src_handles[shard]
+            else:
+                search_indices = range(dst_layers)
 
-        def _get_dst_handle(shard: str) -> Any:
-            if shard not in dst_handles:
-                dst_handles[shard] = safe_open(
-                    str(self.dst_idx.model_dir / shard), framework="pt", device="cpu"
-                )
-            return dst_handles[shard]
-
-        try:
-            step = max(1, src_layers // sample)
-            all_ok = True
-            for orig_idx in range(0, src_layers, step):
-                src_key = f"model.layers.{orig_idx}.{suf}"
-                if src_key not in wmap_src:
+            for dst_i in search_indices:
+                dst_key = f"model.layers.{dst_i}.{suf}"
+                if dst_key not in wmap_dst:
                     continue
-                src_t = (
-                    _get_src_handle(wmap_src[src_key]).get_tensor(src_key).float()
+                dst_t = self.dst_inspector.get_tensor(dst_key).float()
+                if dst_t.shape != src_t.shape:
+                    continue
+                diff = (src_t - dst_t).abs().max().item()
+                if diff < best_diff:
+                    best_diff, best_idx = diff, dst_i
+                if best_diff < WEIGHT_PRESERVE_ATOL:
+                    break
+
+            if best_idx == -1:
+                logger.info(
+                    "  layer %d: shapes differ (width expansion)", orig_idx
                 )
-
-                best_idx, best_diff = -1, float("inf")
-                if added >= 0:
-                    search_indices = range(
-                        orig_idx, min(orig_idx + added + 1, dst_layers)
-                    )
-                else:
-                    search_indices = range(dst_layers)
-
-                for dst_i in search_indices:
-                    dst_key = f"model.layers.{dst_i}.{suf}"
-                    if dst_key not in wmap_dst:
-                        continue
-                    dst_t = (
-                        _get_dst_handle(wmap_dst[dst_key])
-                        .get_tensor(dst_key)
-                        .float()
-                    )
-                    if dst_t.shape != src_t.shape:
-                        continue
-                    diff = (src_t - dst_t).abs().max().item()
-                    if diff < best_diff:
-                        best_diff, best_idx = diff, dst_i
-                    if best_diff < WEIGHT_PRESERVE_ATOL:
-                        break
-
-                if best_idx == -1:
-                    logger.info(
-                        "  layer %d: shapes differ (width expansion)", orig_idx
-                    )
-                else:
-                    ok = best_diff < WEIGHT_PRESERVE_ATOL
-                    logger.info(
-                        "  orig layer %d -> dst layer %d  max|diff|=%.2e %s",
-                        orig_idx,
-                        best_idx,
-                        best_diff,
-                        "OK" if ok else "FAIL",
-                    )
-                    all_ok = all_ok and ok
-            return all_ok
-        finally:
-            for handle in list(src_handles.values()) + list(dst_handles.values()):
-                handle.__exit__(None, None, None)
-            src_handles.clear()
-            dst_handles.clear()
+            else:
+                ok = best_diff < WEIGHT_PRESERVE_ATOL
+                logger.info(
+                    "  orig layer %d -> dst layer %d  max|diff|=%.2e %s",
+                    orig_idx,
+                    best_idx,
+                    best_diff,
+                    "OK" if ok else "FAIL",
+                )
+                all_ok = all_ok and ok
+        return all_ok
 
     def check_identity_blocks_zeroed(self) -> bool:
         """Verify that identity blocks have zeroed output projections."""
-        from llm_grow.safetensor.detect import detect_model
-
         profile = detect_model(self.src_dir)
         zero_suffixes = set(
             profile.attn_zero_suffixes + profile.dense_mlp_zero_suffixes
@@ -241,46 +229,31 @@ class StructuralVerifier:
         if not zero_suffixes:
             zero_suffixes = {"self_attn.o_proj.weight", "mlp.down_proj.weight"}
 
-        # Lazy shard handle cache: open only the shards we actually touch.
-        dst_handles: dict[str, Any] = {}
+        total_zero = total_nonzero = 0
+        for suf in zero_suffixes:
+            for key in self.dst_inspector.all_keys():
+                if not key.endswith(suf):
+                    continue
+                t = self.dst_inspector.get_tensor(key)
+                if t.abs().max().item() < ZERO_CHECK_ATOL:
+                    total_zero += 1
+                else:
+                    total_nonzero += 1
 
-        def _get_handle(shard: str) -> Any:
-            if shard not in dst_handles:
-                dst_handles[shard] = safe_open(
-                    str(self.dst_idx.model_dir / shard), framework="pt", device="cpu"
-                )
-            return dst_handles[shard]
-
-        try:
-            total_zero = total_nonzero = 0
-            for suf in zero_suffixes:
-                for key, shard in self.dst_idx.weight_map.items():
-                    if not key.endswith(suf):
-                        continue
-                    t = _get_handle(shard).get_tensor(key)
-                    if t.abs().max().item() < ZERO_CHECK_ATOL:
-                        total_zero += 1
-                    else:
-                        total_nonzero += 1
-
-            if total_zero == 0:
-                logger.info(
-                    "Identity blocks: none found (non-FP method or no identity blocks)"
-                )
-                return True
-
-            ok = total_nonzero == 0
+        if total_zero == 0:
             logger.info(
-                "Identity blocks: %d zeroed, %d non-zero (original layers) %s",
-                total_zero,
-                total_nonzero,
-                "OK" if ok else "FAIL",
+                "Identity blocks: none found (non-FP method or no identity blocks)"
             )
-            return ok
-        finally:
-            for handle in list(dst_handles.values()):
-                handle.__exit__(None, None, None)
-            dst_handles.clear()
+            return True
+
+        ok = total_nonzero == 0
+        logger.info(
+            "Identity blocks: %d zeroed, %d non-zero (original layers) %s",
+            total_zero,
+            total_nonzero,
+            "OK" if ok else "FAIL",
+        )
+        return ok
 
 
 def check_fp(
