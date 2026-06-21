@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
 from llm_grow.safetensor.detect import (
@@ -19,9 +18,16 @@ from llm_grow.safetensor.detect import (
 def _make_model_dir(
     config: dict,
     weight_map: dict[str, str],
+    tmp_path: Path | None = None,
 ) -> Path:
     """Create a temporary model directory with config.json and index.json."""
-    tmp = Path(tempfile.mkdtemp())
+    if tmp_path is None:
+        import tempfile
+
+        tmp = Path(tempfile.mkdtemp())
+    else:
+        tmp = tmp_path
+        tmp.mkdir(parents=True, exist_ok=True)
     (tmp / "config.json").write_text(json.dumps(config))
     (tmp / "model.safetensors.index.json").write_text(
         json.dumps({"weight_map": weight_map})

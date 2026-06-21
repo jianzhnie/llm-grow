@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
 
 import torch
@@ -21,10 +20,14 @@ from llm_grow.safetensor.models.moe_width import MoEWidthConfig, MoEWidthExpande
 
 
 def _make_moe_dir(
-    num_layers: int = 4, num_experts: int = 4, hidden: int = 32, ffn: int = 64
+    tmp_path: Path,
+    num_layers: int = 4,
+    num_experts: int = 4,
+    hidden: int = 32,
+    ffn: int = 64,
 ) -> Path:
     """Create a tiny MoE safetensor model directory."""
-    tmp = Path(tempfile.mkdtemp())
+    tmp_path.mkdir(parents=True, exist_ok=True)
     config = {
         "model_type": "qwen3_moe",
         "architectures": ["Qwen3MoeForCausalLM"],
@@ -34,7 +37,7 @@ def _make_moe_dir(
         "num_experts": num_experts,
         "num_experts_per_tok": 2,
     }
-    (tmp / "config.json").write_text(json.dumps(config))
+    (tmp_path / "config.json").write_text(json.dumps(config))
 
     tensors: dict[str, torch.Tensor] = {
         "model.embed_tokens.weight": torch.randn(128, hidden),
@@ -58,13 +61,13 @@ def _make_moe_dir(
                 hidden, ffn
             )
 
-    safetensors_save(tensors, str(tmp / "model.safetensors"))
-    return tmp
+    safetensors_save(tensors, str(tmp_path / "model.safetensors"))
+    return tmp_path
 
 
 class TestGenericMoEExpertClone:
-    def test_dry_run_doubles_experts(self):
-        src_dir = _make_moe_dir(num_layers=4, num_experts=4)
+    def test_dry_run_doubles_experts(self, tmp_path):
+        src_dir = _make_moe_dir(tmp_path / "src", num_layers=4, num_experts=4)
         cfg = GenericDenseToMoEConfig(
             expand_factor=2,
             router_weight_suffixes=["mlp.gate.weight"],
@@ -73,8 +76,8 @@ class TestGenericMoEExpertClone:
         plan = expander.dry_run(str(src_dir))
         assert plan is not None
 
-    def test_actual_write_produces_output(self):
-        src_dir = _make_moe_dir(num_layers=2, num_experts=2)
+    def test_dry_run_plan_has_cloned_experts(self, tmp_path):
+        src_dir = _make_moe_dir(tmp_path / "src", num_layers=2, num_experts=2)
         cfg = GenericDenseToMoEConfig(
             expand_factor=2,
             router_weight_suffixes=["mlp.gate.weight"],
@@ -92,22 +95,22 @@ class TestGenericMoEExpertClone:
 
 
 class TestGenericMoEDepthExpander:
-    def test_dry_run_inserts_layers(self):
-        src_dir = _make_moe_dir(num_layers=4, num_experts=4)
+    def test_dry_run_inserts_layers(self, tmp_path):
+        src_dir = _make_moe_dir(tmp_path / "src", num_layers=4, num_experts=4)
         cfg = GenericMoEDepthConfig(num_new_layers=2)
         expander = GenericMoEDepthExpander(cfg)
         plan = expander.dry_run(str(src_dir))
         assert plan is not None
 
-    def test_actual_write_increases_layers(self):
-        src_dir = _make_moe_dir(num_layers=4, num_experts=2)
+    def test_plan_increases_layers(self, tmp_path):
+        src_dir = _make_moe_dir(tmp_path / "src", num_layers=4, num_experts=2)
         cfg = GenericMoEDepthConfig(num_new_layers=2)
         expander = GenericMoEDepthExpander(cfg)
         plan = expander.dry_run(str(src_dir))
         assert plan.new_num_hidden_layers == 6
 
-    def test_identity_blocks_zeroed(self):
-        src_dir = _make_moe_dir(num_layers=4, num_experts=2)
+    def test_identity_blocks_zeroed(self, tmp_path):
+        src_dir = _make_moe_dir(tmp_path / "src", num_layers=4, num_experts=2)
         cfg = GenericMoEDepthConfig(num_new_layers=2)
         expander = GenericMoEDepthExpander(cfg)
         plan = expander.dry_run(str(src_dir))
@@ -123,8 +126,8 @@ class TestGenericMoEDepthExpander:
 
 
 class TestMoEWidthExpander:
-    def test_dry_run_width_expansion(self):
-        src_dir = _make_moe_dir(num_layers=4, num_experts=2)
+    def test_dry_run_width_expansion(self, tmp_path):
+        src_dir = _make_moe_dir(tmp_path / "src", num_layers=4, num_experts=2)
         cfg = MoEWidthConfig(ffn_size_expansion=16, num_new_layers=0)
         expander = MoEWidthExpander(cfg)
         plan = expander.dry_run(str(src_dir))
