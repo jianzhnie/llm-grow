@@ -17,6 +17,9 @@ from safetensors.torch import save_file
 
 from llm_grow.safetensor.recipe import TensorRecipe
 from llm_grow.safetensor.utils import read_safetensors_header
+from llm_grow.utils.logger_utils import get_logger
+
+logger = get_logger(__name__)
 
 _TORCH_DTYPES: dict[str, torch.dtype] = {
     "F32": torch.float32,
@@ -71,21 +74,12 @@ def apply_recipe(
         return torch.cat([src, dup], dim=0)
 
     if recipe.pad_rows > 0 or recipe.pad_cols > 0:
+        import torch.nn.functional as F
+
         if src.dim() == 2:
-            tensor = torch.zeros(
-                src.shape[0] + recipe.pad_rows,
-                src.shape[1] + recipe.pad_cols,
-                dtype=src.dtype,
-                device=src.device,
-            )
-            tensor[: src.shape[0], : src.shape[1]] = src
+            tensor = F.pad(src, (0, recipe.pad_cols, 0, recipe.pad_rows))
         elif src.dim() == 1:
-            tensor = torch.zeros(
-                src.shape[0] + recipe.pad_rows,
-                dtype=src.dtype,
-                device=src.device,
-            )
-            tensor[: src.shape[0]] = src
+            tensor = F.pad(src, (0, recipe.pad_rows))
         else:
             raise ValueError(f"Unsupported tensor dim {src.dim()} for padding")
     else:
@@ -140,8 +134,8 @@ def worker_write_shard(
             header = read_safetensors_header(out_path)
             if expected_keys.issubset(header):
                 return (out_path.name, list(expected_keys))
-        except (FileNotFoundError, OSError, ValueError):
-            pass
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            logger.debug("Resume check failed for %s: %s", out_path, exc)
 
     by_src: dict[str, list[tuple[str, str, tuple]]] = defaultdict(list)
     for src_path, src_key, out_key, recipe_fields in items:

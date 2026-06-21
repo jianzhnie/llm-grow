@@ -41,3 +41,12 @@ ATTN_OUTPUT_PROJ_NAMES: list[str] = ["o_proj", "out_proj"]
 
 MLP_OUTPUT_PROJ_NAMES: list[str] = ["down_proj", "fc2"]
 """Default MLP output projection layer names to zero for identity blocks."""
+
+DEFAULT_IDENTITY_ZERO_SUFFIXES: list[str] = [
+    "self_attn.o_proj.weight",
+    "mlp.down_proj.weight",
+]
+"""Default layer suffixes that must be zeroed in identity blocks.
+
+Combines attention and MLP output projections into a single list.
+"""

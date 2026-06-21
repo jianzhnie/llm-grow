@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from llm_grow.configs.base import InsertStrategy
+from typing import Literal
+
+InsertStrategy = Literal["uniform", "front", "rear"]
+"""Layer insertion strategy for depth expansion."""
 
 NEW_GROWTH_ATTR = "_is_new_growth"
 """Canonical attribute name used to tag newly-grown parameters."""

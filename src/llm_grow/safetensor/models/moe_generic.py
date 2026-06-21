@@ -128,6 +128,11 @@ class GenericMoEExpertCloneExpander(SafetensorExpanderBase):
 
     def _build_plan(self, src_index: ShardIndex) -> ExpansionPlan:
         cfg = self.config
+        if cfg.expand_factor > 2:
+            raise NotImplementedError(
+                f"expand_factor={cfg.expand_factor} > 2 is not supported yet. "
+                "Only expand_factor=2 is implemented for GenericMoEExpertCloneExpander."
+            )
         wmap = src_index.weight_map
 
         orig_n = self._count_experts_per_moe_layer(wmap)

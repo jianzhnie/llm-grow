@@ -401,8 +401,8 @@ class SafetensorExpanderBase(ABC):
         workers: int,
         resume: bool = False,
     ) -> None:
-        """Write output shards in parallel using ProcessPoolExecutor."""
-        from concurrent.futures import ProcessPoolExecutor
+        """Write output shards in parallel using ThreadPoolExecutor."""
+        from concurrent.futures import ThreadPoolExecutor
 
         from tqdm import tqdm
 
@@ -444,7 +444,7 @@ class SafetensorExpanderBase(ABC):
             tasks.append((str(dst_dir / shard_name), items, set(group_keys), resume))
 
         chunksize = max(1, len(tasks) // workers)
-        with ProcessPoolExecutor(max_workers=workers) as executor:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             results = list(
                 tqdm(
                     executor.map(_worker_write_shard, tasks, chunksize=chunksize),

@@ -200,7 +200,10 @@ def _get_distributed_rank() -> int:
     try:
         if dist.is_available() and dist.is_initialized():
             return dist.get_rank()
-    except Exception:
+    except (RuntimeError, ValueError, OSError):
+        # torch.distributed may not be initialized or available.
+        # Do not log here: this function is called by the log formatter itself,
+        # so emitting a log record could cause infinite recursion.
         pass
 
     # Fallback to environment variables (common distributed training variables)

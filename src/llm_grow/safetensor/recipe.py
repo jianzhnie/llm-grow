@@ -66,21 +66,46 @@ class TensorRecipe:
     )
 
     def __post_init__(self) -> None:
-        active: list[str] = []
-        if self.create_shape:
-            active.append("create_shape")
-        elif self.zero_out:
-            active.append("zero_out")
-        elif self.dup_rows:
-            active.append("dup_rows")
-        elif self.pad_rows > 0 or self.pad_cols > 0:
-            active.append("padding")
-        elif self.interp_src_key:
-            active.append("interpolation")
-        elif self.add_noise_std > 0:
-            active.append("add_noise_std")
+        if self.router_split > 0 and not self.dup_rows:
+            raise ValueError(
+                f"router_split ({self.router_split}) requires dup_rows=True"
+            )
 
-        if len(active) > 1:
+        has_create = bool(self.create_shape)
+        has_zero = self.zero_out
+        has_dup = self.dup_rows
+        has_pad = self.pad_rows > 0 or self.pad_cols > 0
+        has_interp = bool(self.interp_src_key)
+        has_noise = self.add_noise_std > 0
+
+        # create_shape produces a brand-new tensor; it cannot combine with any
+        # source-based transform.
+        if has_create and (has_zero or has_dup or has_pad or has_interp or has_noise):
+            raise ValueError(
+                "TensorRecipe create_shape is mutually exclusive with "
+                "zero_out, dup_rows, padding, interpolation, and add_noise_std"
+            )
+
+        # These primary ops cannot combine with each other.  zero_out + padding
+        # is intentionally allowed for width-expanded identity blocks.
+        primary: list[str] = []
+        if has_dup:
+            primary.append("dup_rows")
+        if has_interp:
+            primary.append("interpolation")
+        if has_noise:
+            primary.append("add_noise_std")
+        if len(primary) > 1:
+            raise ValueError(
+                "TensorRecipe primary transformation flags are mutually exclusive, "
+                f"but multiple were set: {primary}"
+            )
+
+        # Primary ops are also exclusive with zero_out/padding.
+        if primary and (has_zero or has_pad):
+            active = primary + (
+                ["zero_out"] if has_zero else []
+            ) + (["padding"] if has_pad else [])
             raise ValueError(
                 "TensorRecipe transformation flags are mutually exclusive, "
                 f"but multiple were set: {active}"
