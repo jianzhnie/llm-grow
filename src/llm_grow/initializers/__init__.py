@@ -1,5 +1,12 @@
 from llm_grow.initializers.identity import is_identity_block, zero_output_projections
 from llm_grow.initializers.net2net import net2wider_net
+from llm_grow.initializers.noise import (
+    DEFAULT_NOISE,
+    GaussianNoise,
+    NoiseStrategy,
+    ScaledGaussianNoise,
+    UniformNoise,
+)
 from llm_grow.initializers.svd_interp import (
     LayerPredictor,
     init_layer_by_interpolation,
@@ -16,7 +23,12 @@ from llm_grow.initializers.symmetry_break import (
 )
 
 __all__ = [
+    "DEFAULT_NOISE",
+    "GaussianNoise",
     "LayerPredictor",
+    "NoiseStrategy",
+    "ScaledGaussianNoise",
+    "UniformNoise",
     "add_noise_to_experts",
     "cluster_aware_upcycling",
     "drop_upcycling",

@@ -1,14 +1,18 @@
-"""OverlapCopy: 层重叠拼接深度扩增 (arXiv:2312.15166, SOLAR DUS).
+"""OverlapCopy: Depth up-scaling via overlapping layer copy (arXiv:2312.15166, SOLAR DUS).
 
-核心思路：将原模型复制两份，取上段前 N 层与下段后 N 层拼接，
-中间重叠区保证拼接点分布平滑。非 function-preserving，需要 100B+ CPT。
+Core idea: duplicate the model, keep the upper portion (first N layers) and
+lower portion (last N layers), and concatenate them.  The overlap region
+ensures smooth distribution at the splice point.
 
-原始论文: Kim et al., "SOLAR 10.7B: Scaling Large Language Models
+.. warning::
+    NOT function-preserving — requires ~100B+ tokens of continued pretraining.
+
+Reference: Kim et al., "SOLAR 10.7B: Scaling Large Language Models
     with Simple yet Effective Depth Up-Scaling", arXiv:2312.15166, 2023.
 
 Related:
-    - ``ZeroBlockInsert`` (zero_block_insert.py): FP 恒等块嫁接
-    - ``SVDInterpInsert`` (svd_interp_insert.py): SVD 插值近似 FP 扩增
+    - ``ZeroBlockInsert`` (zero_block_insert.py): FP identity-block insertion
+    - ``SVDInterpInsert`` (svd_interp_insert.py): SVD-based approximate FP expansion
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ import torch.nn as nn
 
 from llm_grow.configs.base import ModelExpansionConfig
 from llm_grow.expanders.base import AbstractExpander
+from llm_grow.expanders.registry import register_expander
 from llm_grow.utils import (
     get_decoder_layers,
     set_decoder_layers,
@@ -34,16 +39,19 @@ logger = get_logger(__name__)
 @dataclass
 class OverlapCopyConfig(ModelExpansionConfig):
     num_overlap: int = 8
-    """重叠层数。上段保留前 (L - num_overlap) 层；下段从第 num_overlap 层开始。
-    实际: len(upper) + len(lower) = 2*(L - num_overlap)
+    """Number of overlapping layers.  Upper portion keeps the first
+    ``L - num_overlap`` layers; lower portion starts from layer
+    ``num_overlap``.  Total: ``len(upper) + len(lower) = 2*(L - num_overlap)``.
     """
 
 
+@register_expander("overlap_copy")
 class OverlapCopyExpander(AbstractExpander[OverlapCopyConfig]):
-    """OverlapCopy 层重叠拼接扩增器。
+    """OverlapCopy depth up-scaling expander.
 
-    WARNING: 非 function-preserving，verify() 始终返回 False。
-    扩增后需要大量 continued pretraining（建议 100B+ tokens）。
+    .. warning::
+        NOT function-preserving — ``verify()`` always returns ``False``.
+        Requires substantial continued pretraining (~100B+ tokens recommended).
     """
 
     def expand(self, model: nn.Module, config: OverlapCopyConfig) -> nn.Module:

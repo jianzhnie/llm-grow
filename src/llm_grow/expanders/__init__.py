@@ -10,6 +10,11 @@ from llm_grow.expanders.depth.zero_block_insert import (
     ZeroBlockInsertConfig,
     ZeroBlockInsertExpander,
 )
+from llm_grow.expanders.registry import (
+    get_expander,
+    list_expanders,
+    register_expander,
+)
 from llm_grow.expanders.sparse.dense_to_moe import (
     DenseToMoEConfig,
     DenseToMoEExpander,
@@ -37,6 +42,9 @@ __all__ = [
     "SVDInterpInsertExpander",
     "ZeroBlockInsertConfig",
     "ZeroBlockInsertExpander",
+    "get_expander",
+    "list_expanders",
+    "register_expander",
 ]
 
 # Deprecated — kept importable but excluded from __all__

@@ -133,14 +133,13 @@ def get_logger(
     # Get or create logger instance
     logger = logging.getLogger(name)
 
-    # Return existing logger if already initialized
+    # Return existing logger if already initialized with this exact name.
+    # We intentionally do NOT match by prefix — a child logger (e.g.
+    # llm_grow.safetensor.writer) must receive its own configured instance,
+    # not the parent's (llm_grow.safetensor) logger, so that per-module
+    # log-level and handler defaults are honoured.
     if name in logger_initialized:
         return logger
-
-    # Check if parent logger is already initialized
-    for logger_name in logger_initialized:
-        if name.startswith(logger_name):
-            return logger
 
     # Get current rank safely
     rank = _get_distributed_rank()

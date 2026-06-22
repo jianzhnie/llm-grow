@@ -23,6 +23,8 @@ import torch.nn as nn
 
 from llm_grow.configs.base import ModelExpansionConfig
 from llm_grow.expanders.base import AbstractExpander
+from llm_grow.expanders.registry import register_expander
+from llm_grow.initializers.noise import DEFAULT_NOISE, NoiseStrategy
 from llm_grow.initializers.symmetry_break import (
     add_noise_to_experts,
     drop_upcycling,
@@ -41,31 +43,34 @@ class ExpertSelectionStrategy(str, Enum):
 @dataclass
 class ExpertCloneConfig(ModelExpansionConfig):
     expand_factor: int = 2
-    """专家数扩展倍数（原 E 个专家 → expand_factor × E 个专家）。"""
+    """Expert count multiplier (original E experts → expand_factor × E)."""
 
     selection_strategy: ExpertSelectionStrategy = ExpertSelectionStrategy.UNIFORM
-    """专家选择策略：
-    - 'uniform'       : 每个专家等概率复制（简单基线）
-    - 'utility'       : 按梯度重要性优先复制高价值专家（论文推荐，差距闭合 3x）
-    - 'random_subset' : 随机选部分专家复制（效果不稳定）
+    """Expert selection strategy:
+    - ``'uniform'``       : equal-probability copy (simple baseline)
+    - ``'utility'``       : gradient-importance priority (paper recommended, 3x gap closure)
+    - ``'random_subset'`` : random subset copy (unstable)
     """
 
     symmetry_break: str = "noise"
-    """对称性破坏方式：'noise' | 'drop' | 'cluster'（cluster 需额外实现）。"""
+    """Symmetry-breaking method: ``'noise'`` | ``'drop'`` | ``'cluster'``."""
 
     noise_std: float = 0.01
     drop_ratio: float = 0.1
 
+    noise: NoiseStrategy | None = None
+    """Pluggable noise strategy.  ``None`` → :class:`GaussianNoise` (default)."""
+
     router_noise_std: float = 0.001
-    """Router 新增列的扰动强度。"""
+    """Noise magnitude for new router columns."""
 
     moe_layer_cls_name: str = ""
-    """目标 MoE 层的类名（用于显式按类名匹配）。
-    默认空字符串，此时通过 ``hasattr(module, 'experts') and hasattr(module, 'router')``
-    判断，更加稳健。
+    """Target MoE layer class name.  When empty, detection falls back to
+    ``hasattr(module, 'experts') and hasattr(module, 'router')`` (more robust).
     """
 
 
+@register_expander("expert_clone")
 class ExpertCloneExpander(AbstractExpander[ExpertCloneConfig]):
     """ExpertClone MoE 专家克隆扩展器（M1 方案）。
 
@@ -74,6 +79,7 @@ class ExpertCloneExpander(AbstractExpander[ExpertCloneConfig]):
     """
 
     def expand(self, model: nn.Module, config: ExpertCloneConfig) -> nn.Module:
+        noise_strategy = config.noise or DEFAULT_NOISE
         expanded_count = 0
         for _name, module in model.named_modules():
             is_target_cls = (
@@ -84,7 +90,9 @@ class ExpertCloneExpander(AbstractExpander[ExpertCloneConfig]):
             if not is_target_cls and not has_moe_interface:
                 continue
 
-            new_experts, new_router_weight = _expand_experts(module, config)
+            new_experts, new_router_weight = _expand_experts(
+                module, config, noise_strategy
+            )
             module.experts = new_experts
             _update_router(module, new_router_weight)
             expanded_count += 1
@@ -113,6 +121,7 @@ class ExpertCloneExpander(AbstractExpander[ExpertCloneConfig]):
 def _expand_experts(
     moe_module: nn.Module,
     config: ExpertCloneConfig,
+    noise_strategy: NoiseStrategy,
 ) -> tuple[nn.ModuleList, torch.Tensor]:
     experts: nn.ModuleList = moe_module.experts
     num_orig = len(experts)
@@ -131,7 +140,9 @@ def _expand_experts(
     for src_idx in src_indices:
         clone = copy.deepcopy(experts[src_idx])
         if config.symmetry_break == "noise":
-            add_noise_to_experts(nn.ModuleList([clone]), std=config.noise_std)
+            with torch.no_grad():
+                for param in clone.parameters():
+                    noise_strategy.apply(param.data, scale=config.noise_std)
         elif config.symmetry_break == "drop":
             drop_upcycling(nn.ModuleList([clone]), drop_ratio=config.drop_ratio)
         new_experts.append(clone)

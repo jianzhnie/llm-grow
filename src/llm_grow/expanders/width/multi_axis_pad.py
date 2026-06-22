@@ -1,19 +1,19 @@
-"""MultiAxisPad: 多维掩码生长扩增 (arXiv:2305.02869, MSG).
+"""MultiAxisPad: Multi-axis masked growth expansion (arXiv:2305.02869, MSG).
 
-支持四维度任意组合扩增：
-  - 深度（+层数）：恒等块插入（复用 ZeroBlockInsert）
-  - 宽度（+hidden_size）：零填充 + 掩码
-  - 注意力头数（+num_heads）：o_proj=0
-  - FFN 宽度（+intermediate_size）：零填充 + 掩码
+Supports arbitrary combinations of four expansion axes:
+  - Depth (+layers): identity block insertion (reuses ZeroBlockInsert)
+  - Width (+hidden_size): zero-padding with masks
+  - Attention heads (+num_heads): o_proj=0
+  - FFN width (+intermediate_size): zero-padding with masks
 
-Function-preserving：✓（所有新维度初始为零，不影响前向输出）。
+Function-preserving: ✓ (all new dimensions start at zero).
 
-原始论文: Du et al., "Stacking More Layers Differently: High-Rank Training
+Reference: Du et al., "Stacking More Layers Differently: High-Rank Training
     Through Low-Rank Updates", arXiv:2305.02869, 2023.
 
 Related:
-    - ``ZeroBlockInsert`` (zero_block_insert.py): 仅深度的 FP 扩增
-    - ``DenseToMoE`` (dense_to_moe.py): Dense 转稀疏 MoE
+    - ``ZeroBlockInsert`` (zero_block_insert.py): depth-only FP expansion
+    - ``DenseToMoE`` (dense_to_moe.py): Dense → Sparse MoE
 """
 
 from __future__ import annotations
@@ -25,31 +25,50 @@ from typing import Literal
 import torch
 import torch.nn as nn
 
-from llm_grow.configs.base import BaseDepthConfig, BaseWidthConfig
+from llm_grow.configs.base import ExpansionConfig, InsertStrategy
 from llm_grow.expanders.base import AbstractExpander
+from llm_grow.expanders.registry import register_expander
 from llm_grow.utils.expansion_rules import compute_pad_deltas
 from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 _GrowthSchedule = Literal["instant", "linear", "cosine", "step"]
 
+_VALID_GROWTH_SCHEDULES: set[str] = {"instant", "linear", "cosine", "step"}
+_VALID_INSERT_STRATEGIES: set[str] = {"uniform", "front", "rear"}
+
 
 @dataclass
-class MultiAxisPadConfig(BaseDepthConfig, BaseWidthConfig):
-    """MultiAxisPad 多维度扩增配置。"""
+class MultiAxisPadConfig(ExpansionConfig):
+    """Multi-axis (depth + width) expansion config — flat dataclass.
 
+    This dataclass avoids the diamond-inheritance ambiguity of
+    ``BaseDepthConfig`` + ``BaseWidthConfig`` by inlining the fields
+    from both bases directly under ``ExpansionConfig``.
+    """
+
+    # ── Depth fields (inlined from BaseDepthConfig) ──────────────────────────
+    num_new_layers: int = 4
+    """Number of identity / interpolated layers to insert."""
+
+    insert_strategy: InsertStrategy = "uniform"
+    """Insertion strategy: ``'uniform'`` | ``'front'`` | ``'rear'``."""
+
+    # ── Width fields (inlined from BaseWidthConfig) ──────────────────────────
+    ffn_size_expansion: int = 0
+    """Amount to increase ``intermediate_size``."""
+
+    hidden_size_expansion: int = 0
+    """Amount to increase ``hidden_size`` (d_model) globally."""
+
+    # ── MultiAxisPad-specific fields ─────────────────────────────────────────
     intermediate_size_expansion: int | None = None
     """Deprecated alias for ``ffn_size_expansion``."""
 
     freeze_original: bool = True
-    """是否冻结原始参数。"""
+    """Whether to freeze original parameters after expansion."""
 
-    growth_schedule: _GrowthSchedule = "instant"
-    """掩码生长调度策略：
-    - 'instant'  : 立即解锁全部新参数（默认，用于扩增后直接 CPT）
-    - 'linear'   : 按训练步数线性解锁（需配合 GrowthScheduler）
-    - 'cosine'   : 余弦解锁
-    - 'step'     : 分阶段解锁
-    """
+    growth_schedule: str = "instant"
+    """Mask growth schedule: ``'instant'`` | ``'linear'`` | ``'cosine'`` | ``'step'``."""
 
     attn_output_proj_names: list[str] = field(
         default_factory=lambda: ["o_proj", "out_proj"]
@@ -58,7 +77,7 @@ class MultiAxisPadConfig(BaseDepthConfig, BaseWidthConfig):
         default_factory=lambda: ["down_proj", "fc2"]
     )
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.intermediate_size_expansion is not None:
             warnings.warn(
                 "intermediate_size_expansion is deprecated; use ffn_size_expansion",
@@ -67,8 +86,29 @@ class MultiAxisPadConfig(BaseDepthConfig, BaseWidthConfig):
             )
             self.ffn_size_expansion = self.intermediate_size_expansion
         self.intermediate_size_expansion = self.ffn_size_expansion
-        super().__post_init__()
 
+        # Depth validation
+        if self.num_new_layers < 0:
+            raise ValueError(
+                f"num_new_layers must be >= 0, got {self.num_new_layers}"
+            )
+        if self.insert_strategy not in _VALID_INSERT_STRATEGIES:
+            raise ValueError(
+                f"insert_strategy must be one of {_VALID_INSERT_STRATEGIES}, "
+                f"got {self.insert_strategy!r}"
+            )
+
+        # Width validation
+        if self.ffn_size_expansion < 0:
+            raise ValueError(
+                f"ffn_size_expansion must be >= 0, got {self.ffn_size_expansion}"
+            )
+        if self.hidden_size_expansion < 0:
+            raise ValueError(
+                f"hidden_size_expansion must be >= 0, got {self.hidden_size_expansion}"
+            )
+
+        # Own validation
         if not self.attn_output_proj_names or not all(
             isinstance(n, str) and n for n in self.attn_output_proj_names
         ):
@@ -82,18 +122,21 @@ class MultiAxisPadConfig(BaseDepthConfig, BaseWidthConfig):
                 "mlp_output_proj_names must be a non-empty list of non-empty strings"
             )
 
-        if self.growth_schedule not in ("instant", "linear", "cosine", "step"):
+        if self.growth_schedule not in _VALID_GROWTH_SCHEDULES:
             raise ValueError(
-                f"growth_schedule must be one of instant/linear/cosine/step, "
+                f"growth_schedule must be one of {_VALID_GROWTH_SCHEDULES}, "
                 f"got {self.growth_schedule!r}"
             )
 
+        super().__post_init__()
 
+
+@register_expander("multi_axis_pad")
 class MultiAxisPadExpander(AbstractExpander[MultiAxisPadConfig]):
-    """MultiAxisPad 多维度扩增器。
+    """Multi-axis masked growth expander.
 
-    建议搭配 GrowthScheduler 使用（training/growth_scheduler.py），
-    实现渐进式掩码解锁以避免训练震荡。
+    Recommended: pair with ``GrowthScheduler`` (``training/growth_scheduler.py``)
+    for progressive mask unlocking to avoid training instability.
     """
 
     def expand(self, model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
@@ -115,7 +158,7 @@ class MultiAxisPadExpander(AbstractExpander[MultiAxisPadConfig]):
 
 
 def _expand_width(model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
-    """对所有线性层做零填充宽度扩展。"""
+    """Zero-pad all linear layers for width expansion."""
     dh = config.hidden_size_expansion
     di = config.ffn_size_expansion
 
@@ -159,9 +202,10 @@ def _layer_relative_suffix(full_name: str) -> str | None:
 
 
 def _pad_linear(module: nn.Linear, in_delta: int, out_delta: int) -> None:
-    """在行（out）和列（in）方向零填充权重矩阵，保持 function-preserving。
+    """Zero-pad weight matrix along row (out) and column (in) axes.
 
-    新创建的参数会被标记 ``_is_new_growth = True``，以便后续 freeze 机制识别。
+    New parameters are tagged ``_is_new_growth = True`` so the freeze
+    mechanism can identify them later.
     """
     old_w = module.weight.data
     old_out, old_in = old_w.shape
@@ -199,7 +243,7 @@ def _expand_depth(model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
 
     sub_config = ZeroBlockInsertConfig(
         num_new_layers=config.num_new_layers,
-        insert_strategy="uniform",
+        insert_strategy=config.insert_strategy,
         freeze_original=False,
         attn_output_proj_names=config.attn_output_proj_names,
         mlp_output_proj_names=config.mlp_output_proj_names,
@@ -213,7 +257,7 @@ def _expand_depth(model: nn.Module, config: MultiAxisPadConfig) -> nn.Module:
 
 
 def _freeze_original_params(model: nn.Module) -> None:
-    """冻结所有被标记为原始参数的层（未被 zero_output_projections 触碰的层）。"""
+    """Freeze all parameters that were NOT marked as new growth."""
     for param in model.parameters():
         if not getattr(param, NEW_GROWTH_ATTR, False):
             param.requires_grad_(False)

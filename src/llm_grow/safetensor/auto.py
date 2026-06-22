@@ -63,6 +63,16 @@ logger = get_logger(__name__)
 ExpanderFactory = Callable[..., SafetensorExpanderBase]
 _EXPANDER_REGISTRY: dict[tuple[str, str], ExpanderFactory] = {}
 
+# ── method → parameter names mapping ─────────────────────────────────────────
+# When a new method is added, only this dict and the factory functions below
+# need to be updated — the _build_expander dispatch logic stays unchanged.
+
+_METHOD_PARAM_KEYS: dict[str, tuple[str, ...]] = {
+    "depth": ("num_new_layers", "insert_strategy", "profile"),
+    "expert": ("expand_factor", "noise_scale", "profile"),
+    "width": ("num_new_layers", "insert_strategy", "ffn_size_expansion", "profile"),
+}
+
 
 def register_expander(
     method: str, family: str
@@ -185,26 +195,19 @@ def _build_expander(
             f"Available families for this method: {available or 'none'}."
         )
 
-    kwargs: dict[str, Any] = {}
-    if method == "depth":
-        kwargs = {
-            "num_new_layers": num_new_layers,
-            "insert_strategy": insert_strategy,
-            "profile": profile,
-        }
-    elif method == "expert":
-        kwargs = {
-            "expand_factor": expand_factor,
-            "noise_scale": noise_scale,
-            "profile": profile,
-        }
-    elif method == "width":
-        kwargs = {
-            "num_new_layers": num_new_layers,
-            "insert_strategy": insert_strategy,
-            "ffn_size_expansion": ffn_size_expansion,
-            "profile": profile,
-        }
+    # Collect only the parameters the selected method needs, using the
+    # declarative _METHOD_PARAM_KEYS mapping.  Adding a new method only
+    # requires updating that dict — no if-elif chain changes needed.
+    all_params: dict[str, Any] = {
+        "num_new_layers": num_new_layers,
+        "insert_strategy": insert_strategy,
+        "expand_factor": expand_factor,
+        "noise_scale": noise_scale,
+        "ffn_size_expansion": ffn_size_expansion,
+        "profile": profile,
+    }
+    needed = _METHOD_PARAM_KEYS.get(method, ())
+    kwargs = {k: all_params[k] for k in needed}
 
     return factory(**kwargs)
 

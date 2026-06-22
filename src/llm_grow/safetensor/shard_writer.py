@@ -7,8 +7,11 @@ that ``SafetensorExpanderBase`` can focus on plan construction.
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +32,24 @@ from llm_grow.safetensor.writer import (
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
+
+
+def _safe_close_handle(handle: Any) -> None:
+    """Close a safetensors mmap handle using the context-manager protocol.
+
+    Avoids calling ``handle.__exit__()`` directly, which is fragile when the
+    underlying library changes its cleanup logic.
+    """
+    with contextlib.suppress(Exception):
+        handle.__exit__(None, None, None)
+
+
+def _atomic_replace(tmp_path: Path, dst_path: Path) -> None:
+    """Atomically rename *tmp_path* to *dst_path*, falling back to copy on EXDEV."""
+    try:
+        os.replace(str(tmp_path), str(dst_path))
+    except OSError:
+        shutil.move(str(tmp_path), str(dst_path))
 
 
 class ShardWriter:
@@ -195,7 +216,7 @@ class ShardWriter:
             # Atomic write: save to temp file then rename.
             tmp_path = self.dst_dir / f"{shard_name}.tmp"
             save_file(tensors, str(tmp_path))
-            os.replace(str(tmp_path), str(shard_path))
+            _atomic_replace(tmp_path, shard_path)
             if self.verbose:
                 size_mb = shard_path.stat().st_size / 1e6
                 logger.info(
@@ -206,11 +227,11 @@ class ShardWriter:
             # Eagerly close source shards that are no longer needed by future groups.
             for shard_name_h in list(src_handles.keys()):
                 if last_use.get(shard_name_h, -1) == i:
-                    src_handles[shard_name_h].__exit__(None, None, None)
+                    _safe_close_handle(src_handles[shard_name_h])
                     del src_handles[shard_name_h]
 
         for handle in src_handles.values():
-            handle.__exit__(None, None, None)
+            _safe_close_handle(handle)
         src_handles.clear()
 
     def _write_shards_parallel(self, shard_groups: list[list[str]]) -> None:
@@ -246,35 +267,27 @@ class ShardWriter:
                         r.output_shape(src_shape),
                     )
 
-            # Gather (src_shard_path, src_key, out_key, recipe_tuple) per group
+            # Gather (src_shard_path, src_key, out_key, recipe) per group.
+            # TensorRecipe dataclass objects are passed directly so that
+            # adding a new field does not break the tuple unpacking in the
+            # worker thread.  interp_src_shard paths are resolved to absolute
+            # paths here so the worker can open them directly.
             items = []
             for new_key in group_keys:
                 r = self.plan.recipes[new_key]
-                items.append(
-                    (
-                        str(self.src_index.model_dir / r.src_shard)
-                        if r.src_shard
-                        else "",
-                        r.src_key,
-                        new_key,
-                        (
-                            r.zero_out,
-                            r.pad_rows,
-                            r.pad_cols,
-                            r.dup_rows,
-                            r.dup_rows_noise_scale,
-                            r.router_split,
-                            str(self.src_index.model_dir / r.interp_src_shard)
-                            if r.interp_src_shard
-                            else "",
-                            r.interp_src_key,
-                            r.interp_alpha,
-                            r.add_noise_std,
-                            tuple(r.create_shape) if r.create_shape else (),
-                            r.create_dtype,
-                        ),
-                    )
+                src_path = (
+                    str(self.src_index.model_dir / r.src_shard)
+                    if r.src_shard
+                    else ""
                 )
+                # Shallow-copy the recipe so we can resolve interp paths
+                # without mutating the original plan.
+                rr = copy.copy(r)
+                if rr.interp_src_shard:
+                    rr.interp_src_shard = str(
+                        self.src_index.model_dir / rr.interp_src_shard
+                    )
+                items.append((src_path, rr.src_key, new_key, rr))
             tasks.append(
                 (
                     str(shard_path),
@@ -353,7 +366,7 @@ class ShardWriter:
         tmp_path = cfg_path.with_suffix(cfg_path.suffix + ".tmp")
         with open(tmp_path, "w") as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
-        os.replace(str(tmp_path), str(cfg_path))
+        _atomic_replace(tmp_path, cfg_path)
 
         # ── verify auto_map referenced files are present ──────────────────────
         auto_map: dict[str, str] = cfg.get("auto_map", {})

@@ -1,15 +1,16 @@
-"""DenseToMoE: Dense FFN 转稀疏 MoE (arXiv:2212.05055, Sparse Upcycling).
+"""DenseToMoE: Dense FFN → Sparse MoE (arXiv:2212.05055, Sparse Upcycling).
 
-核心思路：将 Dense FFN 复制 num_experts 份作为专家初始权重，
-新增 Router（随机初始化）；每个 token 通过 Top-K 路由激活 K 个专家。
-推理激活参数量 ≈ 原 Dense 模型（top-1 时几乎不变）。
+Core idea: clone the Dense FFN ``num_experts`` times as initial expert
+weights, add a randomly initialised Router.  Each token activates ``top_k``
+experts.  Inference active parameters ≈ original Dense model (unchanged
+at top-1).
 
-原始论文: Komatsuzaki et al., "Sparse Upcycling: Training Mixture-of-Experts
+Reference: Komatsuzaki et al., "Sparse Upcycling: Training Mixture-of-Experts
     from Dense Checkpoints", arXiv:2212.05055, ICLR 2023.
 
 Related:
-    - ``ExpertClone`` (expert_clone.py): 已有 MoE 专家数扩展
-    - ``MultiAxisPad`` (multi_axis_pad.py): Dense 宽度/深度扩增
+    - ``ExpertClone`` (expert_clone.py): MoE expert-count expansion
+    - ``MultiAxisPad`` (multi_axis_pad.py): Dense width/depth expansion
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ import torch.nn.functional as F
 
 from llm_grow.configs.base import ModelExpansionConfig
 from llm_grow.expanders.base import AbstractExpander
+from llm_grow.expanders.registry import register_expander
+from llm_grow.initializers.noise import DEFAULT_NOISE, NoiseStrategy
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
@@ -31,20 +34,23 @@ logger = get_logger(__name__)
 @dataclass
 class DenseToMoEConfig(ModelExpansionConfig):
     num_experts: int = 8
-    """每层的专家数量（Dense FFN 被复制的份数）。"""
+    """Number of experts per layer (Dense FFN is cloned this many times)."""
 
     top_k: int = 2
-    """每个 token 激活的专家数。top-1 时推理成本最小。"""
+    """Number of experts activated per token.  top-1 minimises inference cost."""
 
     noise_std: float = 0.01
-    """打破对称性的初始噪声标准差。"""
+    """Noise standard deviation for symmetry breaking."""
+
+    noise: NoiseStrategy | None = None
+    """Pluggable noise strategy.  ``None`` → :class:`GaussianNoise` (default)."""
 
     ffn_module_pattern: str = "mlp"
-    """用于定位 FFN 模块的名称模式（前缀匹配）。"""
+    """Name pattern for locating FFN modules (prefix match)."""
 
     hidden_size: int | None = None
-    """显式指定 hidden_size。若未提供，则从 model.config 或参数推断；
-    推断失败时抛出 ValueError，不再使用魔法默认值。
+    """Explicit hidden_size.  Inferred from config or parameters if not given.
+    Raises ValueError when inference fails.
     """
 
     def __post_init__(self) -> None:
@@ -76,10 +82,10 @@ class DenseToMoEConfig(ModelExpansionConfig):
 
 
 class MoELayer(nn.Module):
-    """替换 Dense FFN 的 MoE 层。
+    """MoE layer replacing a Dense FFN.
 
-    使用 scatter-gather 批量分发策略：将 token 按路由结果分组后批量送入
-    对应专家，避免 per-token Python 循环，显著提升训练和推理吞吐。
+    Uses scatter-gather batching: tokens are grouped by routing result and
+    fed to experts in bulk, avoiding per-token Python loops for throughput.
     """
 
     def __init__(
@@ -140,15 +146,18 @@ class MoELayer(nn.Module):
         return expert_outputs.view(bsz, seq_len, hidden)
 
 
+@register_expander("dense_to_moe")
 class DenseToMoEExpander(AbstractExpander[DenseToMoEConfig]):
-    """DenseToMoE 扩增器（Dense → Sparse MoE）。
+    """DenseToMoE expander (Dense → Sparse MoE).
 
-    WARNING: 非 function-preserving（Router 随机初始化）。
-    扩增后需要 50-100B tokens CPT + load balancing loss。
+    .. warning::
+        NOT function-preserving (Router is randomly initialised).
+        Requires 50–100B tokens CPT + load-balancing loss after expansion.
     """
 
     def expand(self, model: nn.Module, config: DenseToMoEConfig) -> nn.Module:
         hidden_size = _get_hidden_size(model, config.hidden_size)
+        noise_strategy = config.noise or DEFAULT_NOISE
 
         replaced = 0
         for name, module in list(model.named_modules()):
@@ -163,7 +172,7 @@ class DenseToMoEExpander(AbstractExpander[DenseToMoEConfig]):
                 if i > 0:
                     with torch.no_grad():
                         for param in expert.parameters():
-                            param.add_(torch.randn_like(param) * config.noise_std)
+                            noise_strategy.apply(param.data, scale=config.noise_std)
                 experts.append(expert)
 
             moe_layer = MoELayer(
@@ -186,10 +195,24 @@ class DenseToMoEExpander(AbstractExpander[DenseToMoEConfig]):
         if cfg is not None:
             for attr in ("num_experts", "n_routed_experts"):
                 if hasattr(cfg, attr):
-                    setattr(cfg, attr, config.num_experts)
+                    try:
+                        setattr(cfg, attr, config.num_experts)
+                    except AttributeError:
+                        logger.warning(
+                            "Cannot set config.%s (read-only property); "
+                            "the expanded model config may need manual updating.",
+                            attr,
+                        )
             for attr in ("top_k", "num_experts_per_tok", "moe_topk"):
                 if hasattr(cfg, attr):
-                    setattr(cfg, attr, config.top_k)
+                    try:
+                        setattr(cfg, attr, config.top_k)
+                    except AttributeError:
+                        logger.warning(
+                            "Cannot set config.%s (read-only property); "
+                            "the expanded model config may need manual updating.",
+                            attr,
+                        )
 
         return model
 
@@ -204,7 +227,9 @@ class DenseToMoEExpander(AbstractExpander[DenseToMoEConfig]):
 
 
 def _is_ffn_module(module: nn.Module) -> bool:
-    """判断是否是叶子 FFN 模块（含 gate_proj / up_proj 的 SwiGLU MLP）。"""
+    """Check whether *module* is a leaf FFN module (SwiGLU MLP with
+    gate_proj / up_proj, or a legacy fc1 / fc2 MLP).
+    """
     child_names = {n for n, _ in module.named_children()}
     return bool({"gate_proj", "up_proj", "down_proj"} & child_names) or bool(
         {"fc1", "fc2"} & child_names
@@ -212,7 +237,7 @@ def _is_ffn_module(module: nn.Module) -> bool:
 
 
 def _get_hidden_size(model: nn.Module, explicit_hidden_size: int | None = None) -> int:
-    """推断或返回 hidden_size。无法推断时抛出 ValueError。"""
+    """Infer or return hidden_size.  Raises ValueError when inference fails."""
     if explicit_hidden_size is not None:
         return explicit_hidden_size
 
