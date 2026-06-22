@@ -119,7 +119,20 @@ class TensorRecipe:
         """
         if self.create_shape:
             return list(self.create_shape)
-        if self.zero_out or self.interp_src_key or self.add_noise_std > 0:
+
+        # Width-expanded identity blocks legitimately set both zero_out and
+        # pad_rows/pad_cols — the padding must be honoured so the output
+        # tensor has the expanded dimensions.
+        if self.zero_out:
+            shape = list(src_shape)
+            if len(shape) == 2:
+                shape[0] += self.pad_rows
+                shape[1] += self.pad_cols
+            elif len(shape) == 1:
+                shape[0] += self.pad_rows
+            return shape
+
+        if self.interp_src_key or self.add_noise_std > 0:
             return list(src_shape)
         if self.dup_rows:
             return [src_shape[0] * 2, *list(src_shape[1:])]

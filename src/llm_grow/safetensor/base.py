@@ -128,12 +128,14 @@ class SafetensorExpanderBase(ABC):
             workers=workers,
             resume=resume,
         )
-        if validate_output:
-            writer.write_and_validate(src_dir)
-        else:
-            writer.write(src_dir)
+        writer.write(src_dir)
 
+        # Copy auxiliary files BEFORE validation so auto_map Python files
+        # (configuration_*.py, modeling_*.py) are present for the check.
         src_index.copy_non_weight_files(dst_dir)
+
+        if validate_output:
+            writer._validate_output()
 
         if verbose:
             logger.info(f"  Done → {dst_dir}")

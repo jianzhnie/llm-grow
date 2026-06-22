@@ -1,12 +1,15 @@
 #!/usr/bin/env python
-"""Auto-detect and auto_expand dispatch example for Kimi-K2-Base (DeepSeek)."""
+"""Auto-detect and auto-dispatch example for Kimi-K2 (DeepSeek-MoE architecture).
+
+Verifies that the model is correctly detected as ``deepseek_moe`` and that
+auto_expand dispatches to the right expander for depth and expert methods.
+"""
 
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.helpers import run_tests
 from common.model_paths import KIMI_K2, require_path
 
 SRC = require_path("KIMI_K2", KIMI_K2)
@@ -18,12 +21,13 @@ def check_detect():
     p = detect_model(SRC)
     print(p.summary())
 
-    results = {}
-    results["family"] = p.family == "deepseek_moe"
-    results["is_moe"] = p.is_moe is True
-    results["experts"] = p.experts_per_moe_layer == 384
-    results["has_fp8"] = p.has_fp8 is True
-    results["dense_layer_0"] = 0 in p.dense_only_layers
+    results = {
+        "family": p.family == "deepseek_moe",
+        "is_moe": p.is_moe is True,
+        "experts": p.experts_per_moe_layer == 384,
+        "has_fp8": p.has_fp8 is True,
+        "dense_layer_0": 0 in p.dense_only_layers,
+    }
 
     for k, ok in results.items():
         print(f"  [{'OK' if ok else 'FAIL'}] {k}")
@@ -44,12 +48,8 @@ def check_auto_dispatch():
         print(f"\n  -> auto_expand(method={method!r}, dry_run=True)")
         try:
             auto_expand(
-                SRC,
-                "/tmp/auto_test/kimi_k2",
-                method=method,
-                verbose=False,
-                dry_run=True,
-                **kwargs,
+                SRC, "/tmp/auto_test/kimi_k2",
+                method=method, verbose=False, dry_run=True, **kwargs,
             )
             print(f"  [OK] kimi_k2 / {method}")
         except Exception as e:
@@ -59,13 +59,7 @@ def check_auto_dispatch():
 
 
 if __name__ == "__main__":
-    from common.helpers import run_tests
-
-    sys.exit(
-        run_tests(
-            [
-                ("detect", check_detect),
-                ("auto_dispatch", check_auto_dispatch),
-            ]
-        )
-    )
+    sys.exit(run_tests([
+        ("detect", check_detect),
+        ("auto_dispatch", check_auto_dispatch),
+    ]))
