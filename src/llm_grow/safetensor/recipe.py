@@ -8,7 +8,7 @@ transforms / workers).  Both modules import from here.
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -136,6 +136,34 @@ class TensorRecipe:
             return self.create_dtype
         return src_dtype
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize recipe to a JSON-compatible dict, omitting default values."""
+        result: dict[str, Any] = {"src_shard": self.src_shard, "src_key": self.src_key}
+        if self.zero_out:
+            result["zero_out"] = True
+        if self.pad_rows:
+            result["pad_rows"] = self.pad_rows
+        if self.pad_cols:
+            result["pad_cols"] = self.pad_cols
+        if self.dup_rows:
+            result["dup_rows"] = True
+        if self.dup_rows_noise_scale != 1e-6:
+            result["dup_rows_noise_scale"] = self.dup_rows_noise_scale
+        if self.router_split:
+            result["router_split"] = self.router_split
+        if self.interp_src_shard:
+            result["interp_src_shard"] = self.interp_src_shard
+        if self.interp_src_key:
+            result["interp_src_key"] = self.interp_src_key
+        if self.interp_alpha != 0.5:
+            result["interp_alpha"] = self.interp_alpha
+        if self.add_noise_std:
+            result["add_noise_std"] = self.add_noise_std
+        if self.create_shape:
+            result["create_shape"] = tuple(self.create_shape)
+            result["create_dtype"] = self.create_dtype
+        return result
+
     def _validate_source(self) -> None:
         """Validate that non-create recipes reference a source tensor."""
         if self.create_shape:
@@ -159,6 +187,38 @@ class ExpansionPlan:
     def add(self, new_key: str, recipe: TensorRecipe) -> None:
         self.recipes[new_key] = recipe
 
+    def __contains__(self, key: str) -> bool:
+        return key in self.recipes
+
+    def get(self, key: str, default: TensorRecipe | None = None) -> TensorRecipe | None:
+        return self.recipes.get(key, default)
+
+    def validate_keys(self, expected: set[str], strict: bool = True) -> None:
+        """Verify that recipes cover ``expected`` output keys.
+
+        Args:
+            expected: Set of keys the plan should contain.
+            strict: If True, also reject unexpected keys in the plan.
+
+        Raises:
+            ValueError: if any expected key is missing (or any unexpected key
+                is present when ``strict=True``).
+        """
+        actual = set(self.recipes)
+        missing = expected - actual
+        extra = actual - expected if strict else set()
+        if missing or extra:
+            details: list[str] = []
+            if missing:
+                sample = sorted(missing)[:5]
+                details.append(f"missing={sample}")
+            if extra:
+                sample = sorted(extra)[:5]
+                details.append(f"extra={sample}")
+            raise ValueError(
+                f"ExpansionPlan key mismatch: {', '.join(details)}"
+            )
+
     def passthrough(self, key: str, shard: str) -> None:
         """Add a tensor that is copied unchanged."""
         self.add(key, TensorRecipe(src_shard=shard, src_key=key))
@@ -170,14 +230,7 @@ class ExpansionPlan:
         return {
             "new_num_hidden_layers": self.new_num_hidden_layers,
             "config_patches": self.config_patches,
-            "recipes": {
-                k: {
-                    fk: fv
-                    for fk, fv in asdict(r).items()
-                    if not fk.startswith("_")
-                }
-                for k, r in self.recipes.items()
-            },
+            "recipes": {k: r.to_dict() for k, r in self.recipes.items()},
         }
 
     @classmethod

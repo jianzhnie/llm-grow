@@ -269,6 +269,7 @@ class SafetensorExpanderBase(ABC):
             src_headers[sf] = read_safetensors_header(src_index.model_dir / sf)
 
         sorted_keys = sorted(plan.recipes.keys())
+        plan.validate_keys(set(src_index.all_keys), strict=False)
         shard_groups: list[list[str]] = [[]]
         current_bytes = 0
         for new_key in sorted_keys:

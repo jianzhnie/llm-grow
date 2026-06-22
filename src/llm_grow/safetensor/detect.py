@@ -145,19 +145,55 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
     if num_layers is None:
         num_layers = 0
 
-    # ── structural probes ────────────────────────────────────────────────────
-    has_experts = any(is_expert_key(k) for k in wmap)
-    has_fp8 = any(k.endswith("weight_scale_inv") for k in wmap)
-    has_mla = any("q_a_proj" in k or "kv_a_proj" in k for k in wmap)
-    has_dual_attn = any("self_attn.0." in k for k in wmap)
-    has_dual_mlp = any("mlps.0." in k for k in wmap)
-    has_shared = any("shared_experts" in k for k in wmap)
-
-    # ── router keys ──────────────────────────────────────────────────────────
-    router_w_suf, router_b_suf = _detect_router(wmap)
+    # ── structural probes (single pass over keys) ────────────────────────────
+    keys = set(wmap)
+    has_experts = False
+    has_fp8 = False
+    has_mla = False
+    has_dual_attn = False
+    has_dual_mlp = False
+    has_shared = False
+    router_w_found: str | None = None
+    router_b_found: str | None = None
+    for k in keys:
+        if not has_experts and is_expert_key(k):
+            has_experts = True
+        if not has_fp8 and k.endswith("weight_scale_inv"):
+            has_fp8 = True
+        if not has_mla and ("q_a_proj" in k or "kv_a_proj" in k):
+            has_mla = True
+        if not has_dual_attn and "self_attn.0." in k:
+            has_dual_attn = True
+        if not has_dual_mlp and "mlps.0." in k:
+            has_dual_mlp = True
+        if not has_shared and "shared_experts" in k:
+            has_shared = True
+        if router_w_found is None:
+            if k.endswith("mlp.gate.weight"):
+                router_w_found = "mlp.gate.weight"
+            elif k.endswith("mlp.router.classifier.weight"):
+                router_w_found = "mlp.router.classifier.weight"
+        if router_b_found is None:
+            if k.endswith("mlp.gate.e_score_correction_bias"):
+                router_b_found = "mlp.gate.e_score_correction_bias"
+            elif k.endswith("mlp.router.e_score_correction_bias"):
+                router_b_found = "mlp.router.e_score_correction_bias"
+        if (
+            has_experts
+            and has_fp8
+            and has_mla
+            and has_dual_attn
+            and has_dual_mlp
+            and has_shared
+            and router_w_found is not None
+            and router_b_found is not None
+        ):
+            break
+    router_w_suf = router_w_found or "mlp.gate.weight"
+    router_b_suf = router_b_found
 
     # ── expert count ─────────────────────────────────────────────────────────
-    n_experts_per_moe, dense_layers = _count_experts(wmap, num_layers)
+    n_experts_per_moe, dense_layers = _count_experts(keys, num_layers)
 
     # ── config keys ──────────────────────────────────────────────────────────
     exp_key, topk_key = _detect_config_keys(cfg)
@@ -195,50 +231,27 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
 # ── internal helpers ──────────────────────────────────────────────────────────
 
 
-def _detect_router(wmap: dict) -> tuple[str, str | None]:
-    """Return (router_weight_suffix, router_bias_suffix_or_None)."""
-    # Priority: check layer 0 or layer 1 for router keys
-    router_w_candidates = [
-        "mlp.gate.weight",
-        "mlp.router.classifier.weight",
-    ]
-    router_b_candidates = [
-        "mlp.gate.e_score_correction_bias",
-        "mlp.router.e_score_correction_bias",
-    ]
-    found_w = found_b = None
-    layer_indices = sorted(
-        idx for k in wmap if (idx := parse_layer_idx(k)) is not None
-    )
-    for layer in layer_indices:
-        prefix = f"model.layers.{layer}."
-        for suf in router_w_candidates:
-            if f"{prefix}{suf}" in wmap:
-                found_w = suf
-                break
-        for suf in router_b_candidates:
-            if f"{prefix}{suf}" in wmap:
-                found_b = suf
-                break
-        if found_w:
-            break
-    return found_w or "mlp.gate.weight", found_b
-
-
-def _count_experts(wmap: dict, num_layers: int) -> tuple[int, list[int]]:
+def _count_experts(keys: set[str], num_layers: int) -> tuple[int, list[int]]:
     """Return (max_experts_per_moe_layer, dense_only_layer_indices)."""
+    layer_keys: dict[int, list[str]] = {}
+    has_layer: set[int] = set()
+    for k in keys:
+        idx = parse_layer_idx(k)
+        if idx is None:
+            continue
+        has_layer.add(idx)
+        layer_keys.setdefault(idx, []).append(k)
+
     max_experts = 0
     dense_layers: list[int] = []
     for layer_id in range(num_layers):
-        prefix = f"model.layers.{layer_id}."
-        idxs = {
-            expert_idx(k) for k in wmap if k.startswith(prefix) and is_expert_key(k)
-        }
+        if layer_id not in has_layer:
+            continue
+        idxs = {expert_idx(k) for k in layer_keys.get(layer_id, []) if is_expert_key(k)}
         if idxs:
             max_experts = max(max_experts, len(idxs))
         else:
-            if any(k.startswith(prefix) for k in wmap):
-                dense_layers.append(layer_id)
+            dense_layers.append(layer_id)
     return max_experts, dense_layers
 
 

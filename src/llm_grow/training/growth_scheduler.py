@@ -8,8 +8,8 @@ from dataclasses import dataclass
 import torch.nn as nn
 
 from llm_grow.configs.base import GrowthStrategy
+from llm_grow.core.markers import NEW_GROWTH_ATTR
 from llm_grow.training.freeze import mark_new_params, snapshot_param_ids
-from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 
 @dataclass

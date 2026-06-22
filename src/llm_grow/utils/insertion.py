@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from typing import Literal
 
+from llm_grow.core.markers import DECODER_LAYER_ATTRS, NEW_GROWTH_ATTR
+
 InsertStrategy = Literal["uniform", "front", "rear"]
 """Layer insertion strategy for depth expansion."""
 
-NEW_GROWTH_ATTR = "_is_new_growth"
-"""Canonical attribute name used to tag newly-grown parameters."""
-
-DECODER_LAYER_ATTRS = ("layers", "model.layers", "transformer.h", "decoder.layers")
-"""Common attribute paths for decoder layer lists in HuggingFace models."""
+__all__ = [
+    "DECODER_LAYER_ATTRS",
+    "NEW_GROWTH_ATTR",
+    "InsertStrategy",
+    "build_layer_sequence",
+    "insert_positions",
+]
 
 
 def build_layer_sequence(num_orig: int, insert_pos: set[int]) -> list[tuple[int, bool]]:

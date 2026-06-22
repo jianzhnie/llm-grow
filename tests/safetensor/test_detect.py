@@ -10,7 +10,6 @@ from llm_grow.safetensor.detect import (
     _count_experts,
     _derive_zero_suffixes,
     _detect_config_keys,
-    _detect_router,
     detect_model,
 )
 
@@ -167,22 +166,43 @@ class TestDetectModelLongCat:
 
 
 class TestDetectHelpers:
-    def test_detect_router_qwen3_moe(self):
+    def test_detect_router_via_model_profile(self):
         wmap = {
             "model.layers.0.mlp.gate.weight": "s",
             "model.layers.1.mlp.gate.weight": "s",
         }
-        assert _detect_router(wmap) == ("mlp.gate.weight", None)
+        src_dir = _make_model_dir(
+            config={
+                "model_type": "qwen3_moe",
+                "architectures": ["Qwen3MoeForCausalLM"],
+                "num_hidden_layers": 2,
+                "num_experts": 2,
+                "num_experts_per_tok": 1,
+            },
+            weight_map=wmap,
+        )
+        profile = detect_model(src_dir)
+        assert profile.router_weight_suffix == "mlp.gate.weight"
+        assert profile.router_bias_suffix is None
 
-    def test_detect_router_deepseek(self):
+    def test_detect_router_deepseek_via_model_profile(self):
         wmap = {
             "model.layers.1.mlp.gate.weight": "s",
             "model.layers.1.mlp.gate.e_score_correction_bias": "s",
         }
-        assert _detect_router(wmap) == (
-            "mlp.gate.weight",
-            "mlp.gate.e_score_correction_bias",
+        src_dir = _make_model_dir(
+            config={
+                "model_type": "deepseek_v3",
+                "architectures": ["DeepseekV3ForCausalLM"],
+                "num_hidden_layers": 2,
+                "n_routed_experts": 2,
+                "num_experts_per_tok": 1,
+            },
+            weight_map=wmap,
         )
+        profile = detect_model(src_dir)
+        assert profile.router_weight_suffix == "mlp.gate.weight"
+        assert profile.router_bias_suffix == "mlp.gate.e_score_correction_bias"
 
     def test_count_experts(self):
         wmap = {
@@ -193,7 +213,7 @@ class TestDetectHelpers:
             "model.layers.1.mlp.experts.2.weight": "s",
             "model.layers.2.mlp.gate_proj.weight": "s",
         }
-        n_experts, dense_layers = _count_experts(wmap, num_layers=3)
+        n_experts, dense_layers = _count_experts(set(wmap), num_layers=3)
         assert n_experts == 3
         assert dense_layers == [2]
 

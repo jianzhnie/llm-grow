@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch.nn as nn
 
-from llm_grow.utils.insertion import NEW_GROWTH_ATTR
+from llm_grow.core.markers import NEW_GROWTH_ATTR
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
