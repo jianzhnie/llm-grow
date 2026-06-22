@@ -108,13 +108,26 @@ def predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe) 
 
 
 def worker_write_shard(
-    args: tuple[str, list[tuple[str, str, str, tuple]], set[str], bool],
+    args: tuple[
+        str,
+        list[tuple[str, str, str, tuple]],
+        set[str],
+        bool,
+        dict[str, tuple[str, list[int]]],
+    ],
 ) -> tuple[str, list[str]]:
-    """Write one output shard in a worker process.
+    """Write one output shard in a worker thread.
 
     Args:
-        args: (output_path_str, items, expected_keys, resume) where each item is
-              (src_shard_path_str, src_key, out_key, recipe_fields_tuple).
+        args: (
+            output_path_str,
+            items,
+            expected_keys,
+            resume,
+            expected_header,
+        ) where each item is
+              (src_shard_path_str, src_key, out_key, recipe_fields_tuple) and
+              expected_header maps out_key to (dtype, shape).
 
     Returns:
         (shard_basename, list_of_output_tensor_names)
@@ -123,16 +136,18 @@ def worker_write_shard(
 
     from safetensors import safe_open
 
-    out_path_str, items, expected_keys, resume = args
+    out_path_str, items, expected_keys, resume, expected_header = args
     out_path = Path(out_path_str)
 
     if resume:
         # Atomic-ish resume check: try to read the header in one go.  If the
-        # file is missing, truncated, or doesn't contain all expected keys, we
-        # rewrite it.  This avoids the non-atomic exists()+header-read pair.
+        # file is missing, truncated, or doesn't contain all expected keys with
+        # matching dtype/shape, we rewrite it.
         try:
             header = read_safetensors_header(out_path)
-            if expected_keys.issubset(header):
+            if expected_keys.issubset(header) and all(
+                header[k] == expected_header[k] for k in expected_keys
+            ):
                 return (out_path.name, list(expected_keys))
         except (FileNotFoundError, OSError, ValueError) as exc:
             logger.debug("Resume check failed for %s: %s", out_path, exc)
