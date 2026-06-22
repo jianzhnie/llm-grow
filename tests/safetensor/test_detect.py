@@ -131,6 +131,30 @@ class TestDetectModelDeepSeekMoE:
         assert profile.dense_only_layers == [0]
         assert profile.expert_count_config_key == "n_routed_experts"
 
+    def test_mixed_dense_moe_zero_suffixes(self):
+        """Layer 0 dense + layer 1 MoE should still zero mlp.down_proj.weight."""
+        weight_map = {
+            "model.embed_tokens.weight": "model.safetensors",
+            "model.layers.0.mlp.gate_proj.weight": "model.safetensors",
+            "model.layers.0.mlp.down_proj.weight": "model.safetensors",
+            "model.layers.1.mlp.gate.weight": "model.safetensors",
+            "model.layers.1.mlp.experts.0.gate_proj.weight": "model.safetensors",
+            "model.layers.1.mlp.experts.0.down_proj.weight": "model.safetensors",
+        }
+        src_dir = _make_model_dir(
+            config={
+                "model_type": "deepseek_v3",
+                "architectures": ["DeepseekV3ForCausalLM"],
+                "num_hidden_layers": 2,
+                "n_routed_experts": 1,
+                "num_experts_per_tok": 1,
+            },
+            weight_map=weight_map,
+        )
+        profile = detect_model(src_dir)
+        assert profile.dense_mlp_zero_suffixes == ["mlp.down_proj.weight"]
+        assert profile.attn_zero_suffixes == ["self_attn.o_proj.weight"]
+
 
 class TestDetectModelLongCat:
     def test_detects_longcat(self):

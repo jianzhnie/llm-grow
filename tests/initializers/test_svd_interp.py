@@ -5,6 +5,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
+from llm_grow.initializers import svd_interp
 from llm_grow.initializers.svd_interp import (
     LayerPredictor,
     predict_layer,
@@ -62,6 +63,35 @@ class TestTrainPredictor:
             assert isinstance(pred, LayerPredictor), (
                 f"Predictor for '{name}' is not a LayerPredictor"
             )
+
+    def test_svd_features_are_cached(self, monkeypatch):
+        """SVD features should be computed once per parameter, not per step."""
+        d = 16
+        num_layers = 4
+        layers = nn.ModuleList([FakeDecoderLayer(d) for _ in range(num_layers)])
+
+        call_count = 0
+        original_fn = svd_interp._layer_svd_features
+
+        def counting_fn(layer, param_name, rank):
+            nonlocal call_count
+            call_count += 1
+            return original_fn(layer, param_name, rank)
+
+        monkeypatch.setattr(svd_interp, "_layer_svd_features", counting_fn)
+
+        # Each layer has 4 2D params; features computed once per param name per layer.
+        predictors = train_predictor(
+            layers, svd_rank=4, predictor_hidden=16, lr=1e-3, steps=5, device="cpu"
+        )
+        assert predictors
+        # Expected calls = num_layers * num_2d_params
+        expected_calls = num_layers * sum(
+            1 for _, p in layers[0].named_parameters() if p.dim() >= 2
+        )
+        assert call_count == expected_calls, (
+            f"Expected {expected_calls} SVD calls, got {call_count}"
+        )
 
 
 class TestPredictLayer:

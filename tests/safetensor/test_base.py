@@ -1,5 +1,6 @@
 """Tests for llm_grow.safetensor.base: TensorRecipe, _apply_recipe, ExpansionPlan."""
 
+import pytest
 import torch
 
 from llm_grow.safetensor.base import ExpansionPlan, TensorRecipe, _apply_recipe
@@ -134,11 +135,41 @@ class TestExpansionPlan:
         plan.add("layer.0.weight", recipe)
         plan.passthrough("embed.weight", "shard.safetensors")
 
-        assert "layer.0.weight" in plan.recipes
-        assert "embed.weight" in plan.recipes
-        pt = plan.recipes["embed.weight"]
+        assert "layer.0.weight" in plan
+        assert plan.get("missing") is None
+        pt = plan.get("embed.weight")
+        assert pt is not None
         assert pt.src_key == "embed.weight"
         assert pt.zero_out is False
+
+    def test_validate_keys_strict(self):
+        plan = ExpansionPlan()
+        plan.passthrough("a", "s")
+        plan.passthrough("b", "s")
+        plan.validate_keys({"a", "b"}, strict=True)
+
+    def test_validate_keys_missing(self):
+        plan = ExpansionPlan()
+        plan.passthrough("a", "s")
+        with pytest.raises(ValueError):
+            plan.validate_keys({"a", "b"}, strict=False)
+
+    def test_validate_keys_extra_when_strict(self):
+        plan = ExpansionPlan()
+        plan.passthrough("a", "s")
+        plan.passthrough("b", "s")
+        with pytest.raises(ValueError):
+            plan.validate_keys({"a"}, strict=True)
+
+    def test_to_dict_omits_defaults(self):
+        plan = ExpansionPlan(new_num_hidden_layers=8)
+        plan.passthrough("embed.weight", "shard.safetensors")
+        data = plan.to_dict()
+        recipe_data = data["recipes"]["embed.weight"]
+        assert recipe_data == {
+            "src_shard": "shard.safetensors",
+            "src_key": "embed.weight",
+        }
 
     def test_to_dict_from_dict_roundtrip(self):
         plan = ExpansionPlan(
