@@ -5,44 +5,38 @@
 </p>
 
 <p align="center">
-  <em>Expand Existing Models, Layer by Layer</em>
+  <em>Grow Larger Models from Existing LLM Checkpoints — Layer by Layer</em>
 </p>
 
 <p align="center">
-  <a href="#installation">Installation</a> &bull;
+  <a href="#installation">Install</a> &bull;
   <a href="#quickstart">Quickstart</a> &bull;
   <a href="#expansion-methods">Methods</a> &bull;
-  <a href="#api-reference">API Reference</a> &bull;
-  <a href="#tutorials">Tutorials</a> &bull;
+  <a href="#method-selection">Selection Guide</a> &bull;
+  <a href="#api-reference">API</a> &bull;
+  <a href="#training">Training</a> &bull;
+  <a href="#benchmarks">Benchmarks</a> &bull;
   <a href="README_zh.md">中文文档</a>
 </p>
 
 ---
 
 A modular toolkit for **growing** larger models from existing LLM checkpoints.
+No pre-training from scratch — expand depth, width, or expert count with
+function-preserving guarantees where available.
 
-**Key Features**:
+**Key Features**
 
-- **Two-tier expansion** — In-memory (`nn.Module` in-place) and Safetensor-level (mmap streaming, peak memory <= 4 GB)
-- **Four architecture families** — Dense / MoE-Standard / DeepSeek-MoE / LongCat, auto-detected
-- **Six expansion algorithms** — ZeroBlockInsert, OverlapCopy, SVDInterpInsert, MultiAxisPad, DenseToMoE, ExpertClone
-- **Function-Preserving** — ZeroBlockInsert / MultiAxisPad produce zero accuracy loss at expansion time
-- **Complete training toolkit** — Frozen training, knowledge distillation, progressive mask growth, MoE load balancing
-
----
-
-## Table of Contents
-
-- [Installation](#installation)
-- [Quickstart](#quickstart)
-- [Expansion Methods](#expansion-methods)
-- [Method Selection Guide](#method-selection-guide)
-- [API Reference](#api-reference)
-- [Training & Evaluation](#training--evaluation)
-- [Tutorials](#tutorials)
-- [Benchmarks](#benchmarks)
-- [Project Structure](#project-structure)
-- [References](#references)
+| | |
+|---|---|
+| **Two-tier expansion** | In-memory (`nn.Module`) and Safetensor-level (mmap streaming, peak ≤ 4 GB) |
+| **Auto-detection** | Dense / MoE-Standard / DeepSeek-MoE / LongCat — detected from `config.json` alone |
+| **6 algorithms** | ZeroBlockInsert, OverlapCopy, SVDInterpInsert, MultiAxisPad, DenseToMoE, ExpertClone |
+| **Function-Preserving** | ZeroBlockInsert / MultiAxisPad → zero accuracy loss at expansion time |
+| **Pluggable noise** | Gaussian / Uniform / ScaledGaussian strategies for symmetry breaking |
+| **Registry** | Decorator-based `@register_expander` for in-memory expanders |
+| **Training toolkit** | Frozen training, distillation, progressive mask growth, MoE load balancing |
+| **Verified on** | Qwen2.5-0.5B, Qwen3-0.6B, Qwen3-30B-A3B, LongCat-Flash-Lite, Kimi-K2-Thinking |
 
 ---
 
@@ -55,13 +49,13 @@ pip install -e ".[eval]"        # + Evaluation deps (lm-eval-harness)
 pip install -e ".[dev]"         # + Dev tools (pytest, ruff, mypy)
 ```
 
-**Requirements**: Python >= 3.10, PyTorch >= 2.2, Transformers >= 4.40, safetensors >= 0.4
+**Requirements**: Python ≥ 3.10, PyTorch ≥ 2.2, Transformers ≥ 4.40, safetensors ≥ 0.4
 
 ---
 
 ## Quickstart
 
-### CLI (Recommended)
+### CLI
 
 ```bash
 # Depth expansion (auto-detects Dense / MoE)
@@ -78,19 +72,23 @@ llm-grow expand --src /path/to/model --dst ./output \
 
 # Dry-run (plan only, no file writes)
 llm-grow expand --src /path/to/model --dst /tmp/out \
-    --method depth --dry-run
+    --method depth --num-new-layers 4 --dry-run
 
-# Verify expansion (structural + FP consistency)
+# Parallel writing + validation + resume support
+llm-grow expand --src /path/to/model --dst ./output \
+    --method depth --num-new-layers 4 \
+    --workers 8 --validate-output --resume
+
+# Verify expansion (structural + FP logit comparison)
 llm-grow verify --src /path/to/original --dst /path/to/expanded --fp
 
 # Display model architecture info
 llm-grow info --src /path/to/model
 ```
 
-### Python API
+### Python API — Safetensor-Level (large models, no weight loading)
 
 ```python
-# Safetensor expansion (large models, no weight loading)
 from llm_grow.safetensor.auto import auto_expand
 
 auto_expand(
@@ -98,22 +96,32 @@ auto_expand(
     dst_dir="./expanded",
     method="depth",             # "depth" | "expert" | "width"
     num_new_layers=4,
+    insert_strategy="uniform",  # "uniform" | "front" | "rear"
+    target_shard_gb=4.0,
+    workers=4,                  # parallel writer threads
+    dry_run=False,
+    validate_output=True,
+    resume=False,
 )
+```
 
-# In-memory expansion (small models / rapid prototyping)
+### Python API — In-Memory (small models / rapid prototyping)
+
+```python
 import copy
 from transformers import AutoModelForCausalLM
-from llm_grow.expanders.depth.zero_block_insert import (
-    ZeroBlockInsertConfig, ZeroBlockInsertExpander,
-)
+from llm_grow.expanders.registry import get_expander
+from llm_grow.expanders.depth.zero_block_insert import ZeroBlockInsertConfig
 
-model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-8B", torch_dtype="auto")
+model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-0.5B", torch_dtype="auto")
 original = copy.deepcopy(model)
-expanded = ZeroBlockInsertExpander().expand(
+
+expander = get_expander("zero_block_insert")()
+expanded = expander.expand(
     model,
     ZeroBlockInsertConfig(num_new_layers=9, freeze_original=True),
 )
-ZeroBlockInsertExpander().verify(original, expanded)
+expander.verify(original, expanded)  # max|Δlogit| = 0.0000e+00
 ```
 
 ---
@@ -122,113 +130,80 @@ ZeroBlockInsertExpander().verify(original, expanded)
 
 ### Comparison
 
-| Method | FP | Direction | Instant Accuracy | Recommended CPT | Inference Latency |
+| Method | FP | Axis | Accuracy | CPT Needed | Latency |
 |--------|:---:|:---:|:---:|:---:|:---:|
-| **ZeroBlockInsert** | yes | Depth | **100%** | 8-16B tokens | +linear |
-| **OverlapCopy** | no | Depth | 50-80% | 100B+ tokens | +linear |
-| **SVDInterpInsert** | ~yes | Depth | 80-90% | <50B tokens | +linear |
-| **MultiAxisPad** | yes | Depth+Width | **100%** | 30-60B tokens | ~1.4x |
-| **DenseToMoE** | no | Dense->MoE | 70-85% | 50-100B tokens | ~unchanged |
-| **ExpertClone** | ~yes | MoE Experts | -- | saves 32-67% | ~unchanged |
+| **ZeroBlockInsert** | ✓ | Depth | **100%** | 8–16B | +linear |
+| **OverlapCopy** | ✗ | Depth | 50–80% | 100B+ | +linear |
+| **SVDInterpInsert** | ≈ | Depth | 80–90% | <50B | +linear |
+| **MultiAxisPad** | ✓ | Depth+Width | **100%** | 30–60B | ~1.4× |
+| **DenseToMoE** | ✗ | Dense→MoE | 70–85% | 50–100B | ≈same |
+| **ExpertClone** | ≈ | Expert count | — | saves 32–67% | ≈same |
 
-> **FP** = Function-Preserving: output is identical to the original model after expansion (zero accuracy loss at zero-shot).
+> **FP** = Function-Preserving: output logits are identical to the original model after expansion.
 
-### How They Work
+### Visual Overview
 
-#### ZeroBlockInsert — Identity Block Grafting
-
-Inserts identity blocks at uniform intervals (`o_proj` / `down_proj` zeroed). Residual connections guarantee `output = x + 0 = x`.
-
-<p align="center"><img src="docs/images/zero_block_insert.svg" width="720"/></p>
-
-#### OverlapCopy — Layer Overlap Splicing
-
-Splits the model into upper/lower segments with an overlap zone for smoothness, then concatenates to double the layer count. Non-FP, requires extensive CPT.
-
-<p align="center"><img src="docs/images/overlap_copy.svg" width="720"/></p>
-
-#### SVDInterpInsert — SVD Interpolation Grafting
-
-Interpolates adjacent layer weights via arithmetic mean. New layers start from meaningful initialization, converging faster than DUS.
-
-<p align="center"><img src="docs/images/svd_interp_insert.svg" width="720"/></p>
-
-#### MultiAxisPad — Multi-Axis Masked Growth
-
-Simultaneously expands depth (identity blocks) and width (zero-pad hidden/FFN dimensions). All new parameters are zero-initialized — strictly FP.
-
-<p align="center"><img src="docs/images/multi_axis_pad.svg" width="720"/></p>
-
-#### DenseToMoE — Dense to Sparse MoE
-
-Replicates the dense FFN into N experts + randomly initialized router. Top-K routing keeps inference cost nearly unchanged.
-
-<p align="center"><img src="docs/images/dense_to_moe.svg" width="720"/></p>
-
-#### ExpertClone — MoE Expert Cloning
-
-Duplicates existing experts with symmetry breaking (noise/drop). Router weights are expanded accordingly. Inference cost unchanged.
-
-<p align="center"><img src="docs/images/expert_clone.svg" width="720"/></p>
+<p align="center">
+  <img src="docs/images/zero_block_insert.svg" width="48%"/>
+  <img src="docs/images/overlap_copy.svg" width="48%"/>
+  <img src="docs/images/svd_interp_insert.svg" width="48%"/>
+  <img src="docs/images/multi_axis_pad.svg" width="48%"/>
+  <img src="docs/images/dense_to_moe.svg" width="48%"/>
+  <img src="docs/images/expert_clone.svg" width="48%"/>
+</p>
 
 ---
 
-## Method Selection Guide
+## Method Selection
 
 ```
 Need to expand parameters
-|
-+-- Very large model (cannot load fully) --> Safetensor-level expansion
-|   +-- Dense model
-|   |   +-- Depth expansion        llm-grow expand --method depth
-|   |   +-- FFN width expansion    llm-grow expand --method width
-|   +-- MoE model
-|       +-- Expert expansion (unchanged inference cost)  llm-grow expand --method expert
-|       +-- Depth expansion (more layers)                llm-grow expand --method depth
-|
-+-- Small/medium model (fits in memory) --> In-memory expansion
-    +-- Accuracy priority, limited data    --> ZeroBlockInsert (FP, 8-16B tokens)
-    +-- Precise 2x, control latency        --> MultiAxisPad (depth+width, ~1.4x latency)
-    +-- Simplest impl, ample data          --> OverlapCopy
-    +-- Cannot increase inference latency  --> DenseToMoE (top-1 activation unchanged)
-    +-- Base model is already MoE          --> ExpertClone
+│
+├── Very large model (>30B, cannot load fully) → Safetensor-level
+│   ├── Dense → depth:   llm-grow expand --method depth
+│   │         → width:   llm-grow expand --method width
+│   └── MoE   → expert:  llm-grow expand --method expert
+│             → depth:   llm-grow expand --method depth
+│
+└── Small/medium model (fits in memory) → In-memory
+    ├── Accuracy priority, limited data → ZeroBlockInsert (FP, 8–16B CPT)
+    ├── Precise 2×, control latency     → MultiAxisPad (depth+width, ~1.4×)
+    ├── Simplest, data abundant         → OverlapCopy
+    ├── Cannot increase latency         → DenseToMoE (top-1 activation unchanged)
+    └── Model is already MoE            → ExpertClone
 ```
 
 ---
 
 ## API Reference
 
-### Two-Tier Expansion Architecture
+### Architecture
 
 | | In-Memory (`expanders/`) | Safetensor-Level (`safetensor/`) |
 |---|---|---|
 | **Input** | `nn.Module` | `.safetensors` directory |
 | **Output** | `nn.Module` | `.safetensors` directory |
-| **Peak Memory** | Full model | <= 1 output shard (~4 GB) |
-| **FP Verification** | Direct logit comparison | Structural check + optional logit comparison |
-| **Use Case** | Small models / rapid experiments | 100B+ models |
+| **Peak memory** | Full model | ≤ 1 output shard (~4 GB) |
+| **FP verify** | Direct logit comparison | Structural + optional logit compare |
+| **Use case** | Small models / prototyping | 100B+ models |
 
-### Safetensor Expansion
-
-#### Auto Architecture Detection
-
-`detect_model()` infers architecture from `config.json` + weight index without loading weights:
+### Auto-Detection
 
 ```python
 from llm_grow.safetensor.detect import detect_model
 
 profile = detect_model("/path/to/model")
-print(profile.family)   # "dense" | "standard_moe" | "deepseek_moe" | "longcat"
+print(profile.family)  # "dense" | "standard_moe" | "deepseek_moe" | "longcat"
 ```
 
-| Detection Result | Representative Models | Key Features |
-|---------|---------|---------|
-| `dense` | Qwen3-0.6B/8B/14B/32B | No `mlp.experts.*` |
+| Family | Example Models | Identifiers |
+|--------|---------------|-------------|
+| `dense` | Qwen3-0.6B/8B/14B/32B | No `mlp.experts.*` keys |
 | `standard_moe` | Qwen3-30B-A3B | `mlp.experts.*` + `mlp.gate.weight` |
-| `deepseek_moe` | Kimi-K2-Base | MLA + fp8 + shared expert + dense first layer |
-| `longcat` | LongCat-Flash-Chat | Dual attention + dual MLP + 512 experts |
+| `deepseek_moe` | Kimi-K2-Thinking | MLA + fp8 `weight_scale_inv` + shared expert + dense layer 0 |
+| `longcat` | LongCat-Flash-Lite | Dual `self_attn.{0,1}` + dual `mlps.{0,1}` + `mlp.router.classifier` |
 
-#### auto_expand()
+### `auto_expand()` — Unified Entry Point
 
 ```python
 from llm_grow.safetensor.auto import auto_expand
@@ -240,138 +215,93 @@ auto_expand(
     num_new_layers=4,             # [depth] layers to insert
     insert_strategy="uniform",    # [depth] "uniform" | "front" | "rear"
     expand_factor=2,              # [expert] expert multiplier
+    noise_scale=1e-6,             # [expert] router noise scale
     ffn_size_expansion=0,         # [width] intermediate_size increment
-    target_shard_gb=4.0,          # output shard size
-    dry_run=False,                # True = plan only, no file writes
+    target_shard_gb=4.0,          # output shard size limit
+    workers=1,                    # parallel writer threads
+    dry_run=False,                # True = plan only
+    validate_output=False,        # True = post-write validation
+    resume=False,                 # True = skip existing shards
 )
 ```
 
-#### Pre-configured Factory Functions
+### Factory Functions (Pre-configured)
 
-| Function | Target Model | Description |
-|------|---------|------|
-| `make_qwen3moe_expert_clone(factor)` | Qwen3-30B-A3B | Expert count expansion |
-| `make_qwen3moe_zero_block_insert(n)` | Qwen3-30B-A3B | Depth expansion |
-| `make_kimik2_expert_clone(factor)` | Kimi-K2-Base | Expert expansion (fp8-aware) |
-| `make_kimik2_zero_block_insert(n)` | Kimi-K2-Base | Depth expansion (dense first-layer aware) |
+| Function | Target | Notes |
+|----------|--------|-------|
+| `make_qwen3moe_expert_clone(factor)` | Qwen3-30B-A3B | Router: `mlp.gate.weight` |
+| `make_qwen3moe_zero_block_insert(n)` | Qwen3-30B-A3B | Zeros: o_proj + all expert down_proj |
+| `make_kimik2_expert_clone(factor)` | Kimi-K2 | fp8-aware, bias noise=0, shared expert preserve |
+| `make_kimik2_zero_block_insert(n)` | Kimi-K2 | Dense layer-0 aware, shared-expert aware |
 
-#### MoE Width Expansion (M3/M4)
+### In-Memory Expand via Registry
 
 ```python
-from llm_grow.safetensor.models.moe_width import MoEWidthConfig, MoEWidthExpander
+from llm_grow.expanders.registry import get_expander, list_expanders
 
-# M3: Widen expert FFN
-MoEWidthExpander(MoEWidthConfig(ffn_size_expansion=1024)).expand(
-    src_dir="/path/to/moe_model", dst_dir="./moe_wider",
-)
+print(list_expanders())
+# ['dense_to_moe', 'expert_clone', 'multi_axis_pad',
+#  'overlap_copy', 'svd_interp_insert', 'zero_block_insert']
 
-# M4: Widen hidden_size (attention / router / embedding / lm_head)
-MoEWidthExpander(MoEWidthConfig(hidden_size_expansion=256)).expand(
-    src_dir="/path/to/moe_model", dst_dir="./moe_wider_hidden",
-)
+expander = get_expander("zero_block_insert")()
 ```
 
-### In-Memory Expansion
-
-#### ZeroBlockInsert
+### Noise Strategies (Pluggable)
 
 ```python
-from llm_grow.expanders.depth.zero_block_insert import (
-    ZeroBlockInsertConfig, ZeroBlockInsertExpander,
-)
-
-expanded = ZeroBlockInsertExpander().expand(model, ZeroBlockInsertConfig(
-    num_new_layers=9,           # recommended = original_layers // 4
-    insert_strategy="uniform",  # "uniform" | "front" | "rear"
-    freeze_original=True,       # Phase-1: only train new blocks
-))
-```
-
-#### MultiAxisPad
-
-```python
-from llm_grow.expanders.width.multi_axis_pad import (
-    MultiAxisPadConfig, MultiAxisPadExpander,
-)
-
-expanded = MultiAxisPadExpander().expand(model, MultiAxisPadConfig(
-    num_new_layers=10,
-    hidden_size_expansion=512,
-    intermediate_size_expansion=3072,
-    freeze_original=True,
-))
-```
-
-#### DenseToMoE
-
-```python
+from llm_grow.initializers.noise import GaussianNoise, UniformNoise, ScaledGaussianNoise
 from llm_grow.expanders.sparse.dense_to_moe import DenseToMoEConfig, DenseToMoEExpander
 
-expanded = DenseToMoEExpander().expand(
-    model, DenseToMoEConfig(num_experts=8, top_k=2),
-)
+# Default: Gaussian noise
+config = DenseToMoEConfig(num_experts=8, noise_std=0.01)
+
+# Use uniform noise instead
+config = DenseToMoEConfig(num_experts=8, noise_std=0.01, noise=UniformNoise())
+
+# Scaled Gaussian (std relative to tensor std, like safetensor dup_rows_noise_scale)
+config = DenseToMoEConfig(num_experts=8, noise=ScaledGaussianNoise())
 ```
 
-#### ExpertClone
+### ExpansionPlan Serialization
 
 ```python
-from llm_grow.expanders.sparse.expert_clone import (
-    ExpertCloneConfig, ExpertCloneExpander, ExpertSelectionStrategy,
-)
+from llm_grow.safetensor.recipe import ExpansionPlan
 
-expanded = ExpertCloneExpander().expand(
-    moe_model,
-    ExpertCloneConfig(
-        expand_factor=2,
-        selection_strategy=ExpertSelectionStrategy.UTILITY,
-    ),
-)
-```
+plan.save_json("plan.json")          # Save for offline review
+plan = ExpansionPlan.load_json("plan.json")  # Reload
 
-#### SVDInterpInsert
-
-```python
-from llm_grow.expanders.depth.svd_interp_insert import (
-    SVDInterpInsertConfig, SVDInterpInsertExpander,
-)
-
-expanded = SVDInterpInsertExpander().expand(
-    model, SVDInterpInsertConfig(use_predictor=False),
-)
+plan.to_dict()                       # Programmatic inspection
+dict(plan.config_patches)            # {'num_experts': 256, ...}
 ```
 
 ---
 
-## Training & Evaluation
+## Training
 
 ### Two-Phase Frozen Training
 
 ```python
 from llm_grow.training.freeze import (
-    snapshot_param_ids, mark_new_params,
-    freeze_original_layers, unfreeze_all,
+    snapshot_param_ids, mark_new_params, freeze_original_layers, unfreeze_all,
 )
 
 original_ids = snapshot_param_ids(model)
 expander.expand(model, config)
 mark_new_params(model, original_ids)
 
-freeze_original_layers(model)          # Phase-1: train only new parameters
+freeze_original_layers(model)     # Phase 1: train only new parameters
 train(model, phase1_data, lr=2e-4)
 
-unfreeze_all(model)                    # Phase-2: full fine-tuning
+unfreeze_all(model)               # Phase 2: full fine-tune
 train(model, phase2_data, lr=1e-5)
 ```
 
 ### Knowledge Distillation
 
 ```python
-from llm_grow.training.distillation import (
-    DistillConfig, DistillationLoss, run_teacher_inference,
-)
+from llm_grow.training.distillation import DistillConfig, DistillationLoss
 
 criterion = DistillationLoss(DistillConfig(temperature=2.0, alpha=0.5))
-teacher_logits = run_teacher_inference(teacher, input_ids)
 loss = criterion(student_logits, teacher_logits, labels=labels)
 ```
 
@@ -382,12 +312,11 @@ from llm_grow.training.load_balance import combined_moe_loss
 
 loss = combined_moe_loss(
     lm_loss, router_logits_list,
-    num_experts=8, top_k=2,
-    balance_coeff=1e-2, z_coeff=1e-3,
+    num_experts=8, top_k=2, balance_coeff=1e-2, z_coeff=1e-3,
 )
 ```
 
-### Progressive Masked Growth (MSG)
+### Progressive Masked Growth
 
 ```python
 from llm_grow.training.growth_scheduler import GrowthScheduleConfig, GrowthScheduler
@@ -395,12 +324,10 @@ from llm_grow.training.growth_scheduler import GrowthScheduleConfig, GrowthSched
 scheduler = GrowthScheduler(GrowthScheduleConfig(
     total_steps=100_000, warmup_ratio=0.3, strategy="linear",
 ))
-
-ratio = scheduler.get_unlock_ratio(step)
-scheduler.apply_masks(model, ratio)
+scheduler.apply_masks(model, scheduler.get_unlock_ratio(step))
 ```
 
-### Function-Preserving Verification
+### Verification
 
 ```python
 from llm_grow.eval import verify_fp, StructuralVerifier
@@ -408,56 +335,47 @@ from llm_grow.eval import verify_fp, StructuralVerifier
 verify_fp("path/to/original", "path/to/expanded", atol=1e-4)
 
 verifier = StructuralVerifier(src_dir="/path/to/original", dst_dir="/path/to/expanded")
-results = verifier.run_all()
+results = verifier.run_all()  # {'config': True, 'tensor_counts': True, ...}
 ```
-
-### Recovery Curve Tracking
-
-```python
-from llm_grow.eval import RecoveryCurveTracker
-
-tracker = RecoveryCurveTracker("recovery.jsonl")
-tracker.set_baseline({"mmlu": 0.72, "gsm8k": 0.65})
-tracker.log(step=1000, tokens_seen=2e9, scores=run_eval(model))
-tracker.summary()
-```
-
----
-
-## Tutorials
-
-| Model | Architecture | Parameters | Tutorial |
-|------|:---:|:---:|------|
-| Qwen3-0.6B | Dense | 596M | [docs/expand_qwen3_0.6b.md](docs/expand_qwen3_0.6b.md) |
-| Qwen3-30B-A3B | MoE Standard | ~30B | [docs/expand_qwen3_30b_a3b.md](docs/expand_qwen3_30b_a3b.md) |
-| Kimi-K2-Base | DeepSeek MoE | ~1T | [docs/expand_kimi_k2.md](docs/expand_kimi_k2.md) |
-| LongCat-Flash-Chat | LongCat MoE | ~0.5T | [docs/expand_longcat_flash.md](docs/expand_longcat_flash.md) |
 
 ---
 
 ## Benchmarks
 
+### Function-Preserving Verification (Real Models)
+
+| Model | Method | `max|Δlogit|` | Result |
+|-------|--------|:---:|:---:|
+| Qwen2.5-0.5B | depth +4 (24→28) | 0.0000e+00 | ✓ PASS |
+| Qwen2.5-0.5B | width +512 (inter=5376) | 0.0000e+00 | ✓ PASS |
+| Qwen3-0.6B | depth +4 (28→32) | 0.0000e+00 | ✓ PASS |
+| Qwen3-0.6B | width +512 (inter=3584) | 0.0000e+00 | ✓ PASS |
+
 ### In-Memory Expansion (Qwen3-0.6B, 596M, 28 layers, CPU)
 
-| Method | Layers | Parameters | Ratio | FP Check | Time |
+| Method | Layers | Params | Ratio | FP | Time |
 |--------|:---:|:---:|:---:|:---:|:---:|
-| ZeroBlockInsert (+7) | 28->35 | 596M->706M | 1.19x | max\|d\|=**0.000** | 0.2s |
-| OverlapCopy (overlap=8) | 28->40 | 596M->785M | 1.32x | Non-FP (expected) | 0.2s |
-| SVDInterpInsert (+4) | 28->32 | 596M->659M | 1.11x | Near-FP | 0.05s |
-| MultiAxisPad (+4) | 28->32 | 596M->659M | 1.11x | max\|d\|=**0.000** | 0.05s |
-| DenseToMoE (x4) | 28->MoE | 596M->1.39B | 2.33x | Non-FP (expected) | 6.1s |
-| ExpertClone (4->8) | -- | 1.39B->2.45B | 1.76x | Pass (after symmetry break) | 1.7s |
+| ZeroBlockInsert (+7) | 28→35 | 596M→706M | 1.19× | max\|Δ\|=0.000 | 0.2s |
+| OverlapCopy (overlap=8) | 28→40 | 596M→785M | 1.32× | Non-FP | 0.2s |
+| SVDInterpInsert (+4) | 28→32 | 596M→659M | 1.11× | ≈FP | 0.05s |
+| MultiAxisPad (+4) | 28→32 | 596M→659M | 1.11× | max\|Δ\|=0.000 | 0.05s |
+| DenseToMoE (×4) | 28→MoE | 596M→1.39B | 2.33× | Non-FP | 6.1s |
+| ExpertClone (4→8) | — | 1.39B→2.45B | 1.76× | post noise | 1.7s |
 
-### Safetensor Expansion (dry-run verification)
+### Safetensor Expansion (Real Models, All Configs Verified)
 
-| Model | Method | Source Tensors | Output Tensors | Added |
-|------|------|:---:|:---:|:---:|
-| Qwen3-0.6B | depth +4 layers | 311 | 355 | 44 |
-| Qwen3-0.6B | ZeroBlockInsert +7 | 311 | 388 | 77 |
-| Qwen3-30B-A3B | expert 128->256 | 18,867 | 37,299 | 18,432 |
-| Qwen3-30B-A3B | depth 48->56 | 18,867 | 22,011 | 3,144 |
-| Kimi-K2-Base | expert 384->768 | 139,644 | 277,884 | 138,240 |
-| Kimi-K2-Base | depth 61->65 | 139,644 | 148,952 | 9,308 |
+| Model | Method | Source | Output | Config |
+|-------|--------|:---:|:---:|--------|
+| Qwen2.5-0.5B | depth +4 | 290 | 338 | layers=28 ✓ |
+| Qwen2.5-0.5B | width +512 | 290 | 338 | inter=5376 ✓ |
+| Qwen3-0.6B | depth +4 | 311 | 355 | layers=32 ✓ |
+| Qwen3-0.6B | width +512 | 311 | 355 | inter=3584 ✓ |
+| Qwen3-30B-A3B | depth +4 | 18,867 | 20,439 | layers=52 ✓ |
+| Qwen3-30B-A3B | expert ×2 | 18,867 | 37,299 | experts=256 ✓ |
+| LongCat-Flash-Lite | depth +2 | 11,160 | 12,748 | layers=16 ✓ |
+| LongCat-Flash-Lite | expert ×2 | 11,160 | 21,912 | experts=512 ✓ |
+| Kimi-K2-Thinking | depth +2 | 139,644 | 148,952 | layers=63 ✓ |
+| Kimi-K2-Thinking | expert ×2 | 139,644 | 277,884 | experts=768 ✓ |
 
 ---
 
@@ -465,25 +383,46 @@ tracker.summary()
 
 ```
 llm-grow/
-+-- src/llm_grow/
-|   +-- cli.py                  # CLI entry point
-|   +-- safetensor/             # Safetensor-level expansion (mmap streaming)
-|   |   +-- auto.py             #   auto_expand() unified entry
-|   |   +-- detect.py           #   ModelProfile architecture detection
-|   |   +-- base.py             #   ExpansionPlan + two-pass shard writer
-|   |   +-- methods/            #   Organized by expansion method
-|   |   +-- models/             #   Organized by model architecture
-|   +-- expanders/              # In-memory expansion
-|   |   +-- depth/              #   ZeroBlockInsert / OverlapCopy / SVDInterpInsert
-|   |   +-- width/              #   MultiAxisPad
-|   |   +-- sparse/             #   DenseToMoE / ExpertClone
-|   +-- initializers/           # Weight initialization
-|   +-- training/               # Freeze / Distillation / Scheduling / Load balancing
-|   +-- eval/                   # FP verification / Structural checks / Recovery curves
-+-- examples/                   # Example scripts
-+-- tests/                      # Unit tests
-+-- docs/                       # Tutorials + architecture diagrams
+├── src/llm_grow/
+│   ├── cli.py                    # CLI entry point
+│   ├── configs/                  # Shared config dataclasses + constants
+│   ├── core/                     # ModelInspector abstract + markers
+│   ├── safetensor/               # Safetensor-level expansion (mmap streaming)
+│   │   ├── auto.py               #   auto_expand() + @register_expander registry
+│   │   ├── detect.py             #   ModelProfile architecture auto-detection
+│   │   ├── base.py               #   SafetensorExpanderBase + dry_run
+│   │   ├── recipe.py             #   TensorRecipe + ExpansionPlan
+│   │   ├── shard_writer.py       #   Two-pass streaming ShardWriter
+│   │   ├── writer.py             #   apply_recipe + worker_write_shard
+│   │   ├── utils.py              #   ShardIndex + header-only utilities
+│   │   ├── methods/              #   Expand by algorithm
+│   │   └── models/               #   Expand by model architecture
+│   ├── expanders/                # In-memory expansion
+│   │   ├── base.py               #   AbstractExpander (ABC)
+│   │   ├── registry.py           #   @register_expander decorator
+│   │   ├── depth/                #   ZeroBlockInsert / OverlapCopy / SVDInterpInsert
+│   │   ├── width/                #   MultiAxisPad
+│   │   └── sparse/               #   DenseToMoE / ExpertClone
+│   ├── initializers/             # Weight init + noise strategies
+│   │   └── noise.py              #   GaussianNoise / UniformNoise / ScaledGaussian
+│   ├── training/                 # Freeze / Distillation / Scheduling / Load balance
+│   ├── eval/                     # FP verification / Structural checks / Recovery curves
+│   └── utils/                    # Logging, model I/O, expansion rules, insertion
+├── examples/                     # Example scripts (safetensor + in-memory)
+├── tests/                        # 246 tests, 83% coverage
+└── docs/                         # Tutorials + architecture diagrams
 ```
+
+---
+
+## Tutorials
+
+| Model | Architecture | Parameters | Guide |
+|-------|:---:|:---:|-------|
+| Qwen3-0.6B | Dense | 596M | [docs/expand_qwen3_0.6b.md](docs/expand_qwen3_0.6b.md) |
+| Qwen3-30B-A3B | MoE Standard | ~30B | [docs/expand_qwen3_30b_a3b.md](docs/expand_qwen3_30b_a3b.md) |
+| Kimi-K2-Base | DeepSeek MoE | ~1T | [docs/expand_kimi_k2.md](docs/expand_kimi_k2.md) |
+| LongCat-Flash-Chat | LongCat MoE | ~0.5T | [docs/expand_longcat_flash.md](docs/expand_longcat_flash.md) |
 
 ---
 
