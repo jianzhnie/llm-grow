@@ -1,165 +1,170 @@
-# Qwen3-0.6B 扩增教程
+# Qwen3-0.6B Expansion Guide
 
-**架构**：Dense（纯 Transformer Decoder，无 MoE）
-**参数量**：596M（28 层，hidden=1024，intermediate=3072，tied embedding）
-**模型路径**：`Qwen/Qwen3-0.6B`（HuggingFace）或本地目录
+**Architecture**: Dense Transformer Decoder (no MoE)
+**Parameters**: 596M (28 layers, hidden=1024, intermediate=3072, tied embedding)
+**Model**: `Qwen/Qwen3-0.6B` (HuggingFace) or local path
 
 ---
 
-## 架构分析
+## Architecture
 
 ```
-层数：28
-hidden_size：1024
-intermediate_size：3072
-num_attention_heads：16  num_key_value_heads：8（GQA）
-head_dim：128
-vocab_size：151936  tie_word_embeddings：True
-参数分布：embedding 155M（26%）+ 28 层 × 15.7M（74%）
+Layers:              28
+Hidden size:         1024
+Intermediate size:   3072
+Attention heads:     16 / KV heads: 8 (GQA)
+Head dim:            128
+Vocab size:          151,936 (tied embedding)
+Params breakdown:    Embedding 155M (26%) + 28 × 15.7M (74%)
 ```
 
-**参数占比说明**：tied embedding 占全模型 26%，因此单纯层数翻倍只能达到 ~1.74x；
-要精确 2x 需要插入 38 个恒等块（28→66 层）。
+The tied embedding accounts for 26% of total parameters. For a precise 2× scale,
+38 identity blocks are needed (28→66 layers) rather than simply doubling layers.
 
 ---
 
-## 可用扩增方案
+## Expansion Options
 
-| 方案 | 方法 | 目标参数量 | 倍率 | FP |
-|------|------|:---:|:---:|:---:|
-| **ZeroBlockInsert 2x** | 深度 +38 块 | 1194M | 2.00x | ✓ |
-| ZeroBlockInsert 层翻倍 | 深度 +28 块 | 1037M | 1.74x | ✓ |
-| MultiAxisPad 深度+宽度 | 深度+14, FFN+2048 | ~1081M | ~1.81x | ✓ |
-| OverlapCopy | 层重叠复制 | 785M | 1.32x | ✗ |
+| Method | Config | Target | Ratio | FP |
+|--------|--------|:---:|:---:|:---:|
+| **ZeroBlockInsert 2×** ★ | +38 layers | 1194M | 2.00× | ✓ |
+| ZeroBlockInsert deep | +28 layers | 1037M | 1.74× | ✓ |
+| MultiAxisPad | +14 layers, FFN+2048 | ~1081M | ~1.81× | ✓ |
+| OverlapCopy | overlap=8 | 785M | 1.32× | ✗ |
 
 ---
 
-## 前置条件
+## Quickstart
 
 ```bash
-# 1. 克隆 llm-grow
-git clone https://github.com/jianzhnie/llm-grow
-cd llm-grow && pip install -e .
+# Install
+pip install -e .
 
-# 2. 下载模型权重
-huggingface-cli download Qwen/Qwen3-0.6B --local-dir ./models/Qwen3-0.6B
-```
-
----
-
-## 方案 A：ZeroBlockInsert 深度扩增（推荐，精确 2x）
-
-### Step 1  Dry-run 验证方案（无需权重）
-
-```bash
-python examples/common/safetensor_expand.py auto \
-    --src ./models/Qwen3-0.6B \
+# Dry-run (plan only)
+llm-grow expand \
+    --src /home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-0.6B \
     --dst /tmp/qwen3_0.6b_2x \
-    --method depth \
-    --num-new-layers 38 \
-    --dry-run
-```
+    --method depth --num-new-layers 38 --dry-run
 
-预期输出：
-```
-[SafetensorExpand] [dry_run] ZeroBlockInsertSafetensorExpander ...
-  source:  311 tensors, 1 shard(s)
-  output:  541 tensors, num_hidden_layers → 66
-  zero-out tensors : 38      ← 38 个恒等块的 o_proj + down_proj
-  brand-new keys   : 418
-```
-
-### Step 2  执行扩增
-
-```bash
-python examples/common/safetensor_expand.py auto \
-    --src ./models/Qwen3-0.6B \
+# Execute expansion
+llm-grow expand \
+    --src /home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-0.6B \
     --dst ./outputs/Qwen3-0.6B-2x \
-    --method depth \
-    --num-new-layers 38
+    --method depth --num-new-layers 38 --validate-output
+
+# Verify
+llm-grow verify \
+    --src /home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-0.6B \
+    --dst ./outputs/Qwen3-0.6B-2x --fp
 ```
 
-预期输出目录：
+Expected output:
+
+```
+[FP Verify] PASSED  max|Δlogit|=0.0000e+00
+  [pass] config          (num_hidden_layers: 28 → 66)
+  [pass] tensor_counts   (311 → ~541)
+  [pass] weights_preserved
+  [pass] fp_logit_check
+```
+
+Output directory:
 ```
 outputs/Qwen3-0.6B-2x/
-├── config.json               # num_hidden_layers: 66
-├── model-00001-of-XXXXX.safetensors
-├── model-00002-of-XXXXX.safetensors
-├── model.safetensors.index.json
+├── config.json              # num_hidden_layers: 66
+├── model.safetensors        # (or multi-shard)
 ├── tokenizer.json / tokenizer_config.json / ...
 ```
 
-### Step 3  验证
-
-```bash
-python examples/common/verify_safetensor.py \
-    --src ./models/Qwen3-0.6B \
-    --dst ./outputs/Qwen3-0.6B-2x \
-    --fp
-```
-
-预期：
-```
-[Config diff]  num_hidden_layers: 28 → 66
-[Tensor counts]  [✓] expected 541, got 541
-[Identity blocks zeroed]  [✓] Found 38 zeroed projection(s)
-[FP logit check]  [✓] max|Δlogit| = 0.000e+00
-```
-
 ---
 
-## 方案 B：MultiAxisPad 深度+宽度（推理延迟更小）
+## MultiAxisPad (Depth + Width)
+
+Lower inference latency than pure depth doubling:
 
 ```bash
-python examples/common/safetensor_expand.py multi_axis_pad \
-    --src ./models/Qwen3-0.6B \
+llm-grow expand \
+    --src /home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-0.6B \
     --dst ./outputs/Qwen3-0.6B-msg \
-    --num-new-layers 14 \
-    --ffn-size-expansion 2048
-# 结果：28→42 层，intermediate 3072→5120，~1081M（~1.81x）
-# 推理延迟约 1.4x（优于纯深度翻倍的 2x）
+    --method width --num-new-layers 14 --ffn-size-expansion 2048
+# Result: 28→42 layers, intermediate 3072→5120, ~1081M (~1.81×)
+# Latency: ~1.4× (vs 2× for pure depth doubling)
 ```
 
 ---
 
-## Continued Pre-training 建议
-
-扩增完成后需要 CPT 恢复/超越原始精度。
-
-**两阶段训练（推荐）**：
+## Python API
 
 ```python
-from llm_grow.training.freeze import freeze_original_layers, unfreeze_all, report_trainable
+from llm_grow.safetensor.auto import auto_expand
 
-# Phase 1：冻结原始 28 层，仅训练 38 个新增块
-model = AutoModelForCausalLM.from_pretrained("./outputs/Qwen3-0.6B-2x")
-freeze_original_layers(model)
-report_trainable(model)
-# 训练约 12B tokens，lr=2e-4，cosine scheduler
-
-# Phase 2：解冻全部
-unfreeze_all(model)
-# 训练约 6B tokens，lr=5e-5
+auto_expand(
+    src_dir="/home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-0.6B",
+    dst_dir="./outputs/Qwen3-0.6B-2x",
+    method="depth",
+    num_new_layers=38,
+    workers=4,
+    validate_output=True,
+)
 ```
 
-**数据建议**：
-- 90% 通用预训练语料（与原始分布一致）
-- 5% 高质量指令数据（防遗忘）
-- 5% 原始预训练数据 replay（防灾难性遗忘）
+Or via the in-memory API with the registry:
 
-**评估**：MMLU / C-Eval / GSM8K / HumanEval，每 2B tokens 评估一次。
+```python
+from llm_grow.expanders.registry import get_expander
+from llm_grow.expanders.depth.zero_block_insert import ZeroBlockInsertConfig
+
+expander = get_expander("zero_block_insert")()
+expanded = expander.expand(model, ZeroBlockInsertConfig(num_new_layers=38))
+expander.verify(original, expanded)  # max|Δlogit| = 0.0000e+00
+```
 
 ---
 
-## 参数量精确计算
+## Continued Pre-training
+
+**Two-phase training (recommended)**:
+
+```python
+from llm_grow.training.freeze import (
+    snapshot_param_ids, mark_new_params, freeze_original_layers, unfree_all,
+)
+
+# Phase 1: freeze original 28 layers, train only new blocks
+original_ids = snapshot_param_ids(model)
+expander.expand(model, config)
+mark_new_params(model, original_ids)
+freeze_original_layers(model)
+# Train ~12B tokens, lr=2e-4, cosine scheduler
+
+# Phase 2: unfreeze all
+unfreeze_all(model)
+# Train ~6B tokens, lr=5e-5
+```
+
+**Data mix**: 90% general pretraining + 5% instruction + 5% replay (anti-forgetting).
+
+**Evaluation**: MMLU / C-Eval / GSM8K / HumanEval every 2B tokens.
+
+---
+
+## Compute Requirements
+
+| Phase | Tokens | Hardware | Time (est.) |
+|-------|:---:|------|------|
+| Phase 1 (frozen) | 12B | 4× A100-80G | ~30 hours |
+| Phase 2 (full) | 6B | 4× A100-80G | ~40 hours |
+
+---
+
+## Parameter Count Verification
 
 ```python
 from llm_grow.utils.arch_info import count_params, param_diff_report
-import copy
 from transformers import AutoModelForCausalLM
 
 orig = AutoModelForCausalLM.from_pretrained("./models/Qwen3-0.6B")
 expanded = AutoModelForCausalLM.from_pretrained("./outputs/Qwen3-0.6B-2x")
 param_diff_report(orig, expanded)
-# Expansion ratio: 2.000x
+# Expected: ratio = 2.000×
 ```

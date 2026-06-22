@@ -1,119 +1,88 @@
-# Qwen3-30B-A3B 扩增教程
+# Qwen3-30B-A3B Expansion Guide
 
-**架构**：MoE Standard（`Qwen3MoeForCausalLM`）
-**参数量**：~30B 总参数，激活约 3B（top-8 路由）
-**模型路径**：`Qwen/Qwen3-30B-A3B`（HuggingFace）
+**Architecture**: MoE Standard (`Qwen3MoeForCausalLM`)
+**Parameters**: ~30B total, ~3B active (top-8 routing)
+**Model**: `Qwen/Qwen3-30B-A3B` (HuggingFace) or local path
 
 ---
 
-## 架构分析
+## Architecture
 
 ```
-层数：48
-hidden_size：2048
-moe_intermediate_size：768（每专家 FFN 宽度）
-num_experts：128（每层路由专家数）
-num_experts_per_tok：8（top-k，激活专家数）
-num_attention_heads：32  num_key_value_heads：4（GQA）
-vocab_size：151936  tie_word_embeddings：False
+Layers:               48
+Hidden size:          2048
+Expert FFN width:     768 (moe_intermediate_size)
+Experts per layer:    128
+Active experts:       8 (num_experts_per_tok)
+Attention heads:      32 / KV heads: 4 (GQA)
+Vocab size:           151,936 (untied embedding)
 ```
 
-**参数分布**：专家参数约占总参数 96%（128 专家 × 4.72M/专家 × 48 层 ≈ 29B），
-因此专家数扩增是最高效的 2x 路径。
-
-**MoE 扩增与 Dense 扩增的关键区别**：
+Expert parameters account for ~96% of total (128 experts × 4.72M × 48 layers ≈ 29B).
+Expert count expansion is the most efficient path to 2× scale.
 
 | | Dense | Qwen3-30B-A3B (MoE) |
 |---|---|---|
-| Identity block 需置零 | 1 个 down_proj | **128 个** expert down_proj |
-| 可选扩增轴 | 深度 / 宽度 | 专家数 ★ / 深度 |
-| 推理成本 | 深度扩增后线性增加 | 专家扩增后**几乎不变** |
+| Identity block zeros | 1 down_proj | **128** expert down_projs |
+| Expansion axes | Depth / Width | Expert count ★ / Depth |
+| Inference cost after expand | Linear with depth | **Nearly unchanged** for expert |
 
 ---
 
-## 可用扩增方案
+## Expansion Options
 
-| 方案 | 方法 | 目标参数量 | 倍率 | 推理成本 |
-|------|------|:---:|:---:|:---:|
-| **专家扩增 2x** ★ | 128→256 experts | ~59B | ~2.0x | 激活↑（top-8→16） |
-| 专家扩增（推理成本不变） | 128→256，topk 不变 | ~59B | ~2.0x | **不变** |
-| 深度扩增 | 48→60 层 | ~34B | ~1.13x | ↑ 线性 |
-
-> **注**：深度扩增对 MoE 模型增量有限（专家参数占 96%），优先选择专家扩增。
+| Method | Config | Target | Ratio | Inference |
+|--------|--------|:---:|:---:|:---:|
+| **Expert 2×** ★ | 128→256 experts | ~59B | ~2.0× | top-8→16 (or unchanged) |
+| Expert 2× (same cost) | 128→256, topk unchanged | ~59B | ~2.0× | **unchanged** |
+| Depth | 48→60 layers | ~34B | ~1.13× | ↑ linear |
 
 ---
 
-## 前置条件
+## Quickstart
 
 ```bash
-# 下载模型（仅 index，无实际权重时可先 dry-run）
-huggingface-cli download Qwen/Qwen3-30B-A3B \
-    --local-dir ./models/Qwen3-30B-A3B
-```
+# Install
+pip install -e .
 
----
-
-## Step 1  Dry-run（无权重验证方案）
-
-```bash
-python examples/common/safetensor_expand.py auto \
-    --src ./models/Qwen3-30B-A3B \
+# Dry-run (plan only — no weights needed if index.json present)
+llm-grow expand \
+    --src /home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-30B-A3B \
     --dst /tmp/qwen3_30b_2x \
-    --method expert \
-    --expand-factor 2 \
-    --dry-run
-```
+    --method expert --expand-factor 2 --dry-run
 
-预期输出：
-```
-[SafetensorExpand] [dry_run] GenericMoEExpertCloneExpander ...
-  source:  18867 tensors, 16 shard(s)
-  output:  37299 tensors, num_hidden_layers → 48
-  dup-rows tensors : 48      ← 48 层 router.weight 行翻倍
-  brand-new keys   : 18432   ← 新增 128 个专家/层 × 48 层 × 3 个张量
-  config patches: {num_experts: 256, num_experts_per_tok: 16}
-```
-
-## Step 2  执行扩增
-
-```bash
-python examples/common/safetensor_expand.py auto \
-    --src ./models/Qwen3-30B-A3B \
+# Execute expansion (parallel writing for speed)
+llm-grow expand \
+    --src /home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-30B-A3B \
     --dst ./outputs/Qwen3-30B-A3B-2x \
-    --method expert \
-    --expand-factor 2 \
-    --workers 4            # 并行写出，加速大模型分片写入
-```
+    --method expert --expand-factor 2 \
+    --workers 8 --validate-output
 
-预期输出目录：
-```
-outputs/Qwen3-30B-A3B-2x/
-├── config.json               # num_experts: 256, num_experts_per_tok: 16
-├── model-00001-of-XXXXX.safetensors  ...（约 32 个分片）
-├── model.safetensors.index.json
-├── tokenizer* / vocab.json / merges.txt
-```
-
-## Step 3  验证
-
-```bash
-python examples/common/verify_safetensor.py \
-    --src ./models/Qwen3-30B-A3B \
+# Verify (structural only — model is 30B)
+llm-grow verify \
+    --src /home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-30B-A3B \
     --dst ./outputs/Qwen3-30B-A3B-2x
-# --fp 需要加载完整模型（~30B），内存充足时可加
+```
+
+Expected:
+
+```
+  source:  18,867 tensors, 16 shard(s)
+  output:  37,299 tensors, num_hidden_layers → 48
+  dup-rows: 48 (router.weight rows doubled per layer)
+  new keys: 18,432 (128 experts × 48 layers × 3 tensors)
+  config:  {num_experts: 256, num_experts_per_tok: 16}
 ```
 
 ---
 
-## 保持推理成本不变的专家扩增
+## Keep Inference Cost Unchanged
 
-若要专家数翻倍但**推理激活成本保持不变**（仍只激活 8 个专家），
-使用 Python API 并设置 `scale_topk=False`：
+Double expert count while keeping top-8 activation (same per-token FLOPs):
 
 ```python
 from llm_grow.safetensor.models.moe_generic import (
-    GenericDenseToMoEConfig,
-    GenericMoEExpertCloneExpander,
+    GenericDenseToMoEConfig, GenericMoEExpertCloneExpander,
 )
 
 expander = GenericMoEExpertCloneExpander(
@@ -121,52 +90,68 @@ expander = GenericMoEExpertCloneExpander(
         expand_factor=2,
         noise_scale=1e-6,
         router_weight_suffixes=["mlp.gate.weight"],
-        router_bias_suffixes=[],
         config_expert_count_key="num_experts",
         config_topk_key="num_experts_per_tok",
-        scale_topk=False,  # 保持 top-8，不翻倍
+        scale_topk=False,  # keep top-8, don't double
     )
 )
 expander.expand(
-    src_dir="./models/Qwen3-30B-A3B",
+    src_dir="/home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-30B-A3B",
     dst_dir="./outputs/Qwen3-30B-A3B-2x-top8",
+    workers=8,
 )
 ```
-
-此配置下：总参数 ~2x，推理每 token 激活的 expert FLOPs 不变，仅 Router 计算量微增。
 
 ---
 
 ## Python API
 
+**Factory (simplest)**:
+
 ```python
 from llm_grow.safetensor.models.moe_generic import make_qwen3moe_expert_clone
 
 make_qwen3moe_expert_clone(expand_factor=2, noise_scale=1e-6).expand(
-    src_dir="./models/Qwen3-30B-A3B",
+    src_dir="/home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-30B-A3B",
     dst_dir="./outputs/Qwen3-30B-A3B-2x",
-    workers=4,
+    workers=8,
+)
+```
+
+**auto_expand (architecture-agnostic)**:
+
+```python
+from llm_grow.safetensor.auto import auto_expand
+
+auto_expand(
+    src_dir="/home/jianzhnie/llmtuner/hfhub/models/Qwen/Qwen3-30B-A3B",
+    dst_dir="./outputs/Qwen3-30B-A3B-2x",
+    method="expert",
+    expand_factor=2,
+    workers=8,
+    validate_output=True,
 )
 ```
 
 ---
 
-## Continued Pre-training 建议
+## Continued Pre-training
+
+Single-phase full-parameter CPT (no phase-1 freeze — all experts must specialize):
 
 ```
-训练阶段：单阶段全参数 CPT（不适合 Phase-1 冻结，需所有专家参与分化）
-数据量：30–50B tokens
-学习率：3e-5，cosine scheduler，warmup 2000 步
-MoE 负载均衡损失：balance_coeff=1e-2，z_coeff=1e-3
-数据混合：通用 Web 60% + 代码 20% + 数学 10% + 科学 10%
-批次大小：per_device=1，gradient_accumulation=16（等效全局 batch ≈ 4M tokens）
-评估：每 5B tokens，监控各专家激活频率（防 expert collapse）
+Tokens:               30–50B
+Learning rate:        3e-5, cosine, warmup 2,000 steps
+Batch size:           per_device=1, grad_accum=16 (~4M tokens global)
+MoE balance loss:     balance_coeff=1e-2, z_coeff=1e-3
+Data mix:             Web 60% + Code 20% + Math 10% + Science 10%
+Evaluation:           Every 5B tokens — monitor expert activation frequency
 ```
 
 ```python
 from llm_grow.training.load_balance import combined_moe_loss
 
-total_loss = combined_moe_loss(
+loss = combined_moe_loss(
     lm_loss=lm_loss,
     router_logits_list=router_logits_list,
     num_experts=256,
