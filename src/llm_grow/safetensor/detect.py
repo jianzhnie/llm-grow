@@ -178,15 +178,17 @@ def detect_model(src_dir: str | Path) -> ModelProfile:
                 router_b_found = "mlp.gate.e_score_correction_bias"
             elif k.endswith("mlp.router.e_score_correction_bias"):
                 router_b_found = "mlp.router.e_score_correction_bias"
-        if (
-            has_experts
-            and has_fp8
-            and has_mla
-            and has_dual_attn
-            and has_dual_mlp
-            and has_shared
-            and router_w_found is not None
-            and router_b_found is not None
+        if all(
+            (
+                has_experts,
+                has_fp8,
+                has_mla,
+                has_dual_attn,
+                has_dual_mlp,
+                has_shared,
+                router_w_found is not None,
+                router_b_found is not None,
+            )
         ):
             break
     router_w_suf = router_w_found or "mlp.gate.weight"

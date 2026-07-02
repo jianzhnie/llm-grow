@@ -1,27 +1,27 @@
 #!/usr/bin/env python
-"""Auto-detect and auto_expand dispatch example for LongCat-Flash-Chat."""
+"""Auto-detect and auto-dispatch example for LongCat-Flash-Lite.
+
+Verifies detection of the ``longcat`` family (dual-attn, MLA, 256 experts).
+"""
 
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.helpers import run_tests
 from common.model_paths import LONGCAT, require_path
 
-MODEL_DIR = require_path("LONGCAT", LONGCAT)
+SRC = require_path("LONGCAT", LONGCAT)
 
 
 def check_detect():
     from llm_grow.safetensor.detect import detect_model
 
-    p = detect_model(MODEL_DIR)
+    p = detect_model(SRC)
     print(p.summary())
 
     assert p.family == "longcat", f"Expected 'longcat', got {p.family!r}"
-    assert p.has_dual_attn is True, (
-        f"Expected has_dual_attn=True, got {p.has_dual_attn}"
-    )
+    assert p.has_dual_attn is True
     print("  [OK] Detection: family=longcat, has_dual_attn=True")
     return True
 
@@ -38,12 +38,8 @@ def check_auto_dispatch():
         print(f"\n  -> auto_expand(method={method!r}, dry_run=True)")
         try:
             auto_expand(
-                MODEL_DIR,
-                "/tmp/auto_test/longcat",
-                method=method,
-                verbose=False,
-                dry_run=True,
-                **kwargs,
+                SRC, "/tmp/auto_test/longcat",
+                method=method, verbose=False, dry_run=True, **kwargs,
             )
             print(f"  [OK] longcat / {method}")
         except Exception as e:
@@ -53,13 +49,7 @@ def check_auto_dispatch():
 
 
 if __name__ == "__main__":
-    from common.helpers import run_tests
-
-    sys.exit(
-        run_tests(
-            [
-                ("detect", check_detect),
-                ("auto_dispatch", check_auto_dispatch),
-            ]
-        )
-    )
+    sys.exit(run_tests([
+        ("detect", check_detect),
+        ("auto_dispatch", check_auto_dispatch),
+    ]))

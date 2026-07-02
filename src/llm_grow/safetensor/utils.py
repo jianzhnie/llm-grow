@@ -163,13 +163,18 @@ class ShardIndex:
 
     @cached_property
     def _num_hidden_layers(self) -> int:
-        """Infer and cache num_hidden_layers from tensor keys."""
-        max_idx = -1
+        """Infer and cache num_hidden_layers from tensor keys.
+
+        Counts unique layer indices rather than assuming contiguity
+        (``max(idx) + 1``), so models with non-consecutive layer
+        numbering are handled correctly.
+        """
+        indices: set[int] = set()
         for k in self.weight_map:
             idx = parse_layer_idx(k)
-            if idx is not None and idx > max_idx:
-                max_idx = idx
-        return max_idx + 1 if max_idx >= 0 else 0
+            if idx is not None:
+                indices.add(idx)
+        return len(indices)
 
     def num_hidden_layers(self) -> int:
         """Return num_hidden_layers (cached after first call)."""

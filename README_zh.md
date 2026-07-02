@@ -5,15 +5,17 @@
 </p>
 
 <p align="center">
-  <em>Expand Existing Models, Layer by Layer</em>
+  <em>从已有 LLM Checkpoint 生长出更大模型 — 逐层扩展</em>
 </p>
 
 <p align="center">
   <a href="#安装">安装</a> &bull;
   <a href="#快速开始">快速开始</a> &bull;
-  <a href="#扩增方法总览">方法总览</a> &bull;
-  <a href="#api-参考">API 参考</a> &bull;
-  <a href="#扩增教程">教程</a> &bull;
+  <a href="#扩增方法">方法</a> &bull;
+  <a href="#方法选择">选择指南</a> &bull;
+  <a href="#api-参考">API</a> &bull;
+  <a href="#训练">训练</a> &bull;
+  <a href="#实测结果">Benchmark</a> &bull;
   <a href="README.md">English</a>
 </p>
 
@@ -24,53 +26,42 @@
 ---
 
 从已有 LLM checkpoint **生长**出更大模型的模块化工具库。
+无需从零预训练 — 按需扩展深度、宽度或专家数量，Function-Preserving 方法保证零精度损失。
 
-**核心特性**：
+**核心特性**
 
-- **两层扩增体系** — 内存级（`nn.Module` 原地修改）和 Safetensor 级（mmap 流式，峰值内存 ≤ 4 GB）
-- **四类架构全覆盖** — Dense / MoE-Standard / DeepSeek-MoE / LongCat，自动检测自动选择
-- **六种扩增算法** — ZeroBlockInsert、OverlapCopy、SVDInterpInsert、MultiAxisPad、DenseToMoE、ExpertClone
-- **Function-Preserving** — ZeroBlockInsert / MultiAxisPad 扩增后 zero-shot 精度零损失
-- **完整训练工具链** — 冻结训练、知识蒸馏、渐进式掩码生长、MoE 负载均衡
-
----
-
-## 目录
-
-- [安装](#安装)
-- [快速开始](#快速开始)
-- [扩增方法总览](#扩增方法总览)
-- [方法选择指南](#方法选择指南)
-- [API 参考](#api-参考)
-- [训练与评估](#训练与评估)
-- [扩增教程](#扩增教程)
-- [实测结果](#实测结果)
-- [项目结构](#项目结构)
-- [参考文献](#参考文献)
+| | |
+|---|---|
+| **两层扩增体系** | 内存级 (`nn.Module`) + Safetensor 级 (mmap 流式, 峰值 ≤ 4 GB) |
+| **架构自动检测** | Dense / MoE-Standard / DeepSeek-MoE / LongCat — 仅需 `config.json` |
+| **6 种算法** | ZeroBlockInsert, OverlapCopy, SVDInterpInsert, MultiAxisPad, DenseToMoE, ExpertClone |
+| **Function-Preserving** | ZeroBlockInsert / MultiAxisPad → 扩增后 zero-shot 精度零损失 |
+| **可插拔噪声策略** | Gaussian / Uniform / ScaledGaussian 用于对称性破坏 |
+| **装饰器注册机制** | `@register_expander` 一键注册内存级扩增器 |
+| **完整训练工具链** | 冻结训练、知识蒸馏、渐进式掩码生长、MoE 负载均衡 |
+| **真实模型验证** | Qwen2.5-0.5B, Qwen3-0.6B, Qwen3-30B-A3B, LongCat-Flash-Lite, Kimi-K2-Thinking |
 
 ---
 
 ## 安装
 
 ```bash
-pip install -e .                # 基础（扩增 + CLI）
-pip install -e ".[train]"       # + 训练依赖（DeepSpeed, Flash-Attn, Datasets）
-pip install -e ".[eval]"        # + 评估依赖（lm-eval-harness）
-pip install -e ".[dev]"         # + 开发环境（pytest, ruff, mypy）
+pip install -e .                # 基础 (扩增 + CLI)
+pip install -e ".[train]"       # + 训练依赖 (DeepSpeed, Flash-Attn, Datasets)
+pip install -e ".[eval]"        # + 评估依赖 (lm-eval-harness)
+pip install -e ".[dev]"         # + 开发环境 (pytest, ruff, mypy)
 ```
 
-**环境要求**：Python >= 3.10, PyTorch >= 2.2, Transformers >= 4.40, safetensors >= 0.4
+**环境要求**: Python ≥ 3.10, PyTorch ≥ 2.2, Transformers ≥ 4.40, safetensors ≥ 0.4
 
 ---
 
 ## 快速开始
 
-### CLI（推荐）
-
-安装后提供 `llm-grow` 命令：
+### CLI
 
 ```bash
-# 深度扩增（自动检测 Dense / MoE）
+# 深度扩增 (自动检测 Dense / MoE)
 llm-grow expand --src /path/to/model --dst ./output \
     --method depth --num-new-layers 4
 
@@ -82,21 +73,25 @@ llm-grow expand --src /path/to/moe_model --dst ./output \
 llm-grow expand --src /path/to/model --dst ./output \
     --method width --ffn-size-expansion 512
 
-# Dry-run 确认方案（不写文件）
+# Dry-run 确认方案 (不写文件)
 llm-grow expand --src /path/to/model --dst /tmp/out \
-    --method depth --dry-run
+    --method depth --num-new-layers 4 --dry-run
 
-# 验证扩增结果（结构 + FP 一致性）
+# 并行写入 + 输出验证 + 断点续传
+llm-grow expand --src /path/to/model --dst ./output \
+    --method depth --num-new-layers 4 \
+    --workers 8 --validate-output --resume
+
+# 验证扩增结果 (结构检查 + FP logit 对比)
 llm-grow verify --src /path/to/original --dst /path/to/expanded --fp
 
 # 查看模型架构信息
 llm-grow info --src /path/to/model
 ```
 
-### Python API
+### Python API — Safetensor 级 (大模型, 不加载权重)
 
 ```python
-# Safetensor 扩增（适合大模型，不加载权重）
 from llm_grow.safetensor.auto import auto_expand
 
 auto_expand(
@@ -104,100 +99,81 @@ auto_expand(
     dst_dir="./expanded",
     method="depth",             # "depth" | "expert" | "width"
     num_new_layers=4,
+    insert_strategy="uniform",  # "uniform" | "front" | "rear"
+    target_shard_gb=4.0,
+    workers=4,                  # 并行写入线程数
+    dry_run=False,
+    validate_output=True,
+    resume=False,
 )
+```
 
-# 内存级扩增（适合小模型 / 快速实验）
+### Python API — 内存级 (小模型 / 快速实验)
+
+```python
 import copy
 from transformers import AutoModelForCausalLM
-from llm_grow.expanders.depth.zero_block_insert import (
-    ZeroBlockInsertConfig, ZeroBlockInsertExpander,
-)
+from llm_grow.expanders.registry import get_expander
+from llm_grow.expanders.depth.zero_block_insert import ZeroBlockInsertConfig
 
-model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-8B", torch_dtype="auto")
+model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-0.5B", torch_dtype="auto")
 original = copy.deepcopy(model)
-expanded = ZeroBlockInsertExpander().expand(
+
+expander = get_expander("zero_block_insert")()
+expanded = expander.expand(
     model,
     ZeroBlockInsertConfig(num_new_layers=9, freeze_original=True),
 )
-ZeroBlockInsertExpander().verify(original, expanded)
+expander.verify(original, expanded)  # max|Δlogit| = 0.0000e+00
 ```
 
 ---
 
-## 扩增方法总览
+## 扩增方法
 
 ### 方法对比
 
-| 方法 | FP | 扩展方向 | 即时精度 | 推荐 CPT | 推理延迟 |
+| 方法 | FP | 方向 | 即时精度 | 推荐 CPT | 推理延迟 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| **ZeroBlockInsert** | yes | 深度 | **100%** | 8-16B tokens | +线性 |
-| **OverlapCopy** | no | 深度 | 50-80% | 100B+ tokens | +线性 |
-| **SVDInterpInsert** | ~yes | 深度 | 80-90% | <50B tokens | +线性 |
-| **MultiAxisPad** | yes | 深度+宽度 | **100%** | 30-60B tokens | ~1.4x |
-| **DenseToMoE** | no | Dense->MoE | 70-85% | 50-100B tokens | ~不变 |
-| **ExpertClone** | ~yes | MoE 专家 | -- | 节省 32-67% | ~不变 |
+| **ZeroBlockInsert** | ✓ | 深度 | **100%** | 8–16B | +线性 |
+| **OverlapCopy** | ✗ | 深度 | 50–80% | 100B+ | +线性 |
+| **SVDInterpInsert** | ≈ | 深度 | 80–90% | <50B | +线性 |
+| **MultiAxisPad** | ✓ | 深度+宽度 | **100%** | 30–60B | ~1.4× |
+| **DenseToMoE** | ✗ | Dense→MoE | 70–85% | 50–100B | ≈不变 |
+| **ExpertClone** | ≈ | 专家数 | — | 节省 32–67% | ≈不变 |
 
-> **FP** = Function-Preserving：扩增后输出与原始模型完全一致（zero-shot 精度零损失）。
+> **FP** = Function-Preserving: 扩增后输出 logits 与原始模型完全一致。
 
 ### 原理图
 
-#### ZeroBlockInsert — 恒等块嫁接
-
-在均匀间隔处插入 identity block（`o_proj` / `down_proj` 置零），残差连接保证 `output = x + 0 = x`。
-
-<p align="center"><img src="docs/images/zero_block_insert.svg" width="720"/></p>
-
-#### OverlapCopy — 层重叠拼接
-
-将原模型分为 upper / lower 两段（重叠区保证平滑），拼接后层数倍增。非 FP，需大量 CPT。
-
-<p align="center"><img src="docs/images/overlap_copy.svg" width="720"/></p>
-
-#### SVDInterpInsert — SVD 插值嫁接
-
-对相邻层权重做算术平均插值，新层从有意义的初始化出发，收敛速度优于 DUS。
-
-<p align="center"><img src="docs/images/svd_interp_insert.svg" width="720"/></p>
-
-#### MultiAxisPad — 多维掩码生长
-
-同时扩增深度（identity block）和宽度（零填充 hidden / FFN 维度），所有新参数初始化为零，严格 FP。
-
-<p align="center"><img src="docs/images/multi_axis_pad.svg" width="720"/></p>
-
-#### DenseToMoE — Dense 转稀疏 MoE
-
-将 Dense FFN 复制为 N 个专家 + 随机初始化 Router。Top-K 路由使推理成本近似不变。
-
-<p align="center"><img src="docs/images/dense_to_moe.svg" width="720"/></p>
-
-#### ExpertClone — MoE 专家克隆
-
-复制已有专家并施加对称性破坏（noise / drop），Router 权重对应扩展。推理成本不变。
-
-<p align="center"><img src="docs/images/expert_clone.svg" width="720"/></p>
+<p align="center">
+  <img src="docs/images/zero_block_insert.svg" width="48%"/>
+  <img src="docs/images/overlap_copy.svg" width="48%"/>
+  <img src="docs/images/svd_interp_insert.svg" width="48%"/>
+  <img src="docs/images/multi_axis_pad.svg" width="48%"/>
+  <img src="docs/images/dense_to_moe.svg" width="48%"/>
+  <img src="docs/images/expert_clone.svg" width="48%"/>
+</p>
 
 ---
 
-## 方法选择指南
+## 方法选择
 
 ```
 需要扩增参数量
-|
-+-- 超大模型（无法完整加载）--> Safetensor 直接扩增
-|   +-- Dense 模型
-|   |   +-- 深度扩增        llm-grow expand --method depth
-|   |   +-- FFN 宽度扩增    llm-grow expand --method width
-|   +-- MoE 模型
-|       +-- 专家扩增（推理成本不变）  llm-grow expand --method expert
-|       +-- 深度扩增（层数增加）      llm-grow expand --method depth
-|
-+-- 中小模型（可加载进内存）--> 内存级扩增
-    +-- 精度最优先，数据有限   --> ZeroBlockInsert（FP, 8-16B tokens）
-    +-- 精确 2x，控制延迟     --> MultiAxisPad（深度+宽度, ~1.4x 延迟）
-    +-- 最简实现，数据充足     --> OverlapCopy
-    +-- 推理延迟不能增加       --> DenseToMoE（top-1 激活量不变）
-    +-- 基座已是 MoE           --> ExpertClone
+│
+├── 超大模型 (>30B, 无法完整加载) → Safetensor 级
+│   ├── Dense → 深度:   llm-grow expand --method depth
+│   │         → 宽度:   llm-grow expand --method width
+│   └── MoE   → 专家:   llm-grow expand --method expert
+│             → 深度:   llm-grow expand --method depth
+│
+└── 中小模型 (可加载进内存) → 内存级
+    ├── 精度优先, 数据有限     → ZeroBlockInsert (FP, 8–16B CPT)
+    ├── 精确倍数, 控制延迟     → MultiAxisPad (深度+宽度, ~1.4×)
+    ├── 最简实现, 数据充足     → OverlapCopy
+    ├── 延迟不能增加           → DenseToMoE (top-1 激活量不变)
+    └── 基座已是 MoE           → ExpertClone
 ```
 
 ---
@@ -214,27 +190,23 @@ ZeroBlockInsertExpander().verify(original, expanded)
 | **FP 验证** | 直接对比 logits | 结构检查 + 可选 logit 对比 |
 | **适用场景** | 小模型 / 快速实验 | 100B+ 超大模型 |
 
-### Safetensor 扩增
-
-#### 自动检测架构
-
-`detect_model()` 从 `config.json` + 权重索引推断架构，无需加载权重：
+### 自动检测架构
 
 ```python
 from llm_grow.safetensor.detect import detect_model
 
 profile = detect_model("/path/to/model")
-print(profile.family)   # "dense" | "standard_moe" | "deepseek_moe" | "longcat"
+print(profile.family)  # "dense" | "standard_moe" | "deepseek_moe" | "longcat"
 ```
 
 | 检测结果 | 代表模型 | 关键特征 |
 |---------|---------|---------|
-| `dense` | Qwen3-0.6B/8B/14B/32B | 无 `mlp.experts.*` |
+| `dense` | Qwen3-0.6B/8B/14B/32B | 无 `mlp.experts.*` 键 |
 | `standard_moe` | Qwen3-30B-A3B | `mlp.experts.*` + `mlp.gate.weight` |
-| `deepseek_moe` | Kimi-K2-Base | MLA + fp8 + 共享专家 + dense 首层 |
-| `longcat` | LongCat-Flash-Chat | 双路注意力 + 双 MLP + 512 专家 |
+| `deepseek_moe` | Kimi-K2-Thinking | MLA + fp8 `weight_scale_inv` + 共享专家 + dense 第 0 层 |
+| `longcat` | LongCat-Flash-Lite | 双路 `self_attn.{0,1}` + 双 MLP `mlps.{0,1}` + `mlp.router.classifier` |
 
-#### auto_expand()
+### `auto_expand()` — 统一入口
 
 ```python
 from llm_grow.safetensor.auto import auto_expand
@@ -246,145 +218,93 @@ auto_expand(
     num_new_layers=4,             # [depth] 新增层数
     insert_strategy="uniform",    # [depth] "uniform" | "front" | "rear"
     expand_factor=2,              # [expert] 专家倍数
+    noise_scale=1e-6,             # [expert] router 噪声强度
     ffn_size_expansion=0,         # [width] intermediate_size 增量
-    target_shard_gb=4.0,          # 输出 shard 大小
-    dry_run=False,                # True = 只打印方案不写文件
+    target_shard_gb=4.0,          # 输出 shard 大小上限
+    workers=1,                    # 并行写入线程
+    dry_run=False,                # True = 仅打印方案不写文件
+    validate_output=False,        # True = 写入后校验
+    resume=False,                 # True = 跳过已存在的 shard
 )
 ```
 
-#### 预配置工厂函数
+### 预配置工厂函数
 
 | 函数 | 适用模型 | 说明 |
 |------|---------|------|
-| `make_qwen3moe_expert_clone(factor)` | Qwen3-30B-A3B | 专家数扩增 |
-| `make_qwen3moe_zero_block_insert(n)` | Qwen3-30B-A3B | 深度扩增 |
-| `make_kimik2_expert_clone(factor)` | Kimi-K2-Base | 专家数扩增（含 fp8 处理） |
-| `make_kimik2_zero_block_insert(n)` | Kimi-K2-Base | 深度扩增（含 dense 首层处理） |
+| `make_qwen3moe_expert_clone(factor)` | Qwen3-30B-A3B | Router: `mlp.gate.weight` |
+| `make_qwen3moe_zero_block_insert(n)` | Qwen3-30B-A3B | 置零: o_proj + 全部 expert down_proj |
+| `make_kimik2_expert_clone(factor)` | Kimi-K2 | fp8 感知, bias noise=0, 共享专家保留 |
+| `make_kimik2_zero_block_insert(n)` | Kimi-K2 | dense 第 0 层感知, 共享专家感知 |
 
-#### ExpansionPlan 序列化
+### 内存级扩增 — 通过 Registry 调用
 
 ```python
-plan.save_json("my_plan.json")
-plan = ExpansionPlan.load_json("my_plan.json")
+from llm_grow.expanders.registry import get_expander, list_expanders
+
+print(list_expanders())
+# ['dense_to_moe', 'expert_clone', 'multi_axis_pad',
+#  'overlap_copy', 'svd_interp_insert', 'zero_block_insert']
+
+expander = get_expander("zero_block_insert")()
 ```
 
-#### MoE 宽度扩增（M3/M4）
+### 噪声策略 (可插拔)
 
 ```python
-from llm_grow.safetensor.models.moe_width import MoEWidthConfig, MoEWidthExpander
+from llm_grow.initializers.noise import GaussianNoise, UniformNoise, ScaledGaussianNoise
+from llm_grow.expanders.sparse.dense_to_moe import DenseToMoEConfig
 
-# M3: 扩增专家 FFN 宽度
-MoEWidthExpander(MoEWidthConfig(ffn_size_expansion=1024)).expand(
-    src_dir="/path/to/moe_model", dst_dir="./moe_wider",
-)
+# 默认: 高斯噪声
+config = DenseToMoEConfig(num_experts=8, noise_std=0.01)
 
-# M4: 扩增 hidden_size
-MoEWidthExpander(MoEWidthConfig(hidden_size_expansion=256)).expand(
-    src_dir="/path/to/moe_model", dst_dir="./moe_wider_hidden",
-)
+# 切换为均匀分布噪声
+config = DenseToMoEConfig(num_experts=8, noise_std=0.01, noise=UniformNoise())
+
+# 缩放高斯 (std 相对于 tensor std, 与 safetensor dup_rows_noise_scale 语义一致)
+config = DenseToMoEConfig(num_experts=8, noise=ScaledGaussianNoise())
 ```
 
-### 内存级扩增
-
-#### ZeroBlockInsert
+### ExpansionPlan 序列化
 
 ```python
-from llm_grow.expanders.depth.zero_block_insert import (
-    ZeroBlockInsertConfig, ZeroBlockInsertExpander,
-)
+from llm_grow.safetensor.recipe import ExpansionPlan
 
-expanded = ZeroBlockInsertExpander().expand(model, ZeroBlockInsertConfig(
-    num_new_layers=9,           # 建议 = 原层数 // 4
-    insert_strategy="uniform",  # "uniform" | "front" | "rear"
-    freeze_original=True,       # Phase-1 仅训练新块
-))
-```
+plan.save_json("plan.json")          # 保存方案供离线检查
+plan = ExpansionPlan.load_json("plan.json")  # 重新加载
 
-#### MultiAxisPad
-
-```python
-from llm_grow.expanders.width.multi_axis_pad import (
-    MultiAxisPadConfig, MultiAxisPadExpander,
-)
-
-expanded = MultiAxisPadExpander().expand(model, MultiAxisPadConfig(
-    num_new_layers=10,
-    hidden_size_expansion=512,
-    intermediate_size_expansion=3072,
-    freeze_original=True,
-))
-```
-
-#### DenseToMoE
-
-```python
-from llm_grow.expanders.sparse.dense_to_moe import DenseToMoEConfig, DenseToMoEExpander
-
-expanded = DenseToMoEExpander().expand(
-    model, DenseToMoEConfig(num_experts=8, top_k=2),
-)
-```
-
-#### ExpertClone
-
-```python
-from llm_grow.expanders.sparse.expert_clone import (
-    ExpertCloneConfig, ExpertCloneExpander, ExpertSelectionStrategy,
-)
-
-expanded = ExpertCloneExpander().expand(
-    moe_model,
-    ExpertCloneConfig(
-        expand_factor=2,
-        selection_strategy=ExpertSelectionStrategy.UTILITY,
-    ),
-)
-```
-
-#### SVDInterpInsert
-
-```python
-from llm_grow.expanders.depth.svd_interp_insert import (
-    SVDInterpInsertConfig, SVDInterpInsertExpander,
-)
-
-expanded = SVDInterpInsertExpander().expand(
-    model, SVDInterpInsertConfig(use_predictor=False),
-)
+plan.to_dict()                       # 编程式检查
+dict(plan.config_patches)            # {'num_experts': 256, ...}
 ```
 
 ---
 
-## 训练与评估
+## 训练
 
 ### 两阶段冻结训练
 
 ```python
 from llm_grow.training.freeze import (
-    snapshot_param_ids, mark_new_params,
-    freeze_original_layers, unfreeze_all,
+    snapshot_param_ids, mark_new_params, freeze_original_layers, unfreeze_all,
 )
 
 original_ids = snapshot_param_ids(model)
 expander.expand(model, config)
 mark_new_params(model, original_ids)
 
-freeze_original_layers(model)          # Phase-1: 仅训练新增参数
+freeze_original_layers(model)     # Phase 1: 仅训练新增参数
 train(model, phase1_data, lr=2e-4)
 
-unfreeze_all(model)                    # Phase-2: 全量微调
+unfreeze_all(model)               # Phase 2: 全量微调
 train(model, phase2_data, lr=1e-5)
 ```
 
 ### 知识蒸馏
 
 ```python
-from llm_grow.training.distillation import (
-    DistillConfig, DistillationLoss, run_teacher_inference,
-)
+from llm_grow.training.distillation import DistillConfig, DistillationLoss
 
 criterion = DistillationLoss(DistillConfig(temperature=2.0, alpha=0.5))
-teacher_logits = run_teacher_inference(teacher, input_ids)
 loss = criterion(student_logits, teacher_logits, labels=labels)
 ```
 
@@ -395,12 +315,11 @@ from llm_grow.training.load_balance import combined_moe_loss
 
 loss = combined_moe_loss(
     lm_loss, router_logits_list,
-    num_experts=8, top_k=2,
-    balance_coeff=1e-2, z_coeff=1e-3,
+    num_experts=8, top_k=2, balance_coeff=1e-2, z_coeff=1e-3,
 )
 ```
 
-### 渐进式掩码生长（MSG）
+### 渐进式掩码生长
 
 ```python
 from llm_grow.training.growth_scheduler import GrowthScheduleConfig, GrowthScheduler
@@ -408,12 +327,10 @@ from llm_grow.training.growth_scheduler import GrowthScheduleConfig, GrowthSched
 scheduler = GrowthScheduler(GrowthScheduleConfig(
     total_steps=100_000, warmup_ratio=0.3, strategy="linear",
 ))
-
-ratio = scheduler.get_unlock_ratio(step)
-scheduler.apply_masks(model, ratio)
+scheduler.apply_masks(model, scheduler.get_unlock_ratio(step))
 ```
 
-### Function-Preserving 验证
+### 验证
 
 ```python
 from llm_grow.eval import verify_fp, StructuralVerifier
@@ -421,18 +338,82 @@ from llm_grow.eval import verify_fp, StructuralVerifier
 verify_fp("path/to/original", "path/to/expanded", atol=1e-4)
 
 verifier = StructuralVerifier(src_dir="/path/to/original", dst_dir="/path/to/expanded")
-results = verifier.run_all()
+results = verifier.run_all()  # {'config': True, 'tensor_counts': True, ...}
 ```
 
-### 精度恢复曲线追踪
+---
 
-```python
-from llm_grow.eval import RecoveryCurveTracker
+## 实测结果
 
-tracker = RecoveryCurveTracker("recovery.jsonl")
-tracker.set_baseline({"mmlu": 0.72, "gsm8k": 0.65})
-tracker.log(step=1000, tokens_seen=2e9, scores=run_eval(model))
-tracker.summary()
+### Function-Preserving 验证 (真实模型)
+
+| 模型 | 方法 | `max|Δlogit|` | 结果 |
+|-------|--------|:---:|:---:|
+| Qwen2.5-0.5B | depth +4 (24→28) | 0.0000e+00 | ✓ PASS |
+| Qwen2.5-0.5B | width +512 (inter=5376) | 0.0000e+00 | ✓ PASS |
+| Qwen3-0.6B | depth +4 (28→32) | 0.0000e+00 | ✓ PASS |
+| Qwen3-0.6B | width +512 (inter=3584) | 0.0000e+00 | ✓ PASS |
+
+### 内存级扩增 (Qwen3-0.6B, 596M, 28 层, CPU)
+
+| 方法 | 层数 | 参数量 | 倍率 | FP | 耗时 |
+|------|:---:|:---:|:---:|:---:|:---:|
+| ZeroBlockInsert (+7) | 28→35 | 596M→706M | 1.19× | max\|Δ\|=0.000 | 0.2s |
+| OverlapCopy (overlap=8) | 28→40 | 596M→785M | 1.32× | 非FP | 0.2s |
+| SVDInterpInsert (+4) | 28→32 | 596M→659M | 1.11× | ≈FP | 0.05s |
+| MultiAxisPad (+4) | 28→32 | 596M→659M | 1.11× | max\|Δ\|=0.000 | 0.05s |
+| DenseToMoE (×4) | 28→MoE | 596M→1.39B | 2.33× | 非FP | 6.1s |
+| ExpertClone (4→8) | — | 1.39B→2.45B | 1.76× | 对称破坏后 | 1.7s |
+
+### Safetensor 扩增 (真实模型, 全部 Config 已验证)
+
+| 模型 | 方法 | 原始张量 | 输出张量 | Config |
+|-------|--------|:---:|:---:|--------|
+| Qwen2.5-0.5B | depth +4 | 290 | 338 | layers=28 ✓ |
+| Qwen2.5-0.5B | width +512 | 290 | 338 | inter=5376 ✓ |
+| Qwen3-0.6B | depth +4 | 311 | 355 | layers=32 ✓ |
+| Qwen3-0.6B | width +512 | 311 | 355 | inter=3584 ✓ |
+| Qwen3-30B-A3B | depth +4 | 18,867 | 20,439 | layers=52 ✓ |
+| Qwen3-30B-A3B | expert ×2 | 18,867 | 37,299 | experts=256 ✓ |
+| LongCat-Flash-Lite | depth +2 | 11,160 | 12,748 | layers=16 ✓ |
+| LongCat-Flash-Lite | expert ×2 | 11,160 | 21,912 | experts=512 ✓ |
+| Kimi-K2-Thinking | depth +2 | 139,644 | 148,952 | layers=63 ✓ |
+| Kimi-K2-Thinking | expert ×2 | 139,644 | 277,884 | experts=768 ✓ |
+
+---
+
+## 项目结构
+
+```
+llm-grow/
+├── src/llm_grow/
+│   ├── cli.py                    # CLI 入口
+│   ├── configs/                  # 共享配置 dataclass + 常量
+│   ├── core/                     # ModelInspector 抽象 + 标记
+│   ├── safetensor/               # Safetensor 级扩增 (mmap 流式)
+│   │   ├── auto.py               #   auto_expand() + @register_expander 注册
+│   │   ├── detect.py             #   ModelProfile 架构自动检测
+│   │   ├── base.py               #   SafetensorExpanderBase + dry_run
+│   │   ├── recipe.py             #   TensorRecipe + ExpansionPlan
+│   │   ├── shard_writer.py       #   两阶段流式 ShardWriter
+│   │   ├── writer.py             #   apply_recipe + worker_write_shard
+│   │   ├── utils.py              #   ShardIndex + 仅 header 工具
+│   │   ├── methods/              #   按扩增方法组织
+│   │   └── models/               #   按模型架构组织
+│   ├── expanders/                # 内存级扩增
+│   │   ├── base.py               #   AbstractExpander (ABC)
+│   │   ├── registry.py           #   @register_expander 装饰器
+│   │   ├── depth/                #   ZeroBlockInsert / OverlapCopy / SVDInterpInsert
+│   │   ├── width/                #   MultiAxisPad
+│   │   └── sparse/               #   DenseToMoE / ExpertClone
+│   ├── initializers/             # 权重初始化 + 噪声策略
+│   │   └── noise.py              #   GaussianNoise / UniformNoise / ScaledGaussian
+│   ├── training/                 # 冻结 / 蒸馏 / 调度 / 负载均衡
+│   ├── eval/                     # FP 验证 / 结构检查 / 恢复曲线
+│   └── utils/                    # 日志 / 模型 I/O / 扩增规则 / 插入策略
+├── examples/                     # 示例脚本 (safetensor + 内存级)
+├── tests/                        # 246 测试, 83% 覆盖率
+└── docs/                         # 教程 + 架构图
 ```
 
 ---
@@ -445,58 +426,6 @@ tracker.summary()
 | Qwen3-30B-A3B | MoE Standard | ~30B | [docs/expand_qwen3_30b_a3b.md](docs/expand_qwen3_30b_a3b.md) |
 | Kimi-K2-Base | DeepSeek MoE | ~1T | [docs/expand_kimi_k2.md](docs/expand_kimi_k2.md) |
 | LongCat-Flash-Chat | LongCat MoE | ~0.5T | [docs/expand_longcat_flash.md](docs/expand_longcat_flash.md) |
-
----
-
-## 实测结果
-
-### 内存级扩增（Qwen3-0.6B, 596M, 28 层, CPU）
-
-| 方法 | 层数 | 参数量 | 倍率 | FP 验证 | 耗时 |
-|------|:---:|:---:|:---:|:---:|:---:|
-| ZeroBlockInsert (+7) | 28->35 | 596M->706M | 1.19x | max\|d\|=**0.000** | 0.2s |
-| OverlapCopy (overlap=8) | 28->40 | 596M->785M | 1.32x | 非FP（预期） | 0.2s |
-| SVDInterpInsert (+4) | 28->32 | 596M->659M | 1.11x | 近似FP | 0.05s |
-| MultiAxisPad (+4) | 28->32 | 596M->659M | 1.11x | max\|d\|=**0.000** | 0.05s |
-| DenseToMoE (x4) | 28->MoE | 596M->1.39B | 2.33x | 非FP（预期） | 6.1s |
-| ExpertClone (4->8) | -- | 1.39B->2.45B | 1.76x | 对称破坏后通过 | 1.7s |
-
-### Safetensor 扩增（dry-run 验证）
-
-| 模型 | 方法 | 原始张量 | 输出张量 | 新增 |
-|------|------|:---:|:---:|:---:|
-| Qwen3-0.6B | depth +4 层 | 311 | 355 | 44 |
-| Qwen3-0.6B | ZeroBlockInsert +7 | 311 | 388 | 77 |
-| Qwen3-30B-A3B | expert 128->256 | 18,867 | 37,299 | 18,432 |
-| Qwen3-30B-A3B | depth 48->56 | 18,867 | 22,011 | 3,144 |
-| Kimi-K2-Base | expert 384->768 | 139,644 | 277,884 | 138,240 |
-| Kimi-K2-Base | depth 61->65 | 139,644 | 148,952 | 9,308 |
-
----
-
-## 项目结构
-
-```
-llm-grow/
-+-- src/llm_grow/
-|   +-- cli.py                  # CLI 入口
-|   +-- safetensor/             # Safetensor 级扩增（mmap 流式）
-|   |   +-- auto.py             #   auto_expand() 统一入口
-|   |   +-- detect.py           #   ModelProfile 架构自动检测
-|   |   +-- base.py             #   ExpansionPlan + 两阶段写出
-|   |   +-- methods/            #   按扩增方法组织
-|   |   +-- models/             #   按模型架构组织
-|   +-- expanders/              # 内存级扩增
-|   |   +-- depth/              #   ZeroBlockInsert / OverlapCopy / SVDInterpInsert
-|   |   +-- width/              #   MultiAxisPad
-|   |   +-- sparse/             #   DenseToMoE / ExpertClone
-|   +-- initializers/           # 权重初始化
-|   +-- training/               # 冻结 / 蒸馏 / 调度 / 负载均衡
-|   +-- eval/                   # FP 验证 / 结构验证 / 恢复曲线
-+-- examples/                   # 示例脚本
-+-- tests/                      # 单元测试
-+-- docs/                       # 教程 + 架构图
-```
 
 ---
 

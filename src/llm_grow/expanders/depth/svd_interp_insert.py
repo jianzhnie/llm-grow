@@ -1,15 +1,17 @@
-"""SVDInterpInsert: SVD 插值嫁接扩层 (arXiv:2502.13794, LESA).
+"""SVDInterpInsert: SVD-based interpolation layer insertion (arXiv:2502.13794, LESA).
 
-核心思路：对相邻层权重矩阵做 SVD 分解，训练轻量预测网络预测插入层参数，
-新层从"有意义"的初始化出发，收敛速度优于 OverlapCopy (DUS)。
-即时精度约 80-90%（非严格 FP），CPT 需求量约为 OverlapCopy 的 50%。
+Core idea: decompose adjacent layer weight matrices via SVD, train a
+lightweight predictor network to estimate inserted-layer parameters.
+New layers start from a "meaningful" initialization, converging faster
+than OverlapCopy (DUS).  Instant accuracy ≈ 80–90% (not strictly FP);
+CPT requirement ≈ 50% of OverlapCopy.
 
-原始论文: Yang et al., "LESA: Learnable LLM Layer Expansion with
+Reference: Yang et al., "LESA: Learnable LLM Layer Expansion with
     SVD-based Adaptation", arXiv:2502.13794, 2025.
 
 Related:
-    - ``ZeroBlockInsert`` (zero_block_insert.py): 严格 FP 恒等块嫁接
-    - ``OverlapCopy`` (overlap_copy.py): 非 FP 层重叠拷贝
+    - ``ZeroBlockInsert`` (zero_block_insert.py): strictly FP identity blocks
+    - ``OverlapCopy`` (overlap_copy.py): non-FP layer copy
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ import torch.nn as nn
 
 from llm_grow.configs.base import BaseDepthConfig
 from llm_grow.expanders.base import AbstractExpander
+from llm_grow.expanders.registry import register_expander
 from llm_grow.utils import (
     get_decoder_layers,
     insert_positions,
@@ -36,32 +39,34 @@ logger = get_logger(__name__)
 @dataclass
 class SVDInterpInsertConfig(BaseDepthConfig):
     num_new_layers: int = 0
-    """新增层数。当 ``insert_between`` 为空且该值大于 0 时，
-    使用均匀策略在相邻层之间插入 ``num_new_layers`` 个新层。
+    """Number of new layers to insert.  When ``insert_between`` is empty and
+    this value > 0, layers are inserted uniformly between existing layers.
     """
 
     insert_between: list[tuple[int, int]] = field(default_factory=list)
-    """显式指定在哪两层之间插入新层，格式 ``[(i, i+1), ...]``。
-    若提供该列表，则 ``num_new_layers`` 被忽略。
+    """Explicit insertion positions as ``[(i, i+1), ...]`` pairs.
+    When provided, ``num_new_layers`` is ignored.
     """
 
     svd_rank: int = 64
-    """用于特征提取的 SVD 秩（越大信息越多，预测网络越慢）。"""
+    """SVD rank for feature extraction (higher = more info, slower predictor)."""
 
     predictor_hidden: int = 256
-    """预测网络的隐藏维度。"""
+    """Hidden dimension of the predictor network."""
 
     use_predictor: bool = False
-    """False 时退化为相邻层线性插值（快速 baseline）；
-    True 时使用 MLP 预测网络（需额外训练步骤）。"""
+    """If False, fall back to simple arithmetic averaging (fast baseline).
+    If True, use an MLP predictor network (requires extra training step)."""
 
 
+@register_expander("svd_interp_insert")
 class SVDInterpInsertExpander(AbstractExpander[SVDInterpInsertConfig]):
-    """SVDInterpInsert SVD 插值扩增器。
+    """SVD-based interpolation expander.
 
-    当 use_predictor=False 时，使用相邻层参数的简单算术平均作为插入层初始化，
-    可快速获得比 DUS 更好的初始精度。完整 LESA 实现（训练预测网络）请设置
-    use_predictor=True 并先调用 train_predictor()。
+    When ``use_predictor=False``, uses simple arithmetic averaging of adjacent
+    layer parameters as the initialization — a fast baseline that already beats
+    DUS.  For the full LESA implementation (trained predictor), set
+    ``use_predictor=True`` and call ``train_predictor()`` first.
     """
 
     def expand(self, model: nn.Module, config: SVDInterpInsertConfig) -> nn.Module:
@@ -125,7 +130,8 @@ class SVDInterpInsertExpander(AbstractExpander[SVDInterpInsertConfig]):
             "SVDInterpInsert is approximately FP (~80-90%%)"
             " — running output diff check."
         )
-        return super().verify(original, expanded, atol=0.5, **kwargs)
+        kwargs.setdefault("atol", 0.5)
+        return super().verify(original, expanded, **kwargs)
 
 
 # ---------------------------------------------------------------------------

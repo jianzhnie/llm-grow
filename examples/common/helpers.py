@@ -26,7 +26,7 @@ def log_result(name: str, ok: bool, msg: str = "") -> None:
 def open_tensors(model_dir: str | Path):
     """Open all safetensor shards and return (index, handles).
 
-    Caller is responsible for closing handles via their ``__exit__`` method.
+    Caller must call :func:`safe_close_handles` when done.
     """
     from llm_grow.safetensor.utils import ShardIndex
 

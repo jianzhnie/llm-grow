@@ -1,12 +1,16 @@
 #!/usr/bin/env python
-"""Auto-detect and auto_expand dispatch example for Qwen3 models."""
+"""Auto-detect and auto-dispatch example for Qwen3 Dense + MoE models.
+
+Verifies detection of both ``dense`` (Qwen3-0.6B) and ``standard_moe``
+(Qwen3-30B-A3B) families, and that auto_expand correctly dispatches
+(including expected errors for invalid combinations).
+"""
 
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.helpers import run_tests
 from common.model_paths import QWEN3_06B, QWEN3_30B, require_path
 
 DENSE_SRC = require_path("QWEN3_06B", QWEN3_06B)
@@ -22,21 +26,14 @@ def check_detect():
     print(p_dense.summary())
     results["dense/family"] = p_dense.family == "dense"
     results["dense/is_moe"] = p_dense.is_moe is False
-    print(
-        f"  [{'OK' if all(results.values()) else 'FAIL'}]"
-        f" Dense: family={p_dense.family}, is_moe={p_dense.is_moe}"
-    )
+    print(f"  [{'OK' if all(results.values()) else 'FAIL'}] Dense")
 
     p_moe = detect_model(MOE_SRC)
     print(p_moe.summary())
     results["moe/family"] = p_moe.family == "standard_moe"
     results["moe/is_moe"] = p_moe.is_moe is True
     results["moe/experts"] = p_moe.experts_per_moe_layer == 128
-    print(
-        f"  [{'OK' if results['moe/family'] else 'FAIL'}]"
-        f" MoE: family={p_moe.family},"
-        f" experts={p_moe.experts_per_moe_layer}"
-    )
+    print(f"  [{'OK' if results['moe/family'] else 'FAIL'}] MoE")
 
     return all(results.values())
 
@@ -45,12 +42,12 @@ def check_auto_dispatch():
     from llm_grow.safetensor.auto import auto_expand
 
     scenarios = [
-        (DENSE_SRC, "dense_qwen3", "depth", {}, True),
-        (DENSE_SRC, "dense_qwen3", "expert", {}, "expected"),
-        (DENSE_SRC, "dense_qwen3", "width", {"ffn_size_expansion": 256}, True),
-        (MOE_SRC, "moe_qwen3", "depth", {"num_new_layers": 4}, True),
-        (MOE_SRC, "moe_qwen3", "expert", {"expand_factor": 2}, True),
-        (MOE_SRC, "moe_qwen3", "width", {}, "expected"),
+        (DENSE_SRC, "dense", "depth", {}, True),
+        (DENSE_SRC, "dense", "expert", {}, "expected"),
+        (DENSE_SRC, "dense", "width", {"ffn_size_expansion": 256}, True),
+        (MOE_SRC, "moe", "depth", {"num_new_layers": 4}, True),
+        (MOE_SRC, "moe", "expert", {"expand_factor": 2}, True),
+        (MOE_SRC, "moe", "width", {}, "expected"),
     ]
 
     all_ok = True
@@ -58,20 +55,14 @@ def check_auto_dispatch():
         print(f"\n  -> auto_expand({label}, method={method!r}, dry_run=True)")
         try:
             auto_expand(
-                path,
-                f"/tmp/auto_test/{label}",
-                method=method,
-                verbose=False,
-                dry_run=True,
-                **kwargs,
+                path, f"/tmp/auto_test/{label}",
+                method=method, verbose=False, dry_run=True, **kwargs,
             )
             ok = want is True
             print(f"  [{'OK' if ok else 'FAIL'}] {label} / {method}")
         except (ValueError, NotImplementedError) as e:
             ok = want == "expected"
-            print(
-                f"  [{'OK' if ok else 'FAIL'}] {label} / {method} (expected error: {e})"
-            )
+            print(f"  [{'OK' if ok else 'FAIL'}] {label} / {method} (expected: {e})")
         except Exception as e:
             ok = False
             print(f"  [FAIL] {label} / {method}: {e}")
@@ -81,13 +72,7 @@ def check_auto_dispatch():
 
 
 if __name__ == "__main__":
-    from common.helpers import run_tests
-
-    sys.exit(
-        run_tests(
-            [
-                ("detect", check_detect),
-                ("auto_dispatch", check_auto_dispatch),
-            ]
-        )
-    )
+    sys.exit(run_tests([
+        ("detect", check_detect),
+        ("auto_dispatch", check_auto_dispatch),
+    ]))

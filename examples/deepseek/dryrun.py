@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-"""Dry-run expansion example for Kimi-K2-Base (DeepseekV3ForCausalLM).
+"""Dry-run expansion example for Kimi-K2 (DeepSeek-MoE, 384 experts, 61 layers).
 
-Tests (no weight files needed, index JSON only):
-  1. Expert upcycling  384 -> 768
-  2. Depth expansion   61  -> 65  (+4 layers)
-  3. Dry-run plan verification via auto-detect
+All checks use only the safetensors index — no weight files loaded.
+Exercises fp8 scale tensors, shared experts, mixed dense/MoE layers.
 """
 
 from __future__ import annotations
@@ -23,8 +21,8 @@ SRC = require_path("KIMI_K2", KIMI_K2)
 
 
 def check_expert_clone():
-    print("\n" + "=" * 62)
-    print("  [1] Kimi-K2-Base  Expert Upcycling  (384 -> 768 experts)")
+    print(f"\n{'=' * 62}")
+    print("  [1] Kimi-K2  Expert Upcycling  (384 -> 768 experts)")
     print("=" * 62)
     from llm_grow.safetensor.models.moe_generic import make_kimik2_expert_clone
     from llm_grow.safetensor.utils import ShardIndex
@@ -35,14 +33,12 @@ def check_expert_clone():
     src = ShardIndex.load(SRC)
     wmap = src.weight_map
 
+    # Layer 0 is dense-only in Kimi-K2
     l0_expert_keys = [
-        k
-        for k in plan.recipes
+        k for k in plan.recipes
         if k.startswith("model.layers.0.") and "mlp.experts." in k
     ]
-    assert len(l0_expert_keys) == 0, (
-        f"Layer 0 should be dense, got {len(l0_expert_keys)} expert keys"
-    )
+    assert len(l0_expert_keys) == 0, f"Layer 0 should be dense, got {len(l0_expert_keys)}"
     print("  [OK] Layer 0 is dense — no expert tensors")
 
     l1_experts = count_experts_in_layer(plan, 1)
@@ -56,9 +52,7 @@ def check_expert_clone():
     assert all(plan.recipes[k].dup_rows for k in router_w)
     print(f"  [OK] {len(router_w)} router weights: dup_rows=True")
 
-    router_b = [
-        k for k in plan.recipes if k.endswith("mlp.gate.e_score_correction_bias")
-    ]
+    router_b = [k for k in plan.recipes if k.endswith("mlp.gate.e_score_correction_bias")]
     assert all(
         plan.recipes[k].dup_rows and plan.recipes[k].dup_rows_noise_scale == 0.0
         for k in router_b
@@ -81,8 +75,8 @@ def check_expert_clone():
 
 
 def check_depth():
-    print("\n" + "=" * 62)
-    print("  [2] Kimi-K2-Base  Depth Expansion  (61 -> 65 layers)")
+    print(f"\n{'=' * 62}")
+    print("  [2] Kimi-K2  Depth Expansion  (61 -> 65 layers)")
     print("=" * 62)
     from llm_grow.safetensor.models.moe_generic import make_kimik2_zero_block_insert
     from llm_grow.safetensor.utils import ShardIndex
@@ -94,14 +88,12 @@ def check_depth():
     print("  [OK] num_hidden_layers: 61 -> 65")
 
     zero_keys = [k for k, r in plan.recipes.items() if r.zero_out]
-
     print("  Zero breakdown:")
     o_proj_n = sum(1 for k in zero_keys if "o_proj.weight" in k and "scale" not in k)
     expert_n = sum(1 for k in zero_keys if "experts" in k and "down_proj.weight" in k)
     shared_n = sum(1 for k in zero_keys if "shared_experts.down_proj" in k)
     dense_n = sum(
-        1
-        for k in zero_keys
+        1 for k in zero_keys
         if "mlp.down_proj.weight" in k and "experts" not in k and "shared" not in k
     )
     print(f"    o_proj zeros    : {o_proj_n}")
@@ -110,34 +102,19 @@ def check_depth():
     print(f"    dense dp zeros  : {dense_n}")
     print(f"    Total zero      : {len(zero_keys)}")
 
-    src = ShardIndex.load(SRC)
-    new_keys = count_new_keys(plan, src.weight_map)
+    new_keys = count_new_keys(plan, ShardIndex.load(SRC).weight_map)
     print(f"  New tensors : {new_keys:,}")
     print(f"  Total output: {len(plan.recipes):,}")
     return True
 
 
-def check_dryrun_plan():
-    print("\n" + "=" * 62)
-    print("  [3] Kimi-K2-Base  Dry-run plan verification")
-    print("=" * 62)
-
-    return verify_dryrun_plan(
-        SRC,
-        "Kimi-K2",
-        [
-            ("expert", {"expand_factor": 2}, {"n_routed_experts": 768}),
-        ],
-    )
-
-
 if __name__ == "__main__":
-    sys.exit(
-        run_tests(
-            [
-                ("expert_clone", check_expert_clone),
-                ("depth", check_depth),
-                ("dryrun_plan", check_dryrun_plan),
-            ]
-        )
-    )
+    sys.exit(run_tests([
+        ("expert_clone", check_expert_clone),
+        ("depth", check_depth),
+        ("dryrun_plan", lambda: verify_dryrun_plan(
+            SRC, "Kimi-K2", [
+                ("expert", {"expand_factor": 2}, {"n_routed_experts": 768}),
+            ],
+        )),
+    ]))

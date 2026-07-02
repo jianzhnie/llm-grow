@@ -1,15 +1,15 @@
-"""ZeroBlockInsert: 恒等块嫁接深度扩增 (arXiv:2401.02415, LLaMA-Pro).
+"""ZeroBlockInsert: Identity-block depth expansion (arXiv:2401.02415, LLaMA-Pro).
 
-核心思路：在均匀间隔处插入恒等块（o_proj & down_proj 置零），
-扩增后模型与原始模型函数完全一致（function-preserving）。
+Core idea: insert identity blocks at regular intervals (zeroing o_proj
+and down_proj).  The expanded model is strictly function-preserving.
 
-原始论文: Wu et al., "LLaMA Pro: Progressive LLaMA with Block Expansion",
+Reference: Wu et al., "LLaMA Pro: Progressive LLaMA with Block Expansion",
     arXiv:2401.02415, 2024.
 
 Related:
-    - ``OverlapCopy`` (overlap_copy.py): 非 FP 的层重叠拷贝深度扩增
-    - ``SVDInterpInsert`` (svd_interp_insert.py): SVD 插值近似 FP 深度扩增
-    - ``MultiAxisPad`` (multi_axis_pad.py): 深度+宽度联合 FP 扩增
+    - ``OverlapCopy`` (overlap_copy.py): non-FP layer-copy depth expansion
+    - ``SVDInterpInsert`` (svd_interp_insert.py): SVD-based approximate FP
+    - ``MultiAxisPad`` (multi_axis_pad.py): combined depth+width FP expansion
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ import torch.nn as nn
 from llm_grow.configs.base import BaseDepthConfig
 from llm_grow.configs.constants import ATTN_OUTPUT_PROJ_NAMES, MLP_OUTPUT_PROJ_NAMES
 from llm_grow.expanders.base import AbstractExpander
+from llm_grow.expanders.registry import register_expander
 from llm_grow.initializers.identity import zero_output_projections
 from llm_grow.utils import (
     get_decoder_layers,
@@ -34,13 +35,13 @@ from llm_grow.utils.insertion import NEW_GROWTH_ATTR
 
 @dataclass
 class ZeroBlockInsertConfig(BaseDepthConfig):
-    """ZeroBlockInsert 恒等块插入配置。"""
+    """Configuration for ZeroBlockInsert identity-block expansion."""
 
     num_new_layers: int = 8
-    """插入的新层数量。建议 = 原层数 // 4。"""
+    """Number of new layers to insert.  Recommended: ``num_orig // 4``."""
 
     freeze_original: bool = True
-    """Phase-1 训练时是否冻结原始块（仅训练新增块）。"""
+    """If True, freeze original layers during phase-1 training."""
 
     attn_output_proj_names: list[str] = field(
         default_factory=lambda: list(ATTN_OUTPUT_PROJ_NAMES)
@@ -50,10 +51,11 @@ class ZeroBlockInsertConfig(BaseDepthConfig):
     )
 
 
+@register_expander("zero_block_insert")
 class ZeroBlockInsertExpander(AbstractExpander[ZeroBlockInsertConfig]):
-    """ZeroBlockInsert 恒等块插入扩增器。
+    """ZeroBlockInsert identity-block expander.
 
-    用法::
+    Usage::
 
         from llm_grow import ZeroBlockInsertExpander
         from llm_grow.expanders.depth.zero_block_insert import ZeroBlockInsertConfig
@@ -102,7 +104,9 @@ def _make_identity_block(
     attn_proj_names: list[str],
     mlp_proj_names: list[str],
 ) -> nn.Module:
-    """创建恒等块（deep copy + zero projections），并标记所有参数为新增。"""
+    """Create an identity block (deep copy + zero projections).  All parameters
+    are marked as new growth.
+    """
     block = copy.deepcopy(source_block)
     zero_output_projections(block, attn_proj_names, mlp_proj_names)
     for param in block.parameters():

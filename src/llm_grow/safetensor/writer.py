@@ -7,8 +7,10 @@ prediction, and the parallel worker entry point.
 
 from __future__ import annotations
 
+import contextlib
 import math
 import os
+import shutil
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,6 +22,20 @@ from llm_grow.safetensor.utils import read_safetensors_header
 from llm_grow.utils.logger_utils import get_logger
 
 logger = get_logger(__name__)
+
+
+def _safe_close_handle(handle: Any) -> None:
+    """Close a safetensors mmap handle using the context-manager protocol."""
+    with contextlib.suppress(Exception):
+        handle.__exit__(None, None, None)
+
+
+def _atomic_replace(tmp_path: Path, dst_path: Path) -> None:
+    """Atomically rename *tmp_path* to *dst_path*, falling back to copy on EXDEV."""
+    try:
+        os.replace(str(tmp_path), str(dst_path))
+    except OSError:
+        shutil.move(str(tmp_path), str(dst_path))
 
 _TORCH_DTYPES: dict[str, torch.dtype] = {
     "F32": torch.float32,
@@ -108,38 +124,53 @@ def predict_recipe_bytes(src_meta: tuple[str, list[int]], recipe: TensorRecipe) 
 
 
 def worker_write_shard(
-    args: tuple[str, list[tuple[str, str, str, tuple]], set[str], bool],
+    args: tuple[
+        str,
+        list[tuple[str, str, str, TensorRecipe]],
+        set[str],
+        bool,
+        dict[str, tuple[str, list[int]]],
+    ],
 ) -> tuple[str, list[str]]:
-    """Write one output shard in a worker process.
+    """Write one output shard in a worker thread.
 
     Args:
-        args: (output_path_str, items, expected_keys, resume) where each item is
-              (src_shard_path_str, src_key, out_key, recipe_fields_tuple).
+        args: (
+            output_path_str,
+            items,
+            expected_keys,
+            resume,
+            expected_header,
+        ) where each item is
+              ``(src_shard_path_str, src_key, out_key, recipe)`` and
+              expected_header maps ``out_key → (dtype, shape)``.
 
     Returns:
-        (shard_basename, list_of_output_tensor_names)
+        ``(shard_basename, list_of_output_tensor_names)``.
     """
     from collections import defaultdict
 
     from safetensors import safe_open
 
-    out_path_str, items, expected_keys, resume = args
+    out_path_str, items, expected_keys, resume, expected_header = args
     out_path = Path(out_path_str)
 
     if resume:
         # Atomic-ish resume check: try to read the header in one go.  If the
-        # file is missing, truncated, or doesn't contain all expected keys, we
-        # rewrite it.  This avoids the non-atomic exists()+header-read pair.
+        # file is missing, truncated, or doesn't contain all expected keys with
+        # matching dtype/shape, we rewrite it.
         try:
             header = read_safetensors_header(out_path)
-            if expected_keys.issubset(header):
+            if expected_keys.issubset(header) and all(
+                header[k] == expected_header[k] for k in expected_keys
+            ):
                 return (out_path.name, list(expected_keys))
         except (FileNotFoundError, OSError, ValueError) as exc:
             logger.debug("Resume check failed for %s: %s", out_path, exc)
 
-    by_src: dict[str, list[tuple[str, str, tuple]]] = defaultdict(list)
-    for src_path, src_key, out_key, recipe_fields in items:
-        by_src[src_path].append((src_key, out_key, recipe_fields))
+    by_src: dict[str, list[tuple[str, str, TensorRecipe]]] = defaultdict(list)
+    for src_path, src_key, out_key, recipe in items:
+        by_src[src_path].append((src_key, out_key, recipe))
 
     interp_handles: dict[str, Any] = {}
 
@@ -152,49 +183,22 @@ def worker_write_shard(
         tensors: dict[str, torch.Tensor] = {}
         for src_path, triples in by_src.items():
             with safe_open(src_path, framework="pt", device="cpu") as sf:
-                for src_key, out_key, (
-                    zero_out,
-                    pad_rows,
-                    pad_cols,
-                    dup_rows,
-                    noise_scale,
-                    router_split,
-                    interp_shard_path,
-                    interp_key,
-                    interp_alpha,
-                    add_noise_std,
-                    create_shape,
-                    create_dtype,
-                ) in triples:
-                    tensor = None if create_shape else sf.get_tensor(src_key)
-                    interp_t = None
-                    if interp_key and interp_shard_path:
-                        interp_t = _get_interp_handle(interp_shard_path).get_tensor(
-                            interp_key
-                        )
-                    recipe = TensorRecipe(
-                        src_shard="",
-                        src_key=src_key,
-                        zero_out=zero_out,
-                        pad_rows=pad_rows,
-                        pad_cols=pad_cols,
-                        dup_rows=dup_rows,
-                        dup_rows_noise_scale=noise_scale,
-                        router_split=router_split,
-                        interp_src_shard="",
-                        interp_src_key=interp_key,
-                        interp_alpha=interp_alpha,
-                        add_noise_std=add_noise_std,
-                        create_shape=create_shape,
-                        create_dtype=create_dtype,
+                for src_key, out_key, recipe in triples:
+                    tensor = (
+                        None if recipe.create_shape else sf.get_tensor(src_key)
                     )
+                    interp_t = None
+                    if recipe.interp_src_key and recipe.interp_src_shard:
+                        interp_t = _get_interp_handle(
+                            recipe.interp_src_shard
+                        ).get_tensor(recipe.interp_src_key)
                     tensors[out_key] = apply_recipe(tensor, recipe, interp_t)
     finally:
         for handle in interp_handles.values():
-            handle.__exit__(None, None, None)
+            _safe_close_handle(handle)
         interp_handles.clear()
 
     tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
     save_file(tensors, str(tmp_path))
-    os.replace(str(tmp_path), str(out_path))
+    _atomic_replace(tmp_path, out_path)
     return (out_path.name, list(tensors.keys()))
