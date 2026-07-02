@@ -17,6 +17,10 @@
   <a href="README.md">English</a>
 </p>
 
+<p align="center">
+  <img src="docs/images/llmgrow.png" alt="LLM-Grow 概览">
+</p>
+
 ---
 
 从已有 LLM checkpoint **生长**出更大模型的模块化工具库。

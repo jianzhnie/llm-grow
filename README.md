@@ -17,6 +17,10 @@
   <a href="README_zh.md">中文文档</a>
 </p>
 
+<p align="center">
+<img src="docs/images/llmgrow.png" alt="LLM-Grow overview">
+</p>
+
 ---
 
 A modular toolkit for **growing** larger models from existing LLM checkpoints.
